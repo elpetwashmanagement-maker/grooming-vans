@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff } from 'lucide-react';
 
-const PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Transferencia', 'Cheque'];
+const PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Tarjeta de credito', 'Cheque'];
 const METHOD_STYLES = {
   'Efectivo':      { bg: '#dcfce7', text: '#166534', dot: '#16a34a' },
   'Zelle':         { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
-  'Transferencia': { bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
+  'Tarjeta de credito': { bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
   'Cheque':        { bg: '#fef3c7', text: '#854d0e', dot: '#d97706' },
 };
 
