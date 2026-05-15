@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff } from 'lucide-react';
 
-const PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Tarjeta credito', 'Cheque'];
+const PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Transferencia', 'Cheque'];
 const METHOD_STYLES = {
   'Efectivo':      { bg: '#dcfce7', text: '#166534', dot: '#16a34a' },
   'Zelle':         { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
-  'Tarjeta credito': { bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
+  'Transferencia': { bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
   'Cheque':        { bg: '#fef3c7', text: '#854d0e', dot: '#d97706' },
 };
 
@@ -49,20 +49,89 @@ const formatDateNice = (dateStr) => {
   return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
 };
 
+// ===== SUPABASE - Base de datos compartida =====
+import { createClient } from '@supabase/supabase-js';
+
+const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
 const KEYS = { vans: 'gv:vans', services: 'gv:services', settings: 'gv:settings', session: 'gv:session' };
 
-const loadKey = async (key, fallback) => {
+// Sesión sigue en localStorage (es solo del navegador local, no datos del negocio)
+const loadSession = () => {
   try {
-    const v = localStorage.getItem(key);
-    return v ? JSON.parse(v) : fallback;
-  } catch {
-    return fallback;
-  }
+    const v = localStorage.getItem(KEYS.session);
+    return v ? JSON.parse(v) : null;
+  } catch { return null; }
+};
+const saveSession = (s) => {
+  try {
+    if (s === null) localStorage.removeItem(KEYS.session);
+    else localStorage.setItem(KEYS.session, JSON.stringify(s));
+  } catch (e) { console.error(e); }
 };
 
-const saveKey = async (key, value) => {
-  try { localStorage.setItem(key, JSON.stringify(value)); }
-  catch (e) { console.error('Storage error:', e); }
+// Cargar/guardar datos del negocio en Supabase
+const loadVans = async () => {
+  const { data, error } = await supabase.from('vans').select('*').order('id');
+  if (error) { console.error('Error cargando vans:', error); return DEFAULT_VANS; }
+  return data || DEFAULT_VANS;
+};
+
+const saveVan = async (van) => {
+  const { error } = await supabase.from('vans').upsert({
+    id: van.id, name: van.name, groomer: van.groomer || '', pin: van.pin,
+  });
+  if (error) console.error('Error guardando van:', error);
+};
+
+const loadServices = async () => {
+  const { data, error } = await supabase.from('services').select('*').order('created_at', { ascending: false });
+  if (error) { console.error('Error cargando servicios:', error); return []; }
+  return (data || []).map(s => ({
+    id: s.id, date: s.date, vanId: s.van_id,
+    client: s.client, pet: s.pet || '', service: s.service || '',
+    method: s.method, amount: parseFloat(s.amount) || 0, tip: parseFloat(s.tip) || 0,
+    createdAt: new Date(s.created_at).getTime(),
+  }));
+};
+
+const saveService = async (service) => {
+  const { error } = await supabase.from('services').upsert({
+    id: service.id, date: service.date, van_id: service.vanId,
+    client: service.client, pet: service.pet || '', service: service.service || '',
+    method: service.method, amount: service.amount, tip: service.tip || 0,
+  });
+  if (error) console.error('Error guardando servicio:', error);
+};
+
+const deleteService = async (id) => {
+  const { error } = await supabase.from('services').delete().eq('id', id);
+  if (error) console.error('Error borrando servicio:', error);
+};
+
+const clearAllServices = async () => {
+  const { error } = await supabase.from('services').delete().neq('id', '__never__');
+  if (error) console.error('Error borrando todos:', error);
+};
+
+const loadSettings = async () => {
+  const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single();
+  if (error) { console.error('Error cargando settings:', error); return { commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN }; }
+  return {
+    commissionPct: parseFloat(data.commission_pct) || 45,
+    tipsToGroomer: parseFloat(data.tips_to_groomer) || 100,
+    adminPin: data.admin_pin || DEFAULT_ADMIN_PIN,
+  };
+};
+
+const saveSettings = async (s) => {
+  const { error } = await supabase.from('settings').upsert({
+    id: 1, commission_pct: s.commissionPct, tips_to_groomer: s.tipsToGroomer, admin_pin: s.adminPin,
+  });
+  if (error) console.error('Error guardando settings:', error);
 };
 
 export default function App() {
@@ -70,34 +139,69 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [vans, setVans] = useState(DEFAULT_VANS);
   const [services, setServices] = useState([]);
-  const [settings, setSettings] = useState({ commissionPct: 50, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN });
+  const [settings, setSettings] = useState({ commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN });
   const [session, setSession] = useState(null);
 
+  // Cargar todo desde Supabase al inicio
   useEffect(() => {
     (async () => {
-      const v = await loadKey(KEYS.vans, DEFAULT_VANS);
-      const vWithPins = v.map((van, i) => ({
-        ...van,
-        pin: van.pin || DEFAULT_VANS[i]?.pin || `${i + 1}${i + 1}${i + 1}${i + 1}`,
-      }));
-      const s = await loadKey(KEYS.services, []);
-      const st = await loadKey(KEYS.settings, { commissionPct: 50, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN });
-      if (!st.adminPin) st.adminPin = DEFAULT_ADMIN_PIN;
-      const sess = await loadKey(KEYS.session, null);
-      setVans(vWithPins); setServices(s); setSettings(st); setSession(sess);
+      const [v, s, st] = await Promise.all([loadVans(), loadServices(), loadSettings()]);
+      setVans(v);
+      setServices(s);
+      setSettings(st);
+      setSession(loadSession());
       setLoading(false);
     })();
   }, []);
 
-  useEffect(() => { if (!loading) saveKey(KEYS.vans, vans); }, [vans, loading]);
-  useEffect(() => { if (!loading) saveKey(KEYS.services, services); }, [services, loading]);
-  useEffect(() => { if (!loading) saveKey(KEYS.settings, settings); }, [settings, loading]);
-  useEffect(() => { if (!loading) saveKey(KEYS.session, session); }, [session, loading]);
+  // Sesión sigue local
+  useEffect(() => { if (!loading) saveSession(session); }, [session, loading]);
+
+  // Refrescar servicios cada 15 segundos (para que admin vea lo que registran las groomers)
+  useEffect(() => {
+    if (loading || !session) return;
+    const interval = setInterval(async () => {
+      const fresh = await loadServices();
+      setServices(fresh);
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [loading, session]);
 
   useEffect(() => {
     if (session?.type === 'van') setTab('registro');
     if (session?.type === 'admin') setTab('cierre');
   }, [session?.type]);
+
+  // Funciones que actualizan Estado + Supabase
+  const updateVans = async (newVans) => {
+    setVans(newVans);
+    for (const v of newVans) await saveVan(v);
+  };
+
+  const addService = async (service) => {
+    setServices(prev => [service, ...prev]);
+    await saveService(service);
+  };
+
+  const updateService = async (service) => {
+    setServices(prev => prev.map(s => s.id === service.id ? service : s));
+    await saveService(service);
+  };
+
+  const removeService = async (id) => {
+    setServices(prev => prev.filter(s => s.id !== id));
+    await deleteService(id);
+  };
+
+  const clearServices = async () => {
+    setServices([]);
+    await clearAllServices();
+  };
+
+  const updateSettings = async (newSettings) => {
+    setSettings(newSettings);
+    await saveSettings(newSettings);
+  };
 
   if (loading) {
     return (
@@ -145,7 +249,7 @@ export default function App() {
 
       <main style={styles.main}>
         {tab === 'registro' && (
-          <RegistroTab vans={visibleVans} services={visibleServices} setServices={setServices} fixedVanId={isAdmin ? null : session.vanId} />
+          <RegistroTab vans={visibleVans} services={visibleServices} addService={addService} updateService={updateService} removeService={removeService} fixedVanId={isAdmin ? null : session.vanId} />
         )}
         {tab === 'cierre' && (
           <CierreTab vans={visibleVans} services={visibleServices} isAdmin={isAdmin} />
@@ -154,7 +258,7 @@ export default function App() {
           <SemanaTab vans={vans} services={services} settings={settings} />
         )}
         {tab === 'config' && isAdmin && (
-          <ConfigTab vans={vans} setVans={setVans} settings={settings} setSettings={setSettings} services={services} setServices={setServices} />
+          <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings} services={services} clearServices={clearServices} />
         )}
       </main>
 
@@ -386,7 +490,7 @@ function Header({ tab, setTab, isAdmin, currentVan, onLogout }) {
   );
 }
 
-function RegistroTab({ vans, services, setServices, fixedVanId }) {
+function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId }) {
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
   const [form, setForm] = useState({
@@ -452,12 +556,15 @@ function RegistroTab({ vans, services, setServices, fixedVanId }) {
       return;
     }
     if (editingId) {
-      setServices(prev => prev.map(s => s.id === editingId ? {
-        ...s, ...form,
-        amount: parseFloat(form.amount) || 0,
-        tip: parseFloat(form.tip) || 0,
-        vanId, date,
-      } : s));
+      const existing = services.find(s => s.id === editingId);
+      if (existing) {
+        updateService({
+          ...existing, ...form,
+          amount: parseFloat(form.amount) || 0,
+          tip: parseFloat(form.tip) || 0,
+          vanId, date,
+        });
+      }
       setEditingId(null);
     } else {
       const newService = {
@@ -471,7 +578,7 @@ function RegistroTab({ vans, services, setServices, fixedVanId }) {
         tip: parseFloat(form.tip) || 0,
         createdAt: Date.now(),
       };
-      setServices(prev => [...prev, newService]);
+      addService(newService);
     }
     setForm({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' });
   };
@@ -486,7 +593,7 @@ function RegistroTab({ vans, services, setServices, fixedVanId }) {
 
   const handleDelete = (id) => {
     if (confirm('¿Eliminar este servicio?')) {
-      setServices(prev => prev.filter(s => s.id !== id));
+      removeService(id);
       if (editingId === id) {
         setEditingId(null);
         setForm({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' });
@@ -969,7 +1076,7 @@ function SemanaTab({ vans, services, settings }) {
   );
 }
 
-function ConfigTab({ vans, setVans, settings, setSettings, services, setServices }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices }) {
   const [editVan, setEditVan] = useState({});
 
   const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '' } });
@@ -982,14 +1089,15 @@ function ConfigTab({ vans, setVans, settings, setSettings, services, setServices
     const e = editVan[id];
     if (!e.name.trim()) { alert('El nombre no puede estar vacío'); return; }
     if (!/^\d{4}$/.test(e.pin)) { alert('El PIN debe ser de exactamente 4 dígitos'); return; }
-    setVans(prev => prev.map(v => v.id === id ? { ...v, name: e.name.trim(), groomer: e.groomer.trim(), pin: e.pin } : v));
+    const newVans = vans.map(v => v.id === id ? { ...v, name: e.name.trim(), groomer: e.groomer.trim(), pin: e.pin } : v);
+    updateVans(newVans);
     cancelEdit(id);
   };
 
   const clearAll = () => {
     if (confirm('¿Borrar TODOS los servicios registrados? Esta acción no se puede deshacer.')) {
       if (confirm('Confirma una vez más: ¿borrar todo el historial?')) {
-        setServices([]);
+        clearServices();
       }
     }
   };
@@ -1007,7 +1115,7 @@ function ConfigTab({ vans, setVans, settings, setSettings, services, setServices
               <input
                 type="number" min="0" max="100" step="1"
                 value={settings.commissionPct}
-                onChange={e => setSettings({ ...settings, commissionPct: parseFloat(e.target.value) || 0 })}
+                onChange={e => updateSettings({ ...settings, commissionPct: parseFloat(e.target.value) || 0 })}
                 style={{ ...styles.input, paddingRight: 32 }}
               />
               <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
@@ -1020,7 +1128,7 @@ function ConfigTab({ vans, setVans, settings, setSettings, services, setServices
               <input
                 type="number" min="0" max="100" step="1"
                 value={settings.tipsToGroomer}
-                onChange={e => setSettings({ ...settings, tipsToGroomer: parseFloat(e.target.value) || 0 })}
+                onChange={e => updateSettings({ ...settings, tipsToGroomer: parseFloat(e.target.value) || 0 })}
                 style={{ ...styles.input, paddingRight: 32 }}
               />
               <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
@@ -1043,7 +1151,7 @@ function ConfigTab({ vans, setVans, settings, setSettings, services, setServices
             value={settings.adminPin}
             onChange={e => {
               const v = e.target.value.replace(/\D/g, '').slice(0, 4);
-              setSettings({ ...settings, adminPin: v });
+              updateSettings({ ...settings, adminPin: v });
             }}
             style={{ ...styles.input, fontFamily: 'monospace', fontSize: 18, letterSpacing: '0.3em', textAlign: 'center' }}
             placeholder="0000"
