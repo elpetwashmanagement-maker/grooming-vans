@@ -16,11 +16,11 @@ const METHOD_STYLES = {
   'Cheque':         { bg: '#fef3c7', text: '#854d0e', dot: '#d97706' },
 };
 const DEFAULT_VANS = [
-  { id: 'van-1', name: 'Van 1', groomer: 'Luis',    pin: '1111' },
-  { id: 'van-2', name: 'Van 2', groomer: 'David',   pin: '2222' },
-  { id: 'van-3', name: 'Van 3', groomer: 'Valeria', pin: '3333' },
-  { id: 'van-4', name: 'Van 4', groomer: 'Stefi',   pin: '4444' },
-  { id: 'van-5', name: 'Van 5', groomer: 'Gina',    pin: '5555' },
+  { id: 'van-1', name: 'Van 1', groomer: 'Luis',    pin: '1111', commissionPct: 45 },
+  { id: 'van-2', name: 'Van 2', groomer: 'David',   pin: '2222', commissionPct: 45 },
+  { id: 'van-3', name: 'Van 3', groomer: 'Valeria', pin: '3333', commissionPct: 45 },
+  { id: 'van-4', name: 'Van 4', groomer: 'Stefi',   pin: '4444', commissionPct: 45 },
+  { id: 'van-5', name: 'Van 5', groomer: 'Gina',    pin: '5555', commissionPct: 45 },
 ];
 const DEFAULT_ADMIN_PIN = '9999';
 const DEFAULT_CATEGORIES = ['Gasolina', 'Shampoo', 'Colonias', 'Materiales', 'Mantenimiento', 'Otros'];
@@ -47,10 +47,16 @@ const saveSession = (s) => { try { if (s === null) localStorage.removeItem('gv:s
 const loadVans = async () => {
   const { data, error } = await supabase.from('vans').select('*').order('id');
   if (error) { console.error(error); return DEFAULT_VANS; }
-  return data || DEFAULT_VANS;
+  return (data || DEFAULT_VANS).map(v => ({
+    id: v.id, name: v.name, groomer: v.groomer || '', pin: v.pin,
+    commissionPct: parseFloat(v.commission_pct) || 45,
+  }));
 };
 const saveVan = async (van) => {
-  const { error } = await supabase.from('vans').upsert({ id: van.id, name: van.name, groomer: van.groomer || '', pin: van.pin });
+  const { error } = await supabase.from('vans').upsert({
+    id: van.id, name: van.name, groomer: van.groomer || '', pin: van.pin,
+    commission_pct: van.commissionPct || 45,
+  });
   if (error) console.error(error);
 };
 const loadServices = async () => {
@@ -816,16 +822,17 @@ function SemanaTab({ vans, services, expenses, settings }) {
     return vans.map(van => {
       const items = weekServices.filter(s => s.vanId === van.id);
       const vanExpenses = weekExpenses.filter(e => e.vanId === van.id);
+      const vanCommission = van.commissionPct || settings.commissionPct || 45;
       const sales = items.reduce((sum, i) => sum + i.amount, 0);
       const tips = items.reduce((sum, i) => sum + (i.tip || 0), 0);
       const cardFees = items.reduce((sum, i) => sum + (i.cardFee || 0), 0);
       const gasFees = items.length * (settings.gasFee || 7);
       const expTotal = vanExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const commission = sales * (settings.commissionPct / 100);
+      const commission = sales * (vanCommission / 100);
       const tipShare = tips * (settings.tipsToGroomer / 100);
       const totalPay = commission + tipShare - gasFees - expTotal;
       const byMethod = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = items.filter(i => i.method === m).reduce((sum, i) => sum + i.amount, 0); return acc; }, {});
-      return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, byMethod };
+      return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, byMethod, vanCommission };
     });
   }, [vans, services, expenses, start, end, settings]);
 
@@ -892,7 +899,7 @@ function SemanaTab({ vans, services, expenses, settings }) {
                   <th style={{ ...styles.th, textAlign: 'right' }}>Serv.</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Ventas</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Propinas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Comisión ({settings.commissionPct}%)</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Comisión %</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>+ Propinas</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>- Gas. (${settings.gasFee}×)</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>- Gastos</th>
@@ -906,7 +913,10 @@ function SemanaTab({ vans, services, expenses, settings }) {
                     <td style={{ ...styles.td, textAlign: 'right' }}>{r.count}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{fmt(r.sales)}</td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#64748b' }}>{fmt(r.tips)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right' }}>{fmt(r.commission)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <div>{fmt(r.commission)}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.vanCommission}%</div>
+                    </td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#64748b' }}>{fmt(r.tipShare)}</td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#dc2626' }}>-{fmt(r.gasFees)}</td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#dc2626' }}>{r.expTotal > 0 ? `-${fmt(r.expTotal)}` : '—'}</td>
@@ -938,13 +948,13 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
 
-  const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '' } });
+  const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '', commissionPct: v.commissionPct || 45 } });
   const cancelEdit = (id) => { const copy = { ...editVan }; delete copy[id]; setEditVan(copy); };
   const saveEdit = (id) => {
     const e = editVan[id];
     if (!e.name.trim()) { alert('El nombre no puede estar vacío'); return; }
     if (!/^\d{4}$/.test(e.pin)) { alert('El PIN debe ser de exactamente 4 dígitos'); return; }
-    updateVans(vans.map(v => v.id === id ? { ...v, name: e.name.trim(), groomer: e.groomer.trim(), pin: e.pin } : v));
+    updateVans(vans.map(v => v.id === id ? { ...v, name: e.name.trim(), groomer: e.groomer.trim(), pin: e.pin, commissionPct: parseFloat(e.commissionPct) || 45 } : v));
     cancelEdit(id);
   };
   const clearAll = () => {
@@ -1056,21 +1066,30 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                 {editing ? (
                   <>
                     <input value={editing.name} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, name: e.target.value } })}
-                      placeholder="Van" style={{ ...styles.input, flex: '0 0 100px' }} />
+                      placeholder="Van" style={{ ...styles.input, flex: '0 0 80px' }} />
                     <input value={editing.groomer} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, groomer: e.target.value } })}
-                      placeholder="Groomer" style={{ ...styles.input, flex: 1, minWidth: 120 }} />
+                      placeholder="Groomer" style={{ ...styles.input, flex: 1, minWidth: 100 }} />
                     <input type="text" maxLength="4" value={editing.pin}
                       onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, pin: e.target.value.replace(/\D/g, '').slice(0, 4) } })}
-                      placeholder="PIN" style={{ ...styles.input, flex: '0 0 90px', fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} />
+                      placeholder="PIN" style={{ ...styles.input, flex: '0 0 80px', fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} />
+                    <div style={{ position: 'relative', flex: '0 0 90px' }}>
+                      <input type="number" min="0" max="100" step="1" value={editing.commissionPct}
+                        onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, commissionPct: e.target.value } })}
+                        style={{ ...styles.input, paddingRight: 24 }} />
+                      <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                    </div>
                     <button onClick={() => saveEdit(v.id)} style={styles.iconBtnGreen}><Check size={16} /></button>
                     <button onClick={() => cancelEdit(v.id)} style={styles.iconBtn}><X size={16} /></button>
                   </>
                 ) : (
                   <>
-                    <div style={{ flex: '0 0 100px', fontWeight: 600 }}>{v.name}</div>
-                    <div style={{ flex: 1, minWidth: 120, color: v.groomer ? '#0f172a' : '#94a3b8' }}>{v.groomer || 'Sin groomer'}</div>
-                    <div style={{ flex: '0 0 90px', fontFamily: 'monospace', textAlign: 'center', background: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', letterSpacing: '0.15em', color: '#475569' }}>
+                    <div style={{ flex: '0 0 80px', fontWeight: 600 }}>{v.name}</div>
+                    <div style={{ flex: 1, minWidth: 100, color: v.groomer ? '#0f172a' : '#94a3b8' }}>{v.groomer || 'Sin groomer'}</div>
+                    <div style={{ flex: '0 0 80px', fontFamily: 'monospace', textAlign: 'center', background: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', letterSpacing: '0.15em', color: '#475569' }}>
                       {v.pin || '----'}
+                    </div>
+                    <div style={{ flex: '0 0 70px', textAlign: 'center', background: '#f0fdfa', padding: '6px 10px', borderRadius: 6, border: '1px solid #ccfbf1', color: '#0f766e', fontWeight: 700, fontSize: 13 }}>
+                      {v.commissionPct || 45}%
                     </div>
                     <button onClick={() => startEdit(v)} style={styles.iconBtn}><Edit2 size={15} /></button>
                   </>
