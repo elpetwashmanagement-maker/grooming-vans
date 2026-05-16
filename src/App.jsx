@@ -205,7 +205,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <LoginScreen users={users} onLogin={setSession} />;
+  if (!session) return <LoginScreen users={users} vans={vans} onLogin={setSession} loadingUsers={loading} />;
 
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
@@ -266,7 +266,7 @@ export default function App() {
 }
 
 // ===== LOGIN =====
-function LoginScreen({ users, onLogin }) {
+function LoginScreen({ users, vans, onLogin, loadingUsers }) {
   const [step, setStep] = useState('select');
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
@@ -392,8 +392,34 @@ function LoginScreen({ users, onLogin }) {
               </div>
             )}
 
-            {users.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#94a3b8', fontSize: 13 }}>
+            {users.length === 0 && !loadingUsers && (
+              // Fallback con vans si Supabase no carga los usuarios
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Groomers</div>
+                <div style={styles.vanTilesGrid}>
+                  {vans.map(v => (
+                    <button key={v.id} onClick={() => handleSelect({
+                      id: v.id, name: v.groomer || v.name, role: 'groomer', pin: v.pin, van_id: v.id,
+                      can_create_clients: true, can_view_clients: false, can_schedule: true,
+                      can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
+                    })} className="user-tile" style={styles.vanTile}>
+                      <div style={styles.vanTileIcon}><Truck size={20} color="#0f766e" /></div>
+                      <div style={styles.vanTileName}>{v.groomer || v.name}</div>
+                      <div style={styles.vanTileSub}>{v.name}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={styles.loginDivider}><span>o</span></div>
+                <button onClick={() => handleSelect({
+                  id: 'admin', name: 'Admin', role: 'admin', pin: '2019', van_id: null,
+                  can_create_clients: true, can_view_clients: true, can_schedule: true,
+                  can_view_all_schedule: true, can_view_finances: true, can_view_reports: true, can_edit_config: true,
+                })} style={styles.adminAccessBtn}><Lock size={15} />Acceso administrador</button>
+              </div>
+            )}
+            {loadingUsers && (
+              <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+                <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#0f766e', display: 'block', margin: '0 auto 12px' }} />
                 Cargando usuarios...
               </div>
             )}
