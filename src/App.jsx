@@ -373,6 +373,11 @@ export default function App() {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
     await updateAppointmentStatus(id, status);
   };
+  const deleteAppt = async (id) => {
+    setAppointments(prev => prev.filter(a => a.id !== id));
+    await supabase.from('appointment_pets').delete().eq('appointment_id', id);
+    await supabase.from('appointments').delete().eq('id', id);
+  };
   const refreshAppointments = async () => {
     const appts = await loadAppointments();
     setAppointments(appts);
@@ -388,6 +393,12 @@ export default function App() {
     const ok = await saveClient(client);
     if (ok) setClients(prev => prev.map(c => c.id === client.id ? client : c));
     return ok;
+  };
+  const removeClient = async (id) => {
+    if (!confirm('¿Borrar este cliente y todas sus mascotas? No se puede deshacer.')) return;
+    setClients(prev => prev.filter(c => c.id !== id));
+    await supabase.from('pets').delete().eq('client_id', id);
+    await supabase.from('clients').delete().eq('id', id);
   };
 
   // Mascotas
@@ -453,14 +464,14 @@ export default function App() {
             session={session} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={addAppointment} addClient={addClient} addPet={addPet}
-            refreshAppointments={refreshAppointments}
+            refreshAppointments={refreshAppointments} deleteAppt={deleteAppt}
           />
         )}
         {tab === 'clientes' && (
           <ClientesTab
             clients={clients} pets={pets} appointments={appointments}
             session={session} isAdmin={isAdmin || session?.role === 'manager'}
-            addClient={addClient} updateClient={updateClient}
+            addClient={addClient} updateClient={updateClient} removeClient={removeClient}
             addPet={addPet} updatePet={updatePet}
           />
         )}
@@ -1149,7 +1160,7 @@ const HAIR_TYPES = ['Short Hair','Long Hair'];
 const STATUS_LABELS = { unconfirmed: 'Por confirmar', confirmed: 'Confirmada', in_progress: 'En progreso', completed: 'Completada', cancelled: 'Cancelada' };
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
-function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments }) {
+function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt }) {
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showGroomingForm, setShowGroomingForm] = useState(null);
@@ -1497,6 +1508,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         <button onClick={() => { if (confirm('¿Cancelar esta cita?')) updateApptStatus(appt.id, 'cancelled'); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
                           <X size={14} /> Cancelar
+                        </button>
+                      )}
+                      {appt.status === 'cancelled' && isAdmin && (
+                        <button onClick={() => { if (confirm('¿Borrar esta cita permanentemente? No se puede deshacer.')) deleteAppt(appt.id); }}
+                          style={{ ...styles.btnDanger, justifyContent: 'center', background: 'var(--color-background-danger)' }}>
+                          <Trash2 size={14} /> Borrar
                         </button>
                       )}
                     </div>
@@ -2333,7 +2350,7 @@ function KpiCard({ label, value, highlight, accent }) {
 }
 
 // ===== CLIENTES TAB =====
-function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, addPet, updatePet }) {
+function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewClient, setShowNewClient] = useState(false);
@@ -2469,6 +2486,12 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                     </span>
                     {isAdmin && (
                       <button onClick={e => { e.stopPropagation(); startEditClient(c); }} style={styles.iconBtn}><Edit2 size={13} /></button>
+                    )}
+                    {isAdmin && (
+                      <button onClick={e => { e.stopPropagation(); removeClient(c.id); setSelectedClient(null); }}
+                        style={{ ...styles.iconBtn, color: 'var(--color-text-danger)' }} title="Borrar cliente">
+                        <Trash2 size={13} />
+                      </button>
                     )}
                   </div>
                 </div>
