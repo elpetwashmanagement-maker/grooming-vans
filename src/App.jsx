@@ -456,6 +456,15 @@ export default function App() {
             refreshAppointments={refreshAppointments}
           />
         )}
+        {tab === 'clientes' && (
+          <ClientesTab
+            clients={clients} pets={pets} appointments={appointments}
+            session={session} isAdmin={isAdmin || session?.role === 'manager'}
+            addClient={addClient} updateClient={updateClient}
+            addPet={addPet} updatePet={updatePet}
+          />
+        )}
+        {tab === 'registro' && (
           <RegistroTab
             vans={visibleVans} services={visibleServices} addService={addService}
             updateService={updateService} removeService={removeService}
@@ -679,6 +688,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 
   const tabs = [
     { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
+    { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
     { id: 'registro', label: isGroomer ? 'Cobrar' : 'Registro', icon: Plus, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
@@ -2277,6 +2287,265 @@ function KpiCard({ label, value, highlight, accent }) {
     <div style={{ ...styles.kpiCard, ...(highlight ? { background: '#fff' } : {}), ...(accent ? { background: '#0f766e', borderColor: '#0f766e' } : {}) }}>
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.1em', color: accent ? 'rgba(255,255,255,0.75)' : '#64748b', fontWeight: 600 }}>{label}</div>
       <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 600, marginTop: 6, color: accent ? '#fff' : '#0f172a', letterSpacing: '-0.02em' }}>{value}</div>
+    </div>
+  );
+}
+
+// ===== CLIENTES TAB =====
+function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, addPet, updatePet }) {
+  const [search, setSearch] = useState('');
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [showNewPet, setShowNewPet] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
+  const [editingPet, setEditingPet] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [clientForm, setClientForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
+  const [petForm, setPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+
+  const canViewPhone = isAdmin || session?.permissions?.can_view_clients;
+
+  const filteredClients = useMemo(() => {
+    if (!search.trim()) return clients;
+    return clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.address?.toLowerCase().includes(search.toLowerCase()));
+  }, [clients, search]);
+
+  const clientPets = useMemo(() => {
+    if (!selectedClient) return [];
+    return pets.filter(p => p.client_id === selectedClient.id);
+  }, [pets, selectedClient]);
+
+  const clientHistory = useMemo(() => {
+    if (!selectedClient) return [];
+    return appointments.filter(a => a.clientId === selectedClient.id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
+  }, [appointments, selectedClient]);
+
+  const handleSaveClient = async () => {
+    if (!clientForm.name.trim()) { alert('Ingresa el nombre'); return; }
+    setSaving(true);
+    if (editingClient) {
+      await updateClient({ ...editingClient, ...clientForm, name: clientForm.name.trim() });
+      setEditingClient(null);
+    } else {
+      await addClient({ id: uid(), ...clientForm, name: clientForm.name.trim(), active: true });
+      setShowNewClient(false);
+    }
+    setClientForm({ name: '', phone: '', email: '', address: '', notes: '' });
+    setSaving(false);
+  };
+
+  const handleSavePet = async () => {
+    if (!petForm.name.trim()) { alert('Ingresa el nombre de la mascota'); return; }
+    if (!selectedClient) return;
+    setSaving(true);
+    if (editingPet) {
+      await updatePet({ ...editingPet, ...petForm, name: petForm.name.trim(), clientId: selectedClient.id, client_id: selectedClient.id });
+      setEditingPet(null);
+    } else {
+      await addPet({ id: uid(), ...petForm, name: petForm.name.trim(), clientId: selectedClient.id, client_id: selectedClient.id });
+      setShowNewPet(false);
+    }
+    setPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+    setSaving(false);
+  };
+
+  const startEditClient = (c) => {
+    setEditingClient(c);
+    setClientForm({ name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', notes: c.notes || '' });
+    setSelectedClient(null);
+  };
+
+  const startEditPet = (p) => {
+    setEditingPet(p);
+    setPetForm({ name: p.name, breed: p.breed || '', size: p.size || 'Small (1-20 lbs)', hairType: p.hair_type || 'Short Hair', age: p.age || '', color: p.color || '', weight: p.weight || '', allergies: p.allergies || '', medicalNotes: p.medical_notes || '', behaviorNotes: p.behavior_notes || '' });
+    setShowNewPet(false);
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Base de datos" title="Clientes y mascotas"
+        right={
+          <button onClick={() => { setShowNewClient(true); setEditingClient(null); setClientForm({ name: '', phone: '', email: '', address: '', notes: '' }); }} style={styles.btnPrimary}>
+            <Plus size={15} /> Nuevo cliente
+          </button>
+        }
+      />
+
+      {/* Formulario nuevo/editar cliente */}
+      {(showNewClient || editingClient) && (
+        <div style={{ ...styles.card, marginBottom: 20, border: `1px solid var(--color-border-${editingClient ? 'warning' : 'info'})`, background: `var(--color-background-${editingClient ? 'warning' : 'info'})` }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ ...styles.cardH3, margin: 0 }}>{editingClient ? 'Editar cliente' : 'Nuevo cliente'}</h3>
+            <button onClick={() => { setShowNewClient(false); setEditingClient(null); }} style={styles.iconBtn}><X size={16} /></button>
+          </div>
+          <div style={styles.formGrid}>
+            <div><label style={styles.lbl}>Nombre *</label><input value={clientForm.name} onChange={e => setClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
+            <div><label style={styles.lbl}>Teléfono</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
+            <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={clientForm.address} onChange={e => setClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
+            <div><label style={styles.lbl}>Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
+            <div><label style={styles.lbl}>Notas internas (solo admin)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Notas privadas..." /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+            <button onClick={() => { setShowNewClient(false); setEditingClient(null); }} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+            <button onClick={handleSaveClient} style={styles.btnPrimary} disabled={saving}>
+              {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+              {saving ? 'Guardando...' : editingClient ? 'Guardar cambios' : 'Crear cliente'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 1.5fr' : '1fr', gap: 20 }}>
+        {/* Lista de clientes */}
+        <div>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <input value={search} onChange={e => setSearch(e.target.value)} style={styles.input} placeholder="Buscar cliente..." />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 500, overflowY: 'auto' }}>
+            {filteredClients.map(c => (
+              <div key={c.id} onClick={() => setSelectedClient(selectedClient?.id === c.id ? null : c)}
+                className="row-hover" style={{ padding: '10px 12px', background: selectedClient?.id === c.id ? 'var(--color-background-info)' : 'var(--color-background-primary)', border: `0.5px solid ${selectedClient?.id === c.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 10, cursor: 'pointer' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{c.address || 'Sin dirección'}</div>
+                    {canViewPhone && c.phone && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 2 }}>{c.phone}</div>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-background-secondary)', padding: '2px 6px', borderRadius: 999 }}>
+                      {pets.filter(p => p.client_id === c.id).length} 🐾
+                    </span>
+                    {isAdmin && (
+                      <button onClick={e => { e.stopPropagation(); startEditClient(c); }} style={styles.iconBtn}><Edit2 size={13} /></button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {filteredClients.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-secondary)', fontSize: 13 }}>
+                {search ? 'No se encontraron clientes' : 'Sin clientes aún'}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Detalle del cliente */}
+        {selectedClient && (
+          <div>
+            {/* Info del cliente */}
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>{selectedClient.name}</h3>
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>{selectedClient.address}</div>
+                </div>
+                <button onClick={() => setSelectedClient(null)} style={styles.iconBtn}><X size={15} /></button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {canViewPhone && selectedClient.phone && (
+                  <div style={{ display: 'flex', gap: 8, fontSize: 13 }}><span style={{ color: 'var(--color-text-secondary)', width: 60 }}>Teléfono</span><span style={{ color: 'var(--color-text-info)', fontWeight: 500 }}>{selectedClient.phone}</span></div>
+                )}
+                {canViewPhone && selectedClient.email && (
+                  <div style={{ display: 'flex', gap: 8, fontSize: 13 }}><span style={{ color: 'var(--color-text-secondary)', width: 60 }}>Email</span><span>{selectedClient.email}</span></div>
+                )}
+                {isAdmin && selectedClient.notes && (
+                  <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)' }}>
+                    📝 {selectedClient.notes}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                  {clientHistory.length} visita{clientHistory.length !== 1 ? 's' : ''} registrada{clientHistory.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+            </div>
+
+            {/* Mascotas del cliente */}
+            <div style={{ ...styles.card, marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ ...styles.cardH3, margin: 0 }}>Mascotas</h3>
+                <button onClick={() => { setShowNewPet(true); setEditingPet(null); setPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' }); }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+                  <Plus size={13} /> Agregar
+                </button>
+              </div>
+
+              {/* Formulario nueva/editar mascota */}
+              {(showNewPet || editingPet) && (
+                <div style={{ padding: 12, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 10 }}>{editingPet ? 'Editar mascota' : 'Nueva mascota'}</div>
+                  <div style={styles.formGrid}>
+                    <div><label style={styles.lbl}>Nombre *</label><input value={petForm.name} onChange={e => setPetForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre" /></div>
+                    <div><label style={styles.lbl}>Raza</label><input value={petForm.breed} onChange={e => setPetForm(f => ({...f, breed: e.target.value}))} style={styles.input} placeholder="Raza" /></div>
+                    <div><label style={styles.lbl}>Tamaño</label><select value={petForm.size} onChange={e => setPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div><label style={styles.lbl}>Tipo de pelo</label><select value={petForm.hairType} onChange={e => setPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                    <div><label style={styles.lbl}>Edad</label><input value={petForm.age} onChange={e => setPetForm(f => ({...f, age: e.target.value}))} style={styles.input} placeholder="Ej: 3 años" /></div>
+                    <div><label style={styles.lbl}>Color</label><input value={petForm.color} onChange={e => setPetForm(f => ({...f, color: e.target.value}))} style={styles.input} placeholder="Ej: Blanco y negro" /></div>
+                    <div><label style={styles.lbl}>Peso (lbs)</label><input type="number" value={petForm.weight} onChange={e => setPetForm(f => ({...f, weight: e.target.value}))} style={styles.input} placeholder="0" /></div>
+                    <div><label style={styles.lbl}>Alergias</label><input value={petForm.allergies} onChange={e => setPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="Ninguna" /></div>
+                    <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas médicas</label><input value={petForm.medicalNotes} onChange={e => setPetForm(f => ({...f, medicalNotes: e.target.value}))} style={styles.input} placeholder="Condiciones médicas..." /></div>
+                    <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas de comportamiento</label><input value={petForm.behaviorNotes} onChange={e => setPetForm(f => ({...f, behaviorNotes: e.target.value}))} style={styles.input} placeholder="Ej: Ansioso con tijeras, mordió en visita anterior..." /></div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+                    <button onClick={() => { setShowNewPet(false); setEditingPet(null); }} style={styles.btnSecondary}><X size={13} /> Cancelar</button>
+                    <button onClick={handleSavePet} style={styles.btnPrimary} disabled={saving}>
+                      {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={13} />}
+                      {saving ? 'Guardando...' : 'Guardar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {clientPets.length === 0 && !showNewPet ? (
+                <div style={{ textAlign: 'center', padding: 16, color: 'var(--color-text-secondary)', fontSize: 13 }}>Sin mascotas registradas</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {clientPets.map(p => (
+                    <div key={p.id} style={{ padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <div style={{ fontWeight: 500, fontSize: 14 }}>🐾 {p.name}</div>
+                          <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                            {[p.breed, p.size?.split('(')[0]?.trim(), p.hair_type].filter(Boolean).join(' · ')}
+                          </div>
+                          {p.age && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{p.age} {p.weight ? `· ${p.weight} lbs` : ''} {p.color ? `· ${p.color}` : ''}</div>}
+                          {p.allergies && <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginTop: 3 }}>⚠️ Alergias: {p.allergies}</div>}
+                          {p.behavior_notes && <div style={{ fontSize: 11, color: 'var(--color-text-warning)', marginTop: 2 }}>🔔 {p.behavior_notes}</div>}
+                          {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade} {p.last_combo ? `· Combo ${p.last_combo}` : ''}</div>}
+                        </div>
+                        <button onClick={() => startEditPet(p)} style={styles.iconBtn}><Edit2 size={13} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Historial de citas */}
+            {clientHistory.length > 0 && (
+              <div style={{ ...styles.card, marginTop: 12 }}>
+                <h3 style={{ ...styles.cardH3, marginBottom: 10 }}>Historial de visitas</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {clientHistory.map(a => {
+                    const sc = STATUS_COLORS[a.status] || STATUS_COLORS.unconfirmed;
+                    return (
+                      <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: 13 }}>
+                        <div>
+                          <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 999, background: sc.bg, color: sc.text, marginRight: 8 }}>{STATUS_LABELS[a.status]}</span>
+                          {formatDateNice(a.date)}
+                        </div>
+                        <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{a.timeStart}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
