@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 // ===== SUPABASE =====
@@ -75,13 +75,112 @@ const saveAuditLog = async (session, action, description, entity = null, entityI
   if (!session) return;
   try {
     await supabase.from('audit_log').insert({
-      id: uid(),
-      user_id: session.userId,
-      user_name: session.userName,
-      user_role: session.role,
-      action, entity, entity_id: entityId, description,
+      id: uid(), user_id: session.userId, user_name: session.userName,
+      user_role: session.role, action, entity, entity_id: entityId, description,
     });
   } catch(e) { console.error('Audit log error:', e); }
+};
+
+// ===== CLIENTES =====
+const loadClients = async () => {
+  const { data, error } = await supabase.from('clients').select('*').eq('active', true).order('name');
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+const saveClient = async (client) => {
+  const { error } = await supabase.from('clients').upsert({
+    id: client.id, name: client.name, phone: client.phone || '',
+    email: client.email || '', address: client.address || '',
+    notes: client.notes || '', active: client.active !== false,
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+// ===== MASCOTAS =====
+const loadPets = async () => {
+  const { data, error } = await supabase.from('pets').select('*').order('name');
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+const savePet = async (pet) => {
+  const { error } = await supabase.from('pets').upsert({
+    id: pet.id, client_id: pet.clientId, name: pet.name, breed: pet.breed || '',
+    size: pet.size || '', hair_type: pet.hairType || '', weight: pet.weight || 0,
+    color: pet.color || '', age: pet.age || '', allergies: pet.allergies || '',
+    medical_notes: pet.medicalNotes || '', behavior_notes: pet.behaviorNotes || '',
+    last_blade: pet.lastBlade || '', last_combo: pet.lastCombo || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+// ===== CITAS =====
+const loadAppointments = async () => {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select(`*, appointment_pets(*, pets(*)), clients(*)`)
+    .order('date').order('time_start');
+  if (error) { console.error(error); return []; }
+  return (data || []).map(a => ({
+    id: a.id, date: a.date, timeStart: a.time_start, timeEnd: a.time_end || '',
+    vanId: a.van_id, clientId: a.client_id, status: a.status || 'unconfirmed',
+    notes: a.notes || '', alertNotes: a.alert_notes || '',
+    agreementSigned: a.agreement_signed || false,
+    client: a.clients ? { id: a.clients.id, name: a.clients.name, phone: a.clients.phone, address: a.clients.address } : null,
+    pets: (a.appointment_pets || []).map(ap => ({
+      id: ap.id, petId: ap.pet_id, service: ap.service || '', amount: parseFloat(ap.amount) || 0,
+      tip: parseFloat(ap.tip) || 0, cardFee: parseFloat(ap.card_fee) || 0,
+      method: ap.method || 'Efectivo', status: ap.status || 'pending',
+      checkinTime: ap.checkin_time || '', checkoutTime: ap.checkout_time || '',
+      pet: ap.pets ? { id: ap.pets.id, name: ap.pets.name, breed: ap.pets.breed, size: ap.pets.size, lastBlade: ap.pets.last_blade, lastCombo: ap.pets.last_combo } : null,
+    })),
+    createdAt: new Date(a.created_at).getTime(),
+  }));
+};
+const saveAppointment = async (appt) => {
+  const { error } = await supabase.from('appointments').upsert({
+    id: appt.id, date: appt.date, time_start: appt.timeStart, time_end: appt.timeEnd || '',
+    van_id: appt.vanId, client_id: appt.clientId, status: appt.status || 'unconfirmed',
+    notes: appt.notes || '', alert_notes: appt.alertNotes || '',
+    agreement_signed: appt.agreementSigned || false,
+  });
+  if (error) console.error(error);
+  return !error;
+};
+const updateAppointmentStatus = async (id, status) => {
+  await supabase.from('appointments').update({ status }).eq('id', id);
+};
+const saveAppointmentPet = async (ap) => {
+  const { error } = await supabase.from('appointment_pets').upsert({
+    id: ap.id, appointment_id: ap.appointmentId, pet_id: ap.petId,
+    service: ap.service || '', amount: ap.amount || 0, tip: ap.tip || 0,
+    card_fee: ap.cardFee || 0, method: ap.method || 'Efectivo',
+    status: ap.status || 'pending', checkin_time: ap.checkinTime || '',
+    checkout_time: ap.checkoutTime || '',
+  });
+  if (error) console.error(error);
+};
+
+// ===== FICHA DE GROOMING =====
+const saveGroomingRecord = async (record) => {
+  const { error } = await supabase.from('grooming_records').upsert({
+    id: record.id, appointment_id: record.appointmentId, pet_id: record.petId,
+    van_id: record.vanId, date: record.date, blade: record.blade || '',
+    combo: record.combo || '', head: record.head || '', ears: record.ears || '',
+    body: record.body || '', legs: record.legs || '', tail: record.tail || '',
+    notes: record.notes || '', health_skin: record.healthSkin || '',
+    health_ears: record.healthEars || '', health_nails: record.healthNails || '',
+    health_behavior: record.healthBehavior || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+const loadGroomingRecords = async (petId) => {
+  const { data, error } = await supabase.from('grooming_records')
+    .select('*').eq('pet_id', petId).order('date', { ascending: false }).limit(5);
+  if (error) { console.error(error); return []; }
+  return data || [];
 };
 
 const loadVans = async () => {
@@ -194,13 +293,19 @@ export default function App() {
   const [settings, setSettings] = useState({ commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00 });
   const [session, setSession] = useState(null);
   const [users, setUsers] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [pets, setPets] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us] = await Promise.all([
-        loadVans(), loadServices(), loadSettings(), loadExpenses(), loadCategories(), loadUsers()
+      const [v, s, st, ex, cats, us, appts, cls, pts] = await Promise.all([
+        loadVans(), loadServices(), loadSettings(), loadExpenses(),
+        loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets()
       ]);
-      setVans(v); setServices(s); setSettings(st); setExpenses(ex); setCategories(cats); setUsers(us);
+      setVans(v); setServices(s); setSettings(st); setExpenses(ex);
+      setCategories(cats); setUsers(us); setAppointments(appts);
+      setClients(cls); setPets(pts);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -259,6 +364,44 @@ export default function App() {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, active } : u));
   };
 
+  // Citas
+  const addAppointment = async (appt) => {
+    setAppointments(prev => [...prev, appt]);
+    await saveAppointment(appt);
+  };
+  const updateApptStatus = async (id, status) => {
+    setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
+    await updateAppointmentStatus(id, status);
+  };
+  const refreshAppointments = async () => {
+    const appts = await loadAppointments();
+    setAppointments(appts);
+  };
+
+  // Clientes
+  const addClient = async (client) => {
+    const ok = await saveClient(client);
+    if (ok) setClients(prev => [...prev, client].sort((a,b) => a.name.localeCompare(b.name)));
+    return ok;
+  };
+  const updateClient = async (client) => {
+    const ok = await saveClient(client);
+    if (ok) setClients(prev => prev.map(c => c.id === client.id ? client : c));
+    return ok;
+  };
+
+  // Mascotas
+  const addPet = async (pet) => {
+    const ok = await savePet(pet);
+    if (ok) setPets(prev => [...prev, pet]);
+    return ok;
+  };
+  const updatePet = async (pet) => {
+    const ok = await savePet(pet);
+    if (ok) setPets(prev => prev.map(p => p.id === pet.id ? pet : p));
+    return ok;
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingScreen}>
@@ -304,7 +447,15 @@ export default function App() {
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
         onLogout={() => setSession(null)} />
       <main style={styles.main}>
-        {tab === 'registro' && (
+        {tab === 'citas' && (
+          <CitasTab
+            appointments={appointments} vans={visibleVans} clients={clients} pets={pets}
+            session={session} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
+            canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
+            addAppointment={addAppointment} addClient={addClient} addPet={addPet}
+            refreshAppointments={refreshAppointments}
+          />
+        )}
           <RegistroTab
             vans={visibleVans} services={visibleServices} addService={addService}
             updateService={updateService} removeService={removeService}
@@ -527,7 +678,8 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const isGroomer = session?.role === 'groomer';
 
   const tabs = [
-    { id: 'registro', label: 'Registro', icon: Plus, show: true },
+    { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
+    { id: 'registro', label: isGroomer ? 'Cobrar' : 'Registro', icon: Plus, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
     { id: 'auditoria', label: 'Auditoría', icon: FileText, show: isAdmin },
@@ -977,6 +1129,464 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
 }
 
 // ===== CIERRE DIARIO =====
+// ===== CITAS TAB =====
+const BLADES = ['#3F','#4F','#5F','#7F','#10','#15','#30','#40','#50'];
+const COMBOS = ['#0 (5/8")','#1 (1/2")','#2 (3/8")','#4 (1/4")','#5 (1/8")','#A (3/4")','#C (7/8")','#E (1")'];
+const SIZES = ['Small (1-20 lbs)','Medium (21-40 lbs)','Large (41-60 lbs)','Big (61-80 lbs)','Extra Large (81-100 lbs)','Giant (100-120 lbs)','Extra Giant (+120 lbs)'];
+const HAIR_TYPES = ['Short Hair','Long Hair'];
+const STATUS_LABELS = { unconfirmed: 'Por confirmar', confirmed: 'Confirmada', in_progress: 'En progreso', completed: 'Completada', cancelled: 'Cancelada' };
+const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
+
+function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments }) {
+  const [date, setDate] = useState(todayISO());
+  const [selectedAppt, setSelectedAppt] = useState(null);
+  const [showGroomingForm, setShowGroomingForm] = useState(null);
+  const [showNewAppt, setShowNewAppt] = useState(false);
+  const [showNewClient, setShowNewClient] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [groomingRecord, setGroomingRecord] = useState({ blade: '', combo: '', head: '', ears: '', body: '', legs: '', tail: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
+  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [] });
+  const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
+  const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
+  const [addingPet, setAddingPet] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
+
+  const isGroomer = session?.role === 'groomer';
+  const myVanId = session?.vanId;
+
+  const dayAppts = useMemo(() => {
+    let list = appointments.filter(a => a.date === date);
+    if (isGroomer) list = list.filter(a => a.vanId === myVanId);
+    return list.sort((a,b) => a.timeStart.localeCompare(b.timeStart));
+  }, [appointments, date, isGroomer, myVanId]);
+
+  const filteredClients = useMemo(() => {
+    if (!clientSearch.trim()) return clients.slice(0, 8);
+    return clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8);
+  }, [clients, clientSearch]);
+
+  const clientPets = useMemo(() => {
+    if (!newApptForm.clientId) return [];
+    return pets.filter(p => p.client_id === newApptForm.clientId);
+  }, [pets, newApptForm.clientId]);
+
+  const handleCheckin = async (apptId) => {
+    await updateApptStatus(apptId, 'in_progress');
+    await refreshAppointments();
+  };
+
+  const handleComplete = async (apptId) => {
+    await updateApptStatus(apptId, 'completed');
+    await refreshAppointments();
+    setSelectedAppt(null);
+  };
+
+  const handleSaveGrooming = async (apptId, petId) => {
+    if (!groomingRecord.blade && !groomingRecord.notes) { alert('Completa al menos el blade o las notas'); return; }
+    setSaving(true);
+    const record = { id: uid(), appointmentId: apptId, petId, vanId: myVanId || vans[0]?.id, date, ...groomingRecord };
+    await saveGroomingRecord(record);
+    if (petId) {
+      await supabase.from('pets').update({ last_blade: groomingRecord.blade, last_combo: groomingRecord.combo }).eq('id', petId);
+    }
+    setSaving(false);
+    setShowGroomingForm(null);
+    setGroomingRecord({ blade: '', combo: '', head: '', ears: '', body: '', legs: '', tail: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
+    alert('✅ Ficha guardada correctamente');
+  };
+
+  const handleCreateClient = async () => {
+    if (!newClientForm.name.trim()) { alert('Ingresa el nombre del cliente'); return; }
+    setSaving(true);
+    const client = { id: uid(), ...newClientForm, name: newClientForm.name.trim(), active: true };
+    await addClient(client);
+    setNewApptForm(f => ({ ...f, clientId: client.id }));
+    setShowNewClient(false);
+    setNewClientForm({ name: '', phone: '', address: '', email: '' });
+    setSaving(false);
+  };
+
+  const handleCreateAppt = async () => {
+    if (!newApptForm.clientId) { alert('Selecciona un cliente'); return; }
+    if (!newApptForm.timeStart) { alert('Ingresa la hora de inicio'); return; }
+    setSaving(true);
+    const appt = {
+      id: uid(), date, timeStart: newApptForm.timeStart, timeEnd: newApptForm.timeEnd,
+      vanId: newApptForm.vanId, clientId: newApptForm.clientId,
+      status: 'unconfirmed', notes: newApptForm.notes, alertNotes: newApptForm.alertNotes,
+      agreementSigned: false,
+      client: clients.find(c => c.id === newApptForm.clientId) || null,
+      pets: newApptForm.petIds.map(pid => {
+        const p = pets.find(pt => pt.id === pid);
+        return { id: uid(), petId: pid, service: '', amount: 0, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size } : null };
+      }),
+    };
+    await addAppointment(appt);
+    for (const ap of appt.pets) await saveAppointmentPet({ ...ap, appointmentId: appt.id });
+    setSaving(false);
+    setShowNewAppt(false);
+    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [] });
+    setClientSearch('');
+  };
+
+  const openMaps = (address) => {
+    if (!address) return;
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`, '_blank');
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow={isGroomer ? `Van ${vans.find(v=>v.id===myVanId)?.name || ''} · ${session?.userName}` : 'Agenda'} title={formatDateNice(date)}
+        right={
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: 13 }} />
+            <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> Nueva cita</button>
+          </div>
+        }
+      />
+
+      {/* Formulario nueva cita */}
+      {showNewAppt && (
+        <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>Nueva cita — {formatDateNice(date)}</h3>
+            <button onClick={() => setShowNewAppt(false)} style={styles.iconBtn}><X size={16} /></button>
+          </div>
+
+          {/* Buscar cliente */}
+          <div style={styles.formGrid}>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Cliente *</label>
+              <div style={{ position: 'relative' }}>
+                <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: ''})); }}
+                  style={styles.input} placeholder="Buscar cliente por nombre..." />
+                {clientSearch && filteredClients.length > 0 && !newApptForm.clientId && (
+                  <div style={styles.suggestionsBox}>
+                    {filteredClients.map(c => (
+                      <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
+                        className="suggestion-hover" style={styles.suggestionItem}>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{c.address}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {!newApptForm.clientId && (
+                <button onClick={() => setShowNewClient(true)} style={{ ...styles.btnSecondary, marginTop: 6, fontSize: 12, padding: '5px 10px' }}>
+                  <Plus size={13} /> Cliente nuevo
+                </button>
+              )}
+              {newApptForm.clientId && (
+                <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-success)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-success)' }}>
+                  ✅ {clients.find(c => c.id === newApptForm.clientId)?.name} — {clients.find(c => c.id === newApptForm.clientId)?.address}
+                </div>
+              )}
+            </div>
+
+            {!isGroomer && (
+              <div>
+                <label style={styles.lbl}>Van</label>
+                <select value={newApptForm.vanId} onChange={e => setNewApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
+                  {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer}</option>)}
+                </select>
+              </div>
+            )}
+            <div>
+              <label style={styles.lbl}>Hora inicio</label>
+              <input type="time" value={newApptForm.timeStart} onChange={e => setNewApptForm(f => ({...f, timeStart: e.target.value}))} style={styles.input} />
+            </div>
+            <div>
+              <label style={styles.lbl}>Hora fin (estimada)</label>
+              <input type="time" value={newApptForm.timeEnd} onChange={e => setNewApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Notas (opcional)</label>
+              <input value={newApptForm.notes} onChange={e => setNewApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>⚠️ Notas de alerta (privado)</label>
+              <input value={newApptForm.alertNotes} onChange={e => setNewApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo, cliente difícil..." />
+            </div>
+          </div>
+
+          {/* Mascotas */}
+          {newApptForm.clientId && clientPets.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <label style={styles.lbl}>Mascotas</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                {clientPets.map(p => (
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: newApptForm.petIds.includes(p.id) ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 999, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="checkbox" checked={newApptForm.petIds.includes(p.id)}
+                      onChange={e => setNewApptForm(f => ({ ...f, petIds: e.target.checked ? [...f.petIds, p.id] : f.petIds.filter(id => id !== p.id) }))} style={{ display: 'none' }} />
+                    🐾 {p.name} ({p.breed || 'sin raza'})
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {newApptForm.clientId && (
+            <button onClick={() => setAddingPet(true)} style={{ ...styles.btnSecondary, marginTop: 10, fontSize: 12, padding: '5px 10px' }}>
+              <Plus size={13} /> Agregar mascota nueva
+            </button>
+          )}
+
+          {addingPet && (
+            <div style={{ marginTop: 10, padding: 12, background: 'var(--color-background-secondary)', borderRadius: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Nueva mascota</div>
+              <div style={styles.formGrid}>
+                <div><label style={styles.lbl}>Nombre *</label><input value={newPetForm.name} onChange={e => setNewPetForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre" /></div>
+                <div><label style={styles.lbl}>Raza</label><input value={newPetForm.breed} onChange={e => setNewPetForm(f => ({...f, breed: e.target.value}))} style={styles.input} placeholder="Raza" /></div>
+                <div><label style={styles.lbl}>Tamaño</label><select value={newPetForm.size} onChange={e => setNewPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                <div><label style={styles.lbl}>Pelo</label><select value={newPetForm.hairType} onChange={e => setNewPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                <div><label style={styles.lbl}>Alergias</label><input value={newPetForm.allergies} onChange={e => setNewPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="Ninguna" /></div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <button onClick={async () => {
+                  if (!newPetForm.name.trim()) { alert('Ingresa el nombre'); return; }
+                  const pet = { id: uid(), clientId: newApptForm.clientId, client_id: newApptForm.clientId, ...newPetForm, name: newPetForm.name.trim() };
+                  await addPet(pet);
+                  setNewApptForm(f => ({ ...f, petIds: [...f.petIds, pet.id] }));
+                  setAddingPet(false);
+                  setNewPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
+                }} style={styles.btnPrimary}><Check size={14} /> Guardar mascota</button>
+                <button onClick={() => setAddingPet(false)} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+            <button onClick={() => setShowNewAppt(false)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+            <button onClick={handleCreateAppt} style={styles.btnPrimary} disabled={saving}>
+              {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+              {saving ? 'Guardando...' : 'Crear cita'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Formulario cliente nuevo */}
+      {showNewClient && (
+        <div style={{ ...styles.card, marginBottom: 16, border: '1px solid var(--color-border-warning)' }}>
+          <h3 style={{ ...styles.cardH3, color: 'var(--color-text-warning)' }}>Cliente nuevo</h3>
+          <div style={styles.formGrid}>
+            <div><label style={styles.lbl}>Nombre *</label><input value={newClientForm.name} onChange={e => setNewClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
+            <div><label style={styles.lbl}>Teléfono</label><input value={newClientForm.phone} onChange={e => setNewClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
+            <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={newClientForm.address} onChange={e => setNewClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
+            <div><label style={styles.lbl}>Email</label><input value={newClientForm.email} onChange={e => setNewClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
+          </div>
+          {isGroomer && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '8px 0 0' }}>El teléfono y email solo serán visibles para el administrador.</p>}
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+            <button onClick={() => setShowNewClient(false)} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
+            <button onClick={handleCreateClient} style={styles.btnPrimary} disabled={saving}><Check size={14} /> Crear cliente</button>
+          </div>
+        </div>
+      )}
+
+      {/* Lista de citas */}
+      {dayAppts.length === 0 ? (
+        <div style={styles.empty}>
+          <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin citas para este día</p>
+          <p style={{ marginTop: 6, fontSize: 13, color: '#94a3b8' }}>Agrega una nueva cita con el botón de arriba</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {dayAppts.map(appt => {
+            const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+            const isOpen = selectedAppt === appt.id;
+            return (
+              <div key={appt.id} style={{ ...styles.card, borderLeft: `3px solid ${sc.border}`, cursor: 'pointer' }} onClick={() => setSelectedAppt(isOpen ? null : appt.id)}>
+                {/* Alerta */}
+                {!appt.agreementSigned && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-danger)', background: 'var(--color-background-danger)', padding: '4px 8px', borderRadius: 6, marginBottom: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <AlertTriangle size={11} /> Agreement no firmado
+                  </div>
+                )}
+                {appt.alertNotes && (
+                  <div style={{ fontSize: 11, color: 'var(--color-text-warning)', background: 'var(--color-background-warning)', padding: '4px 8px', borderRadius: 6, marginBottom: 8 }}>
+                    ⚠️ {appt.alertNotes}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>
+                        {STATUS_LABELS[appt.status]}
+                      </span>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                        {appt.timeStart}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 500, fontSize: 15 }}>{appt.client?.name || 'Sin cliente'}</div>
+                    {!isGroomer && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{appt.client?.address}</div>}
+                    {appt.pets?.length > 0 && (
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {appt.pets.map(ap => (
+                          <span key={ap.id} style={{ fontSize: 12, padding: '3px 8px', background: 'var(--color-background-secondary)', borderRadius: 999, color: 'var(--color-text-secondary)' }}>
+                            🐾 {ap.pet?.name || 'Mascota'} {ap.pet?.breed ? `(${ap.pet.breed})` : ''} {ap.pet?.size ? `· ${ap.pet.size.split('(')[0].trim()}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {!isGroomer && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4 }}>{vans.find(v => v.id === appt.vanId)?.name} — {vans.find(v => v.id === appt.vanId)?.groomer}</div>}
+                  </div>
+                  <div style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</div>
+                </div>
+
+                {/* Detalle expandido */}
+                {isOpen && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--color-border-tertiary)' }} onClick={e => e.stopPropagation()}>
+
+                    {/* Acciones principales */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 14 }}>
+                      {appt.status === 'unconfirmed' && (
+                        <button onClick={() => updateApptStatus(appt.id, 'confirmed')} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
+                          <Check size={14} /> Confirmar
+                        </button>
+                      )}
+                      {(appt.status === 'confirmed' || appt.status === 'unconfirmed') && (
+                        <button onClick={() => handleCheckin(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center', background: 'var(--color-background-success)', color: 'var(--color-text-success)', borderColor: 'var(--color-border-success)' }}>
+                          <Plus size={14} /> Check in
+                        </button>
+                      )}
+                      {appt.status === 'in_progress' && (
+                        <button onClick={() => handleComplete(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
+                          <Check size={14} /> Completar
+                        </button>
+                      )}
+                      {appt.client?.address && (
+                        <button onClick={() => openMaps(appt.client.address)} style={{ ...styles.btnSecondary, justifyContent: 'center' }}>
+                          <MapPin size={14} /> Google Maps
+                        </button>
+                      )}
+                      {appt.status !== 'cancelled' && (
+                        <button onClick={() => { if (confirm('¿Cancelar esta cita?')) updateApptStatus(appt.id, 'cancelled'); }}
+                          style={{ ...styles.btnDanger, justifyContent: 'center' }}>
+                          <X size={14} /> Cancelar
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Ficha de grooming por mascota */}
+                    {appt.pets?.length > 0 && (
+                      <div>
+                        <div style={styles.lbl}>Fichas de grooming</div>
+                        {appt.pets.map(ap => (
+                          <div key={ap.id} style={{ marginTop: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>🐾 {ap.pet?.name || 'Mascota'}</span>
+                              <button onClick={() => { setShowGroomingForm(ap); if (ap.pet?.last_blade) setGroomingRecord(r => ({...r, blade: ap.pet.last_blade || '', combo: ap.pet.last_combo || ''})); }}
+                                style={{ ...styles.btnPrimary, padding: '5px 10px', fontSize: 12 }}>
+                                <Edit2 size={12} /> Llenar ficha
+                              </button>
+                            </div>
+                            {ap.pet?.lastBlade && (
+                              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', padding: '4px 10px' }}>
+                                Último corte: Blade {ap.pet.lastBlade} {ap.pet.lastCombo ? `· Combo ${ap.pet.lastCombo}` : ''}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {appt.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: 6 }}>📝 {appt.notes}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal ficha de grooming */}
+      {showGroomingForm && (
+        <div style={{ position: 'relative', marginTop: 20 }}>
+          <div style={{ ...styles.card, border: '1px solid var(--color-border-info)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ ...styles.cardH3, margin: 0 }}>Ficha de grooming — 🐾 {showGroomingForm.pet?.name}</h3>
+              <button onClick={() => setShowGroomingForm(null)} style={styles.iconBtn}><X size={16} /></button>
+            </div>
+
+            {/* Último corte */}
+            {showGroomingForm.pet?.lastBlade && (
+              <div style={{ padding: '8px 12px', background: 'var(--color-background-info)', borderRadius: 8, marginBottom: 14, fontSize: 12, color: 'var(--color-text-info)' }}>
+                📋 Último corte: Blade <strong>{showGroomingForm.pet.lastBlade}</strong> {showGroomingForm.pet.lastCombo ? `· Combo ${showGroomingForm.pet.lastCombo}` : ''}
+              </div>
+            )}
+
+            {/* Blade y Combo */}
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.lbl}>Blade utilizado</label>
+                <select value={groomingRecord.blade} onChange={e => setGroomingRecord(r => ({...r, blade: e.target.value}))} style={styles.input}>
+                  <option value="">Seleccionar...</option>
+                  {BLADES.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={styles.lbl}>Attachment Combo</label>
+                <select value={groomingRecord.combo} onChange={e => setGroomingRecord(r => ({...r, combo: e.target.value}))} style={styles.input}>
+                  <option value="">Ninguno</option>
+                  {COMBOS.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Áreas del corte */}
+            <div style={{ marginTop: 14 }}>
+              <label style={styles.lbl}>Detalles por área</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                {[['head','Cabeza'],['ears','Orejas'],['body','Cuerpo'],['legs','Patas'],['tail','Cola']].map(([key, label]) => (
+                  <div key={key} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <span style={{ width: 60, fontSize: 12, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{label}</span>
+                    <input value={groomingRecord[key]} onChange={e => setGroomingRecord(r => ({...r, [key]: e.target.value}))}
+                      style={{ ...styles.input, flex: 1 }} placeholder={`Cómo se cortó la ${label.toLowerCase()}...`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Checklist de salud */}
+            <div style={{ marginTop: 14 }}>
+              <label style={styles.lbl}>Checklist de salud</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 6 }}>
+                {[['healthSkin','Piel'],['healthEars','Orejas'],['healthNails','Uñas'],['healthBehavior','Comportamiento']].map(([key, label]) => (
+                  <div key={key}>
+                    <label style={{ ...styles.lbl, marginBottom: 4 }}>{label}</label>
+                    <select value={groomingRecord[key]} onChange={e => setGroomingRecord(r => ({...r, [key]: e.target.value}))} style={styles.input}>
+                      {key === 'healthBehavior'
+                        ? [['calm','Tranquilo'],['nervous','Nervioso'],['aggressive','Agresivo'],['energetic','Energético']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
+                        : [['ok','Normal'],['attention','Requiere atención'],['urgent','Urgente — avisar al dueño']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
+                      }
+                    </select>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notas */}
+            <div style={{ marginTop: 14 }}>
+              <label style={styles.lbl}>Notas especiales</label>
+              <textarea value={groomingRecord.notes} onChange={e => setGroomingRecord(r => ({...r, notes: e.target.value}))}
+                style={{ ...styles.input, minHeight: 70, resize: 'vertical' }} placeholder="Instrucciones especiales, observaciones del corte..." />
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button onClick={() => setShowGroomingForm(null)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+              <button onClick={() => handleSaveGrooming(showGroomingForm.appointmentId || selectedAppt, showGroomingForm.petId)} style={styles.btnPrimary} disabled={saving}>
+                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+                {saving ? 'Guardando...' : 'Guardar ficha'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CierreTab({ vans, services, expenses, isAdmin, settings }) {
   const [date, setDate] = useState(todayISO());
   const breakdown = useMemo(() => {
