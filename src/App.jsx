@@ -147,16 +147,33 @@ const loadExpenses = async () => {
     id: e.id, date: e.date, vanId: e.van_id,
     category: e.category, description: e.description || '',
     amount: parseFloat(e.amount) || 0,
+    receiptUrl: e.receipt_url || null,
     createdAt: new Date(e.created_at).getTime(),
   }));
 };
+const uploadReceipt = async (file, expenseId) => {
+  try {
+    const ext = file.name.split('.').pop();
+    const path = `${expenseId}.${ext}`;
+    const { error } = await supabase.storage.from('receipts').upload(path, file, { upsert: true });
+    if (error) { console.error('Upload error:', error); return null; }
+    const { data } = supabase.storage.from('receipts').getPublicUrl(path);
+    return data.publicUrl;
+  } catch(e) { console.error(e); return null; }
+};
+
 const saveExpense = async (expense) => {
   await supabase.from('expenses').upsert({
     id: expense.id, date: expense.date, van_id: expense.vanId,
-    category: expense.category, description: expense.description || '', amount: expense.amount,
+    category: expense.category, description: expense.description || '',
+    amount: expense.amount, receipt_url: expense.receiptUrl || null,
   });
 };
-const deleteExpense = async (id) => { await supabase.from('expenses').delete().eq('id', id); };
+const deleteExpense = async (id) => {
+  // Borrar foto del storage también
+  try { await supabase.storage.from('receipts').remove([`${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`]); } catch(e) {}
+  await supabase.from('expenses').delete().eq('id', id);
+};
 
 const loadCategories = async () => {
   const { data, error } = await supabase.from('expense_categories').select('*').order('name');
@@ -212,7 +229,16 @@ export default function App() {
   const removeService = async (id) => { setServices(prev => prev.filter(s => s.id !== id)); await deleteService(id); };
   const clearServices = async () => { setServices([]); await clearAllServices(); };
   const updateSettings = async (newSettings) => { setSettings(newSettings); await saveSettings(newSettings); };
-  const addExpense = async (expense) => { setExpenses(prev => [expense, ...prev]); await saveExpense(expense); };
+  const addExpense = async (expense, receiptFile = null) => {
+    const newExp = { ...expense, receiptUrl: null };
+    setExpenses(prev => [newExp, ...prev]);
+    if (receiptFile) {
+      const url = await uploadReceipt(receiptFile, expense.id);
+      newExp.receiptUrl = url;
+    }
+    await saveExpense(newExp);
+    if (receiptFile) setExpenses(prev => prev.map(e => e.id === expense.id ? { ...e, receiptUrl: newExp.receiptUrl } : e));
+  };
   const removeExpense = async (id) => { setExpenses(prev => prev.filter(e => e.id !== id)); await deleteExpense(id); };
   const addCategory = async (name) => { setCategories(prev => [...prev, name].sort()); await saveCategory(name); };
   const removeCategory = async (name) => { setCategories(prev => prev.filter(c => c !== name)); await deleteCategoryDB(name); };
@@ -556,6 +582,17 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
   const [editingId, setEditingId] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ category: categories[0] || 'Gasolina', description: '', amount: '' });
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState(null);
+
+  const handleReceiptChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setReceiptFile(file);
+    setReceiptPreview(URL.createObjectURL(file));
+  };
 
   useEffect(() => { if (fixedVanId) setVanId(fixedVanId); }, [fixedVanId]);
 
@@ -618,10 +655,17 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
     }
   };
 
-  const handleAddExpense = () => {
+  const handleAddExpense = async () => {
     if (!expenseForm.amount) { alert('Ingresa el monto del gasto'); return; }
-    addExpense({ id: uid(), date, vanId, category: expenseForm.category, description: expenseForm.description.trim(), amount: parseFloat(expenseForm.amount) || 0, createdAt: Date.now() });
+    setUploadingReceipt(true);
+    await addExpense(
+      { id: uid(), date, vanId, category: expenseForm.category, description: expenseForm.description.trim(), amount: parseFloat(expenseForm.amount) || 0, createdAt: Date.now() },
+      receiptFile
+    );
     setExpenseForm({ category: categories[0] || 'Gasolina', description: '', amount: '' });
+    setReceiptFile(null);
+    setReceiptPreview(null);
+    setUploadingReceipt(false);
   };
 
   const dayServices = useMemo(() => services.filter(s => s.date === date && s.vanId === vanId).sort((a, b) => b.createdAt - a.createdAt), [services, date, vanId]);
@@ -684,13 +728,43 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                 <label style={styles.lbl}>Monto *</label>
                 <input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={styles.input} placeholder="0.00" />
               </div>
+              <div>
+                <label style={styles.lbl}>📷 Foto de factura (opcional)</label>
+                <input type="file" accept="image/*" capture="environment" onChange={handleReceiptChange}
+                  style={{ ...styles.input, padding: '7px 12px', fontSize: 13 }} />
+              </div>
             </div>
+
+            {/* Preview de la foto */}
+            {receiptPreview && (
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img src={receiptPreview} alt="Factura" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0f766e' }}>✅ Foto lista para subir</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>{receiptFile?.name}</div>
+                  <button onClick={() => { setReceiptFile(null); setReceiptPreview(null); }}
+                    style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 4 }}>
+                    Quitar foto
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div style={styles.formActions}>
-              <button onClick={handleAddExpense} style={styles.btnDanger}>
-                <Plus size={15} /> Registrar gasto
+              <button onClick={handleAddExpense} style={styles.btnDanger} disabled={uploadingReceipt}>
+                {uploadingReceipt ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
+                {uploadingReceipt ? 'Subiendo...' : 'Registrar gasto'}
               </button>
             </div>
           </div>
+
+          {/* Modal para ver foto */}
+          {viewingReceipt && (
+            <div onClick={() => setViewingReceipt(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <img src={viewingReceipt} alt="Factura" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, objectFit: 'contain' }} />
+              <div style={{ position: 'absolute', top: 20, right: 20, color: '#fff', fontSize: 13, fontWeight: 600 }}>Toca para cerrar</div>
+            </div>
+          )}
 
           <div style={{ marginTop: 20 }}>
             <SectionTitle
@@ -706,9 +780,21 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
               <div style={styles.card}>
                 {dayExpenses.map(e => (
                   <div key={e.id} className="row-hover" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 4px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{e.category}</div>
-                      {e.description && <div style={{ fontSize: 12, color: '#64748b' }}>{e.description}</div>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      {/* Miniatura de factura */}
+                      {e.receiptUrl ? (
+                        <img src={e.receiptUrl} alt="Factura" onClick={() => setViewingReceipt(e.receiptUrl)}
+                          style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e2e8f0', flexShrink: 0 }} />
+                      ) : (
+                        <div style={{ width: 40, height: 40, borderRadius: 6, background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          <span style={{ fontSize: 18 }}>🧾</span>
+                        </div>
+                      )}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{e.category}</div>
+                        {e.description && <div style={{ fontSize: 12, color: '#64748b' }}>{e.description}</div>}
+                        {e.receiptUrl && <div style={{ fontSize: 10, color: '#0f766e', fontWeight: 600 }}>📷 Factura adjunta</div>}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ fontWeight: 700, color: '#dc2626' }}>{fmt(e.amount)}</span>
@@ -1133,6 +1219,7 @@ function SemanaTab({ vans, services, expenses, settings }) {
 function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, users, addUser, updateUser, toggleUserActive }) {
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
+  const [editingCategory, setEditingCategory] = useState(null); // { old, new }
   const [editingUser, setEditingUser] = useState(null);
   const [showNewUser, setShowNewUser] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1141,6 +1228,21 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     can_create_clients: true, can_view_clients: false, can_schedule: true,
     can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
   });
+
+  const handleRenameCategory = async () => {
+    if (!editingCategory?.new.trim()) return;
+    const oldName = editingCategory.old;
+    const newName = editingCategory.new.trim();
+    if (newName === oldName) { setEditingCategory(null); return; }
+    if (categories.includes(newName)) { alert('Ese nombre ya existe'); return; }
+    await saveCategory(newName);
+    await deleteCategoryDB(oldName);
+    // Actualizar gastos que usen la categoría vieja
+    await supabase.from('expenses').update({ category: newName }).eq('category', oldName);
+    await addCategory(newName);
+    await removeCategory(oldName);
+    setEditingCategory(null);
+  };
 
   const PERMS = [
     { key: 'can_create_clients', label: 'Crear clientes nuevos' },
@@ -1451,15 +1553,30 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>Los groomers usan estas categorías al registrar sus gastos</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
           {categories.map(c => (
-            <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, fontSize: 13 }}>
-              <span style={{ color: '#0f766e', fontWeight: 500 }}>{c}</span>
-              {!['Gasolina','Shampoo','Colonias','Materiales','Mantenimiento','Otros'].includes(c) && (
-                <button onClick={() => { if (confirm(`¿Eliminar la categoría "${c}"?`)) removeCategory(c); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: '#94a3b8', display: 'flex' }}>
-                  <X size={13} />
+            editingCategory?.old === c ? (
+              <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input value={editingCategory.new} onChange={e => setEditingCategory({ ...editingCategory, new: e.target.value })}
+                  onKeyDown={e => { if (e.key === 'Enter') handleRenameCategory(); if (e.key === 'Escape') setEditingCategory(null); }}
+                  style={{ ...styles.input, padding: '3px 8px', fontSize: 13, width: 140 }} autoFocus />
+                <button onClick={handleRenameCategory} style={styles.iconBtnGreen}><Check size={13} /></button>
+                <button onClick={() => setEditingCategory(null)} style={styles.iconBtn}><X size={13} /></button>
+              </div>
+            ) : (
+              <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, fontSize: 13 }}>
+                <span style={{ color: '#0f766e', fontWeight: 500 }}>{c}</span>
+                <button onClick={() => setEditingCategory({ old: c, new: c })}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#94a3b8', display: 'flex' }}>
+                  <Edit2 size={11} />
                 </button>
-              )}
-            </div>
+                {!['Gasolina','Shampoo','Colonias','Materiales','Mantenimiento','Otros'].includes(c) && (
+                  <button onClick={() => { if (confirm(`¿Eliminar "${c}"?`)) removeCategory(c); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#94a3b8', display: 'flex' }}>
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )
+          ))}
           ))}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
