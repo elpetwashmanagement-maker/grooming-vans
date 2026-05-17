@@ -464,6 +464,7 @@ export default function App() {
             addPet={addPet} updatePet={updatePet}
           />
         )}
+        {tab === 'razas' && <RazasTab session={session} />}
         {tab === 'registro' && (
           <RegistroTab
             vans={visibleVans} services={visibleServices} addService={addService}
@@ -689,6 +690,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const tabs = [
     { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
     { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
+    { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
     { id: 'registro', label: isGroomer ? 'Cobrar' : 'Registro', icon: Plus, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
@@ -1479,14 +1481,14 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                     </div>
 
                     {/* Ficha de grooming por mascota */}
-                    {appt.pets?.length > 0 && (
-                      <div>
-                        <div style={styles.lbl}>Fichas de grooming</div>
-                        {appt.pets.map(ap => (
+                    <div>
+                      <div style={styles.lbl}>Fichas de grooming</div>
+                      {appt.pets?.length > 0 ? (
+                        appt.pets.map(ap => (
                           <div key={ap.id} style={{ marginTop: 8 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
                               <span style={{ fontSize: 13, fontWeight: 500 }}>🐾 {ap.pet?.name || 'Mascota'}</span>
-                              <button onClick={() => { setShowGroomingForm(ap); if (ap.pet?.last_blade) setGroomingRecord(r => ({...r, blade: ap.pet.last_blade || '', combo: ap.pet.last_combo || ''})); }}
+                              <button onClick={() => { setShowGroomingForm({ ...ap, appointmentId: appt.id }); if (ap.pet?.last_blade) setGroomingRecord(r => ({...r, blade: ap.pet.last_blade || '', combo: ap.pet.last_combo || ''})); }}
                                 style={{ ...styles.btnPrimary, padding: '5px 10px', fontSize: 12 }}>
                                 <Edit2 size={12} /> Llenar ficha
                               </button>
@@ -1497,9 +1499,19 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                               </div>
                             )}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        ))
+                      ) : (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
+                            <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>🐾 Sin mascota asignada</span>
+                            <button onClick={() => setShowGroomingForm({ id: uid(), appointmentId: appt.id, petId: null, pet: null })}
+                              style={{ ...styles.btnPrimary, padding: '5px 10px', fontSize: 12 }}>
+                              <Edit2 size={12} /> Llenar ficha
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
                     {appt.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: 6 }}>📝 {appt.notes}</div>}
                   </div>
@@ -2546,6 +2558,233 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ===== IA RAZAS TAB =====
+function RazasTab({ session }) {
+  const [step, setStep] = useState('upload');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const BREED_CUTS = {
+    'Golden Retriever': { cuts: ['Natural / Show cut', 'Summer cut', 'Teddy bear cut'], blades: ['#4F', '#5F'], combos: ['#A (3/4")', '#C (7/8")'], note: 'Pelo doble — nunca rasurar hasta la piel. Cepillar bien antes del baño.', warn: 'Revisar zona detrás de las orejas — muy propenso a enredos.' },
+    'Poodle': { cuts: ['Puppy cut', 'Continental clip', 'Lamb cut'], blades: ['#10', '#15', '#30'], combos: ['#1 (1/2")', '#2 (3/8")', '#4 (1/4")'], note: 'Pelo rizado que crece continuamente. No hace shed. Requiere grooming cada 4-6 semanas.', warn: 'Revisar bien las patas y cara — el pelo crece muy rápido en esas zonas.' },
+    'Schnauzer': { cuts: ['Corte tradicional', 'Puppy cut', 'Teddy bear'], blades: ['#7F', '#10', '#5F'], combos: ['#A (3/4")', '#2 (3/8")'], note: 'Pelo de doble capa. El corte tradicional preserva la textura del pelo duro.', warn: 'No usar blade muy corto en el cuerpo — destruye la textura del pelo.' },
+    'Shih Tzu': { cuts: ['Puppy cut / Teddy bear', 'Show cut (pelo largo)', 'Summer cut'], blades: ['#10', '#5F', '#7F'], combos: ['#1 (1/2")', '#2 (3/8")'], note: 'Pelo largo y sedoso. Muy propenso a enredos si no se cepilla diariamente.', warn: 'Revisar con cuidado la zona del hocico y ojos — el pelo cae sobre los ojos.' },
+    'Maltese': { cuts: ['Puppy cut', 'Teddy bear', 'Show cut'], blades: ['#10', '#15'], combos: ['#1 (1/2")', '#2 (3/8")'], note: 'Pelo blanco fino y sedoso. Propenso a manchas alrededor de los ojos.', warn: 'Usar condicionador para evitar enredos. Muy delicado con las tijeras cerca de los ojos.' },
+    'Yorkshire Terrier': { cuts: ['Puppy cut', 'Show cut tradicional', 'Teddy bear'], blades: ['#10', '#15'], combos: ['#2 (3/8")', '#4 (1/4")'], note: 'Pelo fino y sedoso. Crece continuamente. Muy popular el puppy cut para facilitar mantenimiento.', warn: 'Cuidado con el pelaje alrededor de las orejas — se enreda fácilmente.' },
+    'Bichon Frise': { cuts: ['Bichon cut clásico', 'Puppy cut', 'Teddy bear'], blades: ['#10', '#15'], combos: ['#A (3/4")', '#C (7/8")'], note: 'Pelo rizado y esponjoso. Requiere cepillado frecuente para mantener la forma esférica.', warn: 'La cara se trabaja con tijeras — requiere precisión para el look redondeado característico.' },
+    'Goldendoodle': { cuts: ['Teddy bear cut', 'Puppy cut', 'Summer cut'], blades: ['#4F', '#5F'], combos: ['#1 (1/2")', '#2 (3/8")', '#A (3/4")'], note: 'Mezcla Golden + Poodle. El pelo puede variar mucho entre individuos.', warn: 'Muy propenso a enredos si el pelo es más cercano al Poodle. Cepillar antes del baño.' },
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+    setResult(null); setError(null); setStep('preview');
+  };
+
+  const analyzeImage = async () => {
+    if (!imageFile) return;
+    setLoading(true); setStep('loading'); setError(null);
+    try {
+      const base64 = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result.split(',')[1]);
+        r.onerror = () => rej(new Error('Error leyendo imagen'));
+        r.readAsDataURL(imageFile);
+      });
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: imageFile.type || 'image/jpeg', data: base64 } },
+              { type: 'text', text: `Eres un experto en razas de perros para una empresa de mobile grooming en Florida llamada El Pet Wash.
+
+Analiza esta imagen y responde SOLO en JSON con este formato exacto, sin texto adicional, sin markdown:
+{
+  "breed": "nombre de la raza en inglés",
+  "confidence": número del 1 al 100,
+  "origin": "país de origen",
+  "size": "Small|Medium|Large|Extra Large",
+  "hair_type": "Short Hair|Long Hair",
+  "mix": false o true si es mestizo,
+  "mix_breeds": "si es mestizo, las razas que parece tener, si no es mestizo deja vacío",
+  "price_service": "Signature Bath",
+  "price_range": "$70-$90",
+  "grooming_notes": "2-3 observaciones importantes sobre el grooming de esta raza",
+  "warning": "advertencia más importante para el groomer"
+}
+
+Si no es un perro, responde: {"error": "No es un perro"}` }
+            ]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      const text = data.content?.map(i => i.text || '').join('').trim();
+      const clean = text.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(clean);
+
+      if (parsed.error) { setError('No se detectó un perro en la imagen. Intenta con otra foto.'); setStep('preview'); }
+      else {
+        const breedKey = Object.keys(BREED_CUTS).find(k => parsed.breed?.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(parsed.breed?.toLowerCase()));
+        const cuts = breedKey ? BREED_CUTS[breedKey] : null;
+        setResult({ ...parsed, cuts });
+        setStep('result');
+      }
+    } catch(e) {
+      console.error(e);
+      setError('Error al analizar la imagen. Intenta de nuevo.');
+      setStep('preview');
+    }
+    setLoading(false);
+  };
+
+  const reset = () => { setStep('upload'); setImageFile(null); setImagePreview(null); setResult(null); setError(null); };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease', maxWidth: 600, margin: '0 auto' }}>
+      <SectionTitle eyebrow="Inteligencia artificial" title="Identificador de razas" />
+
+      {step === 'upload' && (
+        <div style={styles.card}>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🐾</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, color: 'var(--color-text-primary)', marginBottom: 8 }}>Toma una foto del perro</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 24 }}>La IA detectará la raza y sugerirá el corte, blade y combo ideal</div>
+            <label style={{ ...styles.btnPrimary, display: 'inline-flex', cursor: 'pointer', padding: '12px 24px', fontSize: 15 }}>
+              <input type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display: 'none' }} />
+              📷 Tomar foto o elegir imagen
+            </label>
+          </div>
+        </div>
+      )}
+
+      {step === 'preview' && imagePreview && (
+        <div style={styles.card}>
+          <img src={imagePreview} alt="Perro" style={{ width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 10, marginBottom: 14 }} />
+          {error && <div style={{ padding: '10px 12px', background: 'var(--color-background-danger)', borderRadius: 8, fontSize: 13, color: 'var(--color-text-danger)', marginBottom: 14 }}>⚠️ {error}</div>}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={reset} style={styles.btnSecondary}><X size={15} /> Nueva foto</button>
+            <button onClick={analyzeImage} style={{ ...styles.btnPrimary, flex: 1, justifyContent: 'center' }}>
+              🧠 Analizar con IA
+            </button>
+          </div>
+        </div>
+      )}
+
+      {step === 'loading' && (
+        <div style={{ ...styles.card, textAlign: 'center', padding: '40px 20px' }}>
+          <Loader2 size={36} style={{ animation: 'spin 1s linear infinite', color: 'var(--color-text-info)', display: 'block', margin: '0 auto 16px' }} />
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: 'var(--color-text-primary)' }}>Analizando imagen...</div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 6 }}>La IA está identificando la raza</div>
+        </div>
+      )}
+
+      {step === 'result' && result && (
+        <div>
+          {/* Resultado principal */}
+          <div style={styles.card}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 14 }}>
+              <img src={imagePreview} alt="Perro" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Raza detectada</div>
+                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  {result.breed} {result.mix && <span style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>(mestizo)</span>}
+                </div>
+                {result.mix_breeds && <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>Mezcla: {result.mix_breeds}</div>}
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{result.origin} · {result.size} · {result.hair_type}</div>
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ flex: 1, height: 6, background: 'var(--color-border-tertiary)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ width: `${result.confidence}%`, height: '100%', background: 'var(--color-text-info)', borderRadius: 3 }} />
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-info)', minWidth: 40 }}>{result.confidence}%</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>Nivel de confianza</div>
+                </div>
+              </div>
+            </div>
+            {result.warning && (
+              <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
+                ⚠️ {result.warning}
+              </div>
+            )}
+          </div>
+
+          {/* Cortes sugeridos */}
+          {result.cuts && (
+            <div style={{ ...styles.card, marginTop: 12 }}>
+              <h3 style={{ ...styles.cardH3, marginBottom: 12 }}>✂️ Cortes recomendados</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {result.cuts.cuts.map((cut, i) => (
+                  <div key={i} style={{ padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 8, fontSize: 13 }}>
+                    <div style={{ fontWeight: 500 }}>{i === 0 ? '⭐ ' : ''}{cut}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Herramientas sugeridas</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {result.cuts.blades.map(b => (
+                    <span key={b} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: '#E6F1FB', color: '#0C447C', border: '0.5px solid #85B7EB' }}>
+                      ✂️ {b}
+                    </span>
+                  ))}
+                  {result.cuts.combos.map(c => (
+                    <span key={c} style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: '#FAEEDA', color: '#633806', border: '0.5px solid #EF9F27' }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              {result.cuts.note && (
+                <div style={{ marginTop: 12, padding: '8px 12px', background: 'var(--color-background-info)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-info)' }}>
+                  💡 {result.cuts.note}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Notas de grooming de la IA */}
+          {result.grooming_notes && (
+            <div style={{ ...styles.card, marginTop: 12 }}>
+              <h3 style={{ ...styles.cardH3, marginBottom: 8 }}>📋 Notas de la IA</h3>
+              <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>{result.grooming_notes}</div>
+            </div>
+          )}
+
+          {/* Precio sugerido */}
+          <div style={{ ...styles.card, marginTop: 12 }}>
+            <h3 style={{ ...styles.cardH3, marginBottom: 8 }}>💰 Precio sugerido — El Pet Wash</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 500 }}>{result.price_service}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{result.size} · {result.hair_type}</div>
+              </div>
+              <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 600, color: 'var(--color-text-success)' }}>{result.price_range}</div>
+            </div>
+          </div>
+
+          <button onClick={reset} style={{ ...styles.btnSecondary, width: '100%', justifyContent: 'center', marginTop: 12 }}>
+            📷 Analizar otro perro
+          </button>
+        </div>
+      )}
     </div>
   );
 }
