@@ -1156,7 +1156,14 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [showNewClient, setShowNewClient] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [groomingRecord, setGroomingRecord] = useState({ blade: '', combo: '', head: '', ears: '', body: '', legs: '', tail: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
+  const [groomingRecord, setGroomingRecord] = useState({
+    headTool: '', headNotes: '',
+    earsTool: '', earsNotes: '',
+    bodyTool: '', bodyNotes: '',
+    legsTool: '', legsNotes: '',
+    tailTool: '', tailNotes: '',
+    notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
+  });
   const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [] });
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
@@ -1194,16 +1201,30 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   };
 
   const handleSaveGrooming = async (apptId, petId) => {
-    if (!groomingRecord.blade && !groomingRecord.notes) { alert('Completa al menos el blade o las notas'); return; }
+    const hasData = groomingRecord.headTool || groomingRecord.bodyTool || groomingRecord.notes;
+    if (!hasData) { alert('Completa al menos una área o agrega notas'); return; }
     setSaving(true);
-    const record = { id: uid(), appointmentId: apptId, petId, vanId: myVanId || vans[0]?.id, date, ...groomingRecord };
+    const mainBlade = groomingRecord.bodyTool || groomingRecord.headTool || '';
+    const mainCombo = groomingRecord.legsTool || groomingRecord.bodyTool || '';
+    const record = {
+      id: uid(), appointmentId: apptId, petId, vanId: myVanId || vans[0]?.id, date,
+      blade: mainBlade, combo: mainCombo,
+      head: `${groomingRecord.headTool}${groomingRecord.headNotes ? ' — ' + groomingRecord.headNotes : ''}`,
+      ears: `${groomingRecord.earsTool}${groomingRecord.earsNotes ? ' — ' + groomingRecord.earsNotes : ''}`,
+      body: `${groomingRecord.bodyTool}${groomingRecord.bodyNotes ? ' — ' + groomingRecord.bodyNotes : ''}`,
+      legs: `${groomingRecord.legsTool}${groomingRecord.legsNotes ? ' — ' + groomingRecord.legsNotes : ''}`,
+      tail: `${groomingRecord.tailTool}${groomingRecord.tailNotes ? ' — ' + groomingRecord.tailNotes : ''}`,
+      notes: groomingRecord.notes,
+      healthSkin: groomingRecord.healthSkin, healthEars: groomingRecord.healthEars,
+      healthNails: groomingRecord.healthNails, healthBehavior: groomingRecord.healthBehavior,
+    };
     await saveGroomingRecord(record);
-    if (petId) {
-      await supabase.from('pets').update({ last_blade: groomingRecord.blade, last_combo: groomingRecord.combo }).eq('id', petId);
+    if (petId && mainBlade) {
+      await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
     }
     setSaving(false);
     setShowGroomingForm(null);
-    setGroomingRecord({ blade: '', combo: '', head: '', ears: '', body: '', legs: '', tail: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
+    setGroomingRecord({ headTool: '', headNotes: '', earsTool: '', earsNotes: '', bodyTool: '', bodyNotes: '', legsTool: '', legsNotes: '', tailTool: '', tailNotes: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
     alert('✅ Ficha guardada correctamente');
   };
 
@@ -1538,33 +1559,41 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               </div>
             )}
 
-            {/* Blade y Combo */}
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Blade utilizado</label>
-                <select value={groomingRecord.blade} onChange={e => setGroomingRecord(r => ({...r, blade: e.target.value}))} style={styles.input}>
-                  <option value="">Seleccionar...</option>
-                  {BLADES.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={styles.lbl}>Attachment Combo</label>
-                <select value={groomingRecord.combo} onChange={e => setGroomingRecord(r => ({...r, combo: e.target.value}))} style={styles.input}>
-                  <option value="">Ninguno</option>
-                  {COMBOS.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Áreas del corte */}
+            {/* Áreas del corte con herramienta por área */}
             <div style={{ marginTop: 14 }}>
               <label style={styles.lbl}>Detalles por área</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
-                {[['head','Cabeza'],['ears','Orejas'],['body','Cuerpo'],['legs','Patas'],['tail','Cola']].map(([key, label]) => (
-                  <div key={key} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <span style={{ width: 60, fontSize: 12, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{label}</span>
-                    <input value={groomingRecord[key]} onChange={e => setGroomingRecord(r => ({...r, [key]: e.target.value}))}
-                      style={{ ...styles.input, flex: 1 }} placeholder={`Cómo se cortó la ${label.toLowerCase()}...`} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                {[
+                  ['head','headTool','headNotes','Cabeza'],
+                  ['ears','earsTool','earsNotes','Orejas'],
+                  ['body','bodyTool','bodyNotes','Cuerpo'],
+                  ['legs','legsTool','legsNotes','Patas'],
+                  ['tail','tailTool','tailNotes','Cola'],
+                ].map(([, toolKey, notesKey, label]) => (
+                  <div key={toolKey} style={{ background: 'var(--color-background-secondary)', borderRadius: 10, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>{label}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div>
+                        <label style={{ ...styles.lbl, fontSize: 10 }}>Herramienta</label>
+                        <select value={groomingRecord[toolKey]} onChange={e => setGroomingRecord(r => ({...r, [toolKey]: e.target.value}))} style={{ ...styles.input, fontSize: 12 }}>
+                          <option value="">Sin herramienta</option>
+                          <optgroup label="Blades">
+                            {BLADES.map(b => <option key={b} value={b}>Blade {b}</option>)}
+                          </optgroup>
+                          <optgroup label="Combos">
+                            {COMBOS.map(c => <option key={c} value={c}>Combo {c}</option>)}
+                          </optgroup>
+                          <option value="Tijeras">✂️ Tijeras</option>
+                          <option value="Tijeras curvas">✂️ Tijeras curvas</option>
+                          <option value="Navaja">🪒 Navaja</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ ...styles.lbl, fontSize: 10 }}>Notas del área</label>
+                        <input value={groomingRecord[notesKey]} onChange={e => setGroomingRecord(r => ({...r, [notesKey]: e.target.value}))}
+                          style={{ ...styles.input, fontSize: 12 }} placeholder={`Notas de ${label.toLowerCase()}...`} />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
