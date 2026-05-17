@@ -45,9 +45,30 @@ const loadSession = () => { try { const v = localStorage.getItem('gv:session'); 
 const saveSessionLocal = (s) => { try { if (s === null) localStorage.removeItem('gv:session'); else localStorage.setItem('gv:session', JSON.stringify(s)); } catch(e) { console.error(e); } };
 
 const loadUsers = async () => {
-  const { data, error } = await supabase.from('users').select('*').eq('active', true).order('role');
+  const { data, error } = await supabase.from('users').select('*').order('role').order('name');
   if (error) { console.error(error); return []; }
   return data || [];
+};
+
+const saveUser = async (user) => {
+  const { error } = await supabase.from('users').upsert({
+    id: user.id, name: user.name, role: user.role, pin: user.pin,
+    van_id: user.van_id || null, active: user.active !== false,
+    can_create_clients: user.can_create_clients ?? true,
+    can_view_clients: user.can_view_clients ?? false,
+    can_schedule: user.can_schedule ?? true,
+    can_view_all_schedule: user.can_view_all_schedule ?? false,
+    can_view_finances: user.can_view_finances ?? false,
+    can_view_reports: user.can_view_reports ?? false,
+    can_edit_config: user.can_edit_config ?? false,
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+const deactivateUser = async (id) => {
+  const { error } = await supabase.from('users').update({ active: false }).eq('id', id);
+  if (error) console.error(error);
 };
 
 const saveAuditLog = async (session, action, description, entity = null, entityId = null) => {
@@ -196,6 +217,22 @@ export default function App() {
   const addCategory = async (name) => { setCategories(prev => [...prev, name].sort()); await saveCategory(name); };
   const removeCategory = async (name) => { setCategories(prev => prev.filter(c => c !== name)); await deleteCategoryDB(name); };
 
+  const addUser = async (user) => {
+    const ok = await saveUser(user);
+    if (ok) setUsers(prev => [...prev, user].sort((a,b) => a.role.localeCompare(b.role)));
+    return ok;
+  };
+  const updateUser = async (user) => {
+    const ok = await saveUser(user);
+    if (ok) setUsers(prev => prev.map(u => u.id === user.id ? user : u));
+    return ok;
+  };
+  const toggleUserActive = async (id, active) => {
+    if (!active && !confirm('¿Desactivar este usuario? No podrá entrar al sistema pero su historial se conserva.')) return;
+    await supabase.from('users').update({ active }).eq('id', id);
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, active } : u));
+  };
+
   if (loading) {
     return (
       <div style={styles.loadingScreen}>
@@ -256,7 +293,7 @@ export default function App() {
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
             addCategory={addCategory} removeCategory={removeCategory}
-            users={users} setUsers={setUsers} />
+            users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive} />
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
@@ -1093,9 +1130,69 @@ function SemanaTab({ vans, services, expenses, settings }) {
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, users, addUser, updateUser, toggleUserActive }) {
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [showNewUser, setShowNewUser] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: '', role: 'groomer', pin: '', van_id: '',
+    can_create_clients: true, can_view_clients: false, can_schedule: true,
+    can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
+  });
+
+  const PERMS = [
+    { key: 'can_create_clients', label: 'Crear clientes nuevos' },
+    { key: 'can_view_clients', label: 'Ver datos del cliente después' },
+    { key: 'can_schedule', label: 'Agendar citas' },
+    { key: 'can_view_all_schedule', label: 'Ver agenda de todas las vans' },
+    { key: 'can_view_finances', label: 'Ver finanzas y comisiones' },
+    { key: 'can_view_reports', label: 'Ver reportes semanales' },
+    { key: 'can_edit_config', label: 'Editar configuración' },
+  ];
+
+  const roleDefaults = {
+    groomer: { can_create_clients: true, can_view_clients: false, can_schedule: true, can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false },
+    manager: { can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: false, can_view_reports: false, can_edit_config: false },
+    admin:   { can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: true, can_view_reports: true, can_edit_config: true },
+  };
+
+  const handleRoleChange = (role, isNew) => {
+    const d = roleDefaults[role] || roleDefaults.groomer;
+    if (isNew) setNewUser(p => ({ ...p, role, ...d }));
+    else setEditingUser(p => ({ ...p, role, ...d }));
+  };
+
+  const handleCreateUser = async () => {
+    if (!newUser.name.trim()) { alert('Ingresa el nombre'); return; }
+    if (!/^\d{4}$/.test(newUser.pin)) { alert('El PIN debe ser de 4 dígitos'); return; }
+    if (newUser.role === 'groomer' && !newUser.van_id) { alert('Selecciona la van del groomer'); return; }
+    if (users.filter(u => u.active).find(u => u.pin === newUser.pin)) { alert('Ese PIN ya está en uso'); return; }
+    setSaving(true);
+    const user = { ...newUser, id: uid(), active: true, name: newUser.name.trim() };
+    const ok = await addUser(user);
+    setSaving(false);
+    if (ok) {
+      setShowNewUser(false);
+      setNewUser({ name: '', role: 'groomer', pin: '', van_id: '', ...roleDefaults.groomer });
+    } else alert('Error al crear el usuario.');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser.name.trim()) { alert('Ingresa el nombre'); return; }
+    if (!/^\d{4}$/.test(editingUser.pin)) { alert('El PIN debe ser de 4 dígitos'); return; }
+    if (users.filter(u => u.active && u.id !== editingUser.id).find(u => u.pin === editingUser.pin)) { alert('Ese PIN ya está en uso'); return; }
+    setSaving(true);
+    await updateUser({ ...editingUser, name: editingUser.name.trim() });
+    setSaving(false);
+    setEditingUser(null);
+  };
+
+  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
+  const roleLabels = { admin: '👑 Admin', manager: '📋 Administradora', groomer: '🚐 Groomer' };
+  const activeUsers = users.filter(u => u.active);
+  const inactiveUsers = users.filter(u => !u.active);
 
   const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '', commissionPct: v.commissionPct || 45 } });
   const cancelEdit = (id) => { const copy = { ...editVan }; delete copy[id]; setEditVan(copy); };
@@ -1121,6 +1218,175 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Configuración" title="Ajustes generales" />
+
+      {/* ===== USUARIOS ===== */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>👥 Usuarios del sistema</h3>
+          <button onClick={() => setShowNewUser(!showNewUser)} style={styles.btnPrimary}>
+            <Plus size={15} /> Nuevo usuario
+          </button>
+        </div>
+
+        {/* Formulario nuevo usuario */}
+        {showNewUser && (
+          <div style={{ background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f766e', marginBottom: 12 }}>Crear nuevo usuario</div>
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.lbl}>Nombre *</label>
+                <input value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} style={styles.input} placeholder="Nombre completo" />
+              </div>
+              <div>
+                <label style={styles.lbl}>Rol *</label>
+                <select value={newUser.role} onChange={e => handleRoleChange(e.target.value, true)} style={styles.input}>
+                  <option value="groomer">🚐 Groomer</option>
+                  <option value="manager">📋 Administradora</option>
+                  <option value="admin">👑 Admin</option>
+                </select>
+              </div>
+              <div>
+                <label style={styles.lbl}>PIN (4 dígitos) *</label>
+                <input type="text" maxLength="4" value={newUser.pin}
+                  onChange={e => setNewUser({ ...newUser, pin: e.target.value.replace(/\D/g,'').slice(0,4) })}
+                  style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.3em', textAlign: 'center' }} placeholder="0000" />
+              </div>
+              {newUser.role === 'groomer' && (
+                <div>
+                  <label style={styles.lbl}>Van asignada *</label>
+                  <select value={newUser.van_id} onChange={e => setNewUser({ ...newUser, van_id: e.target.value })} style={styles.input}>
+                    <option value="">Seleccionar van...</option>
+                    {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer || 'Sin groomer'}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label style={styles.lbl}>Permisos personalizados</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
+                {PERMS.map(p => (
+                  <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
+                    <input type="checkbox" checked={!!newUser[p.key]} onChange={e => setNewUser({ ...newUser, [p.key]: e.target.checked })}
+                      style={{ width: 16, height: 16, accentColor: '#0f766e' }} />
+                    {p.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
+              <button onClick={() => setShowNewUser(false)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+              <button onClick={handleCreateUser} style={styles.btnPrimary} disabled={saving}>
+                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+                {saving ? 'Creando...' : 'Crear usuario'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Lista activos */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {activeUsers.map(u => (
+            <div key={u.id}>
+              {editingUser?.id === u.id ? (
+                <div style={{ background: '#fafaf7', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14 }}>
+                  <div style={styles.formGrid}>
+                    <div>
+                      <label style={styles.lbl}>Nombre</label>
+                      <input value={editingUser.name} onChange={e => setEditingUser({ ...editingUser, name: e.target.value })} style={styles.input} />
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Rol</label>
+                      <select value={editingUser.role} onChange={e => handleRoleChange(e.target.value, false)} style={styles.input} disabled={editingUser.role === 'admin'}>
+                        <option value="groomer">🚐 Groomer</option>
+                        <option value="manager">📋 Administradora</option>
+                        <option value="admin">👑 Admin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>PIN</label>
+                      <input type="text" maxLength="4" value={editingUser.pin}
+                        onChange={e => setEditingUser({ ...editingUser, pin: e.target.value.replace(/\D/g,'').slice(0,4) })}
+                        style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.3em', textAlign: 'center' }} />
+                    </div>
+                    {editingUser.role === 'groomer' && (
+                      <div>
+                        <label style={styles.lbl}>Van</label>
+                        <select value={editingUser.van_id || ''} onChange={e => setEditingUser({ ...editingUser, van_id: e.target.value })} style={styles.input}>
+                          <option value="">Sin van</option>
+                          {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer || 'Sin groomer'}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <label style={styles.lbl}>Permisos</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
+                      {PERMS.map(p => (
+                        <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
+                          <input type="checkbox" checked={!!editingUser[p.key]} onChange={e => setEditingUser({ ...editingUser, [p.key]: e.target.checked })}
+                            style={{ width: 16, height: 16, accentColor: '#0f766e' }} />
+                          {p.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                    <button onClick={() => setEditingUser(null)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+                    <button onClick={handleSaveEdit} style={styles.btnPrimary} disabled={saving}>
+                      {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+                      Guardar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fafaf7', borderRadius: 10, border: '1px solid #f1f5f9' }}>
+                  <div style={{ fontSize: 20, flexShrink: 0 }}>{{ admin:'👑', manager:'📋', groomer:'🚐' }[u.role]}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: roleColors[u.role], fontWeight: 500 }}>{roleLabels[u.role]}</div>
+                  </div>
+                  {u.role === 'groomer' && (
+                    <div style={{ fontSize: 11, color: '#64748b', flexShrink: 0 }}>
+                      {vans.find(v => v.id === u.van_id)?.name || '—'}
+                    </div>
+                  )}
+                  <div style={{ fontFamily: 'monospace', fontSize: 12, letterSpacing: '0.15em', color: '#475569', background: '#fff', padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', flexShrink: 0 }}>
+                    {u.pin}
+                  </div>
+                  <button onClick={() => setEditingUser({ ...u })} style={styles.iconBtn}><Edit2 size={14} /></button>
+                  {u.role !== 'admin' && (
+                    <button onClick={() => toggleUserActive(u.id, false)} style={{ ...styles.iconBtn, color: '#dc2626' }} title="Desactivar">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Usuarios inactivos */}
+        {inactiveUsers.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+              Inactivos ({inactiveUsers.length})
+            </div>
+            {inactiveUsers.map(u => (
+              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 10, marginBottom: 6, opacity: 0.6 }}>
+                <div style={{ fontSize: 18 }}>{{ admin:'👑', manager:'📋', groomer:'🚐' }[u.role]}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500, fontSize: 13, textDecoration: 'line-through', color: '#94a3b8' }}>{u.name}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{roleLabels[u.role]}</div>
+                </div>
+                <button onClick={() => toggleUserActive(u.id, true)}
+                  style={{ fontSize: 12, padding: '4px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', color: '#0f766e', fontWeight: 500 }}>
+                  Reactivar
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Comisiones y fees */}
       <div style={styles.card}>
