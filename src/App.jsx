@@ -2343,6 +2343,16 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
   const [saving, setSaving] = useState(false);
   const [clientForm, setClientForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const [petForm, setPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+  const [petGroomingHistory, setPetGroomingHistory] = useState({});
+  const [loadingHistory, setLoadingHistory] = useState({});
+
+  const loadPetHistory = async (petId) => {
+    if (petGroomingHistory[petId] || loadingHistory[petId]) return;
+    setLoadingHistory(h => ({...h, [petId]: true}));
+    const records = await loadGroomingRecords(petId);
+    setPetGroomingHistory(h => ({...h, [petId]: records}));
+    setLoadingHistory(h => ({...h, [petId]: false}));
+  };
 
   const canViewPhone = isAdmin || session?.permissions?.can_view_clients;
 
@@ -2546,7 +2556,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   {clientPets.map(p => (
                     <div key={p.id} style={{ padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
+                        <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 500, fontSize: 14 }}>🐾 {p.name}</div>
                           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
                             {[p.breed, p.size?.split('(')[0]?.trim(), p.hair_type].filter(Boolean).join(' · ')}
@@ -2556,8 +2566,55 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                           {p.behavior_notes && <div style={{ fontSize: 11, color: 'var(--color-text-warning)', marginTop: 2 }}>🔔 {p.behavior_notes}</div>}
                           {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade} {p.last_combo ? `· Combo ${p.last_combo}` : ''}</div>}
                         </div>
-                        <button onClick={() => startEditPet(p)} style={styles.iconBtn}><Edit2 size={13} /></button>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button onClick={() => { loadPetHistory(p.id); }} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>
+                            📋 Ver fichas
+                          </button>
+                          <button onClick={() => startEditPet(p)} style={styles.iconBtn}><Edit2 size={13} /></button>
+                        </div>
                       </div>
+
+                      {/* Historial de fichas de grooming */}
+                      {petGroomingHistory[p.id] && (
+                        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                            Historial de fichas ({petGroomingHistory[p.id].length})
+                          </div>
+                          {petGroomingHistory[p.id].length === 0 ? (
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Sin fichas registradas aún</div>
+                          ) : (
+                            petGroomingHistory[p.id].map(r => (
+                              <div key={r.id} style={{ marginBottom: 10, padding: '8px 10px', background: 'var(--color-background-primary)', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 500 }}>{formatDateNice(r.date)}</span>
+                                  {r.blade && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#E6F1FB', color: '#0C447C' }}>✂️ {r.blade} {r.combo ? `· ${r.combo}` : ''}</span>}
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 4 }}>
+                                  {[['Cabeza', r.head], ['Orejas', r.ears], ['Cuerpo', r.body], ['Patas', r.legs], ['Cola', r.tail]].filter(([,v]) => v).map(([label, val]) => (
+                                    <div key={label} style={{ fontSize: 11 }}>
+                                      <span style={{ color: 'var(--color-text-secondary)' }}>{label}: </span>
+                                      <span style={{ color: 'var(--color-text-primary)' }}>{val}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                {r.notes && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4, fontStyle: 'italic' }}>📝 {r.notes}</div>}
+                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                  {r.health_behavior && r.health_behavior !== 'calm' && (
+                                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: 'var(--color-background-warning)', color: 'var(--color-text-warning)' }}>
+                                      {r.health_behavior === 'aggressive' ? '⚠️ Agresivo' : r.health_behavior === 'nervous' ? '😰 Nervioso' : '⚡ Energético'}
+                                    </span>
+                                  )}
+                                  {[['health_skin','Piel'],['health_ears','Orejas'],['health_nails','Uñas']].filter(([k]) => r[k] && r[k] !== 'ok').map(([k, label]) => (
+                                    <span key={k} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: r[k] === 'urgent' ? 'var(--color-background-danger)' : 'var(--color-background-warning)', color: r[k] === 'urgent' ? 'var(--color-text-danger)' : 'var(--color-text-warning)' }}>
+                                      {label}: {r[k] === 'urgent' ? 'Urgente' : 'Atención'}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
