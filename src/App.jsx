@@ -2940,21 +2940,29 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   <div>
                     <label style={styles.lbl}>Add-ons (opcional)</label>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                      {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => (
-                        <label key={addon.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: (pf.addons || []).includes(addon.id) ? 'var(--color-background-info)' : 'var(--color-background-secondary)', border: `0.5px solid ${(pf.addons || []).includes(addon.id) ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12 }}>
-                          <input type="checkbox" checked={(pf.addons || []).includes(addon.id)}
-                            onChange={e => updatePetForm(idx, 'addons', e.target.checked ? [...(pf.addons || []), addon.id] : (pf.addons || []).filter(id => id !== addon.id))}
-                            style={{ display: 'none' }} />
-                          {addon.name} +${addon.price}
-                        </label>
-                      ))}
+                      {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => {
+                        const selected = (pf.addons || []).includes(addon.id);
+                        return (
+                          <button key={addon.id} type="button"
+                            onClick={() => updatePetForm(idx, 'addons', selected ? (pf.addons || []).filter(id => id !== addon.id) : [...(pf.addons || []), addon.id])}
+                            style={{ padding: '5px 12px', background: selected ? 'var(--color-background-info)' : 'var(--color-background-secondary)', border: `1px solid ${selected ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-info)' : 'var(--color-text-secondary)', transition: 'all 0.15s' }}>
+                            {selected ? '✅ ' : ''}{addon.name} +${addon.price}
+                          </button>
+                        );
+                      })}
                     </div>
+                    {/* Total add-ons */}
+                    {(pf.addons || []).length > 0 && (
+                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-info)', fontWeight: 500 }}>
+                        Add-ons: +${(servicePrices || []).filter(p => (pf.addons || []).includes(p.id)).reduce((sum, p) => sum + p.price, 0)}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Descuento */}
-                  {pf.servicePrice > 0 && (
+                  {/* Descuento — solo admin */}
+                  {pf.servicePrice > 0 && isAdmin && (
                     <div style={{ marginTop: 10 }}>
-                      <label style={styles.lbl}>Descuento (%)</label>
+                      <label style={styles.lbl}>Descuento % (solo admin)</label>
                       <div style={{ position: 'relative', maxWidth: 150 }}>
                         <input type="number" min="0" max="100" step="5" value={pf.discountPct}
                           onChange={e => updatePetForm(idx, 'discountPct', e.target.value)}
