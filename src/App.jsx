@@ -87,6 +87,23 @@ const loadClients = async () => {
   if (error) { console.error(error); return []; }
   return data || [];
 };
+
+const loadServicePrices = async () => {
+  const { data, error } = await supabase.from('service_prices').select('*').eq('active', true).order('sort_order');
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+
+const saveServicePrice = async (price) => {
+  const { error } = await supabase.from('service_prices').upsert({
+    id: price.id, category: price.category, name: price.name,
+    size: price.size || '', hair_type: price.hair_type || '',
+    price: price.price, duration_minutes: price.duration_minutes || 60,
+    active: price.active !== false, sort_order: price.sort_order || 0,
+  });
+  if (error) console.error(error);
+  return !error;
+};
 const saveClient = async (client) => {
   const { error } = await supabase.from('clients').upsert({
     id: client.id, name: client.name, phone: client.phone || '',
@@ -296,16 +313,18 @@ export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
   const [pets, setPets] = useState([]);
+  const [servicePrices, setServicePrices] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
-        loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets()
+        loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
+        loadServicePrices()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
-      setClients(cls); setPets(pts);
+      setClients(cls); setPets(pts); setServicePrices(svc);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -368,6 +387,15 @@ export default function App() {
   const addAppointment = async (appt) => {
     setAppointments(prev => [...prev, appt]);
     await saveAppointment(appt);
+  };
+  const updateServicePrice = async (price) => {
+    setServicePrices(prev => prev.map(p => p.id === price.id ? price : p));
+    await saveServicePrice(price);
+  };
+  const addServicePrice = async (price) => {
+    const ok = await saveServicePrice(price);
+    if (ok) setServicePrices(prev => [...prev, price].sort((a,b) => a.sort_order - b.sort_order));
+    return ok;
   };
   const updateApptStatus = async (id, status) => {
     setAppointments(prev => prev.map(a => a.id === id ? { ...a, status } : a));
@@ -465,6 +493,7 @@ export default function App() {
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={addAppointment} addClient={addClient} addPet={addPet}
             refreshAppointments={refreshAppointments} deleteAppt={deleteAppt}
+            servicePrices={servicePrices}
           />
         )}
         {tab === 'clientes' && (
@@ -491,7 +520,8 @@ export default function App() {
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
             addCategory={addCategory} removeCategory={removeCategory}
-            users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive} />
+            users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive}
+            servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice} />
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
@@ -1160,7 +1190,7 @@ const HAIR_TYPES = ['Short Hair','Long Hair'];
 const STATUS_LABELS = { unconfirmed: 'Por confirmar', confirmed: 'Confirmada', in_progress: 'En progreso', completed: 'Completada', cancelled: 'Cancelada' };
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
-function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt }) {
+function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices }) {
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showGroomingForm, setShowGroomingForm] = useState(null);
@@ -1175,7 +1205,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     tailTool: '', tailNotes: '',
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
-  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [] });
+  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, addons: [] });
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -1344,6 +1374,32 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <label style={styles.lbl}>Hora fin (estimada)</label>
               <input type="time" value={newApptForm.timeEnd} onChange={e => setNewApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
             </div>
+
+            {/* Selector de servicio con precio automático */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Servicio principal</label>
+              <select value={newApptForm.serviceId} onChange={e => {
+                const svc = (servicePrices || []).find(p => p.id === e.target.value);
+                setNewApptForm(f => ({ ...f, serviceId: e.target.value, serviceName: svc?.name || '', servicePrice: svc?.price || 0 }));
+              }} style={styles.input}>
+                <option value="">Seleccionar servicio...</option>
+                {['Signature Bath', 'Full Groom', 'Add-on'].map(cat => (
+                  <optgroup key={cat} label={cat}>
+                    {(servicePrices || []).filter(p => p.category === cat).map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              {newApptForm.servicePrice > 0 && (
+                <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-success)', borderRadius: 6, fontSize: 13, color: 'var(--color-text-success)', fontWeight: 500 }}>
+                  💰 Precio: ${newApptForm.servicePrice}
+                </div>
+              )}
+            </div>
+
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>Notas (opcional)</label>
               <input value={newApptForm.notes} onChange={e => setNewApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
@@ -1894,13 +1950,16 @@ function SemanaTab({ vans, services, expenses, settings }) {
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, users, addUser, updateUser, toggleUserActive }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice }) {
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null); // { old, new }
   const [editingUser, setEditingUser] = useState(null);
   const [showNewUser, setShowNewUser] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingPrice, setEditingPrice] = useState({});
+  const [showNewService, setShowNewService] = useState(false);
+  const [newService, setNewService] = useState({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
   const [newUser, setNewUser] = useState({
     name: '', role: 'groomer', pin: '', van_id: '',
     can_create_clients: true, can_view_clients: false, can_schedule: true,
@@ -1915,11 +1974,26 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     if (categories.includes(newName)) { alert('Ese nombre ya existe'); return; }
     await saveCategory(newName);
     await deleteCategoryDB(oldName);
-    // Actualizar gastos que usen la categoría vieja
     await supabase.from('expenses').update({ category: newName }).eq('category', oldName);
     await addCategory(newName);
     await removeCategory(oldName);
     setEditingCategory(null);
+  };
+
+  const categories_prices = servicePrices ? [...new Set(servicePrices.map(p => p.category))] : [];
+
+  const handleSavePrice = async (price) => {
+    const newPrice = parseFloat(editingPrice[price.id]);
+    if (!isNaN(newPrice)) await updateServicePrice({ ...price, price: newPrice });
+    setEditingPrice(prev => { const copy = {...prev}; delete copy[price.id]; return copy; });
+  };
+
+  const handleAddService = async () => {
+    if (!newService.name.trim() || !newService.price) { alert('Ingresa nombre y precio'); return; }
+    const svc = { id: uid(), ...newService, name: newService.name.trim(), price: parseFloat(newService.price) || 0, active: true, sort_order: (servicePrices?.length || 0) + 1 };
+    await addServicePrice(svc);
+    setShowNewService(false);
+    setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
   };
 
   const PERMS = [
@@ -1998,6 +2072,105 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Configuración" title="Ajustes generales" />
+
+      {/* ===== LISTA DE SERVICIOS Y PRECIOS ===== */}
+      <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>💰 Lista de servicios y precios</h3>
+          <button onClick={() => setShowNewService(!showNewService)} style={styles.btnPrimary}>
+            <Plus size={15} /> Nuevo servicio
+          </button>
+        </div>
+
+        {/* Formulario nuevo servicio */}
+        {showNewService && (
+          <div style={{ padding: 14, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Nuevo servicio</div>
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.lbl}>Categoría</label>
+                <select value={newService.category} onChange={e => setNewService(f => ({...f, category: e.target.value}))} style={styles.input}>
+                  <option value="Signature Bath">Signature Bath</option>
+                  <option value="Full Groom">Full Groom</option>
+                  <option value="Add-on">Add-on</option>
+                </select>
+              </div>
+              <div>
+                <label style={styles.lbl}>Nombre del servicio</label>
+                <input value={newService.name} onChange={e => setNewService(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Ej: Baño especial" />
+              </div>
+              {newService.category !== 'Add-on' && (
+                <>
+                  <div>
+                    <label style={styles.lbl}>Tamaño</label>
+                    <select value={newService.size} onChange={e => setNewService(f => ({...f, size: e.target.value}))} style={styles.input}>
+                      <option value="">Todos</option>
+                      {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.lbl}>Tipo de pelo</label>
+                    <select value={newService.hair_type} onChange={e => setNewService(f => ({...f, hair_type: e.target.value}))} style={styles.input}>
+                      <option value="">Todos</option>
+                      {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
+              <div>
+                <label style={styles.lbl}>Precio ($)</label>
+                <input type="number" step="1" value={newService.price} onChange={e => setNewService(f => ({...f, price: e.target.value}))} style={styles.input} placeholder="0" />
+              </div>
+              <div>
+                <label style={styles.lbl}>Duración (min)</label>
+                <input type="number" step="15" value={newService.duration_minutes} onChange={e => setNewService(f => ({...f, duration_minutes: parseInt(e.target.value) || 60}))} style={styles.input} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
+              <button onClick={() => setShowNewService(false)} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
+              <button onClick={handleAddService} style={styles.btnPrimary}><Check size={14} /> Agregar</button>
+            </div>
+          </div>
+        )}
+
+        {/* Lista de precios por categoría */}
+        {categories_prices.map(cat => (
+          <div key={cat} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingBottom: 4, borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
+              {cat}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(servicePrices || []).filter(p => p.category === cat).map(price => (
+                <div key={price.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
+                  <div style={{ flex: 1, fontSize: 13 }}>
+                    {price.name}
+                    {price.size && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.size.split('(')[0].trim()}</span>}
+                    {price.hair_type && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.hair_type}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{price.duration_minutes}min</div>
+                  {editingPrice[price.id] !== undefined ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>$</span>
+                      <input type="number" step="1" value={editingPrice[price.id]}
+                        onChange={e => setEditingPrice(prev => ({...prev, [price.id]: e.target.value}))}
+                        style={{ ...styles.input, width: 80, padding: '4px 8px', fontSize: 13 }}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(price); if (e.key === 'Escape') setEditingPrice(prev => { const c = {...prev}; delete c[price.id]; return c; }); }}
+                        autoFocus />
+                      <button onClick={() => handleSavePrice(price)} style={styles.iconBtnGreen}><Check size={14} /></button>
+                      <button onClick={() => setEditingPrice(prev => { const c = {...prev}; delete c[price.id]; return c; })} style={styles.iconBtn}><X size={14} /></button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>${price.price}</span>
+                      <button onClick={() => setEditingPrice(prev => ({...prev, [price.id]: price.price}))} style={styles.iconBtn}><Edit2 size={14} /></button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* ===== USUARIOS ===== */}
       <div style={styles.card}>
