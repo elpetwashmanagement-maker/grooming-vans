@@ -2092,6 +2092,27 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             {/* Propina */}
             <div style={{ marginBottom: 20 }}>
               <label style={styles.lbl}>Propina (opcional)</label>
+              {/* Botones de % rápidos */}
+              <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 8 }}>
+                {[18, 20, 25].map(pct => {
+                  const total = (showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
+                  const tipAmt = parseFloat((total * pct / 100).toFixed(2));
+                  const isSelected = parseFloat(cobroForm.tip) === tipAmt;
+                  return (
+                    <button key={pct} onClick={() => setCobroForm(f => ({...f, tip: tipAmt}))}
+                      style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${isSelected ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: isSelected ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', textAlign: 'center' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--color-text-info)' : 'var(--color-text-primary)' }}>{pct}%</div>
+                      <div style={{ fontSize: 11, color: isSelected ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>${tipAmt}</div>
+                    </button>
+                  );
+                })}
+                <button onClick={() => setCobroForm(f => ({...f, tip: ''}))}
+                  style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${cobroForm.tip === '' || ![18,20,25].map(p => parseFloat(((showCobroForm.pets||[]).reduce((s,ap)=>s+(ap.amount||0),0)*p/100).toFixed(2))).includes(parseFloat(cobroForm.tip)) ? 'var(--color-border-tertiary)' : 'var(--color-border-tertiary)'}`, background: 'var(--color-background-secondary)', cursor: 'pointer', textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Custom</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Otro</div>
+                </button>
+              </div>
+              {/* Campo custom */}
               <div style={{ position: 'relative' }}>
                 <span style={{ position: 'absolute', left: 12, top: 11, fontSize: 13, color: '#94a3b8' }}>$</span>
                 <input type="number" step="1" min="0" value={cobroForm.tip}
