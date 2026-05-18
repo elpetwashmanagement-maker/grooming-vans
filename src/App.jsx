@@ -1205,7 +1205,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     tailTool: '', tailNotes: '',
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
-  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, addons: [] });
+  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -1284,22 +1284,30 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     if (!newApptForm.clientId) { alert('Selecciona un cliente'); return; }
     if (!newApptForm.timeStart) { alert('Ingresa la hora de inicio'); return; }
     setSaving(true);
+    const finalPrice = newApptForm.servicePrice > 0 && newApptForm.discountPct > 0
+      ? parseFloat((newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2))
+      : newApptForm.servicePrice;
     const appt = {
       id: uid(), date, timeStart: newApptForm.timeStart, timeEnd: newApptForm.timeEnd,
       vanId: newApptForm.vanId, clientId: newApptForm.clientId,
-      status: 'unconfirmed', notes: newApptForm.notes, alertNotes: newApptForm.alertNotes,
+      status: 'unconfirmed', 
+      notes: `${newApptForm.serviceName ? `Servicio: ${newApptForm.serviceName}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
+      alertNotes: newApptForm.alertNotes,
       agreementSigned: false,
+      servicePrice: finalPrice,
+      serviceName: newApptForm.serviceName,
+      discountPct: newApptForm.discountPct,
       client: clients.find(c => c.id === newApptForm.clientId) || null,
       pets: newApptForm.petIds.map(pid => {
         const p = pets.find(pt => pt.id === pid);
-        return { id: uid(), petId: pid, service: '', amount: 0, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size } : null };
+        return { id: uid(), petId: pid, service: newApptForm.serviceName, amount: finalPrice, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size } : null };
       }),
     };
     await addAppointment(appt);
     for (const ap of appt.pets) await saveAppointmentPet({ ...ap, appointmentId: appt.id });
     setSaving(false);
     setShowNewAppt(false);
-    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [] });
+    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
     setClientSearch('');
   };
 
@@ -1394,8 +1402,36 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 ))}
               </select>
               {newApptForm.servicePrice > 0 && (
-                <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-success)', borderRadius: 6, fontSize: 13, color: 'var(--color-text-success)', fontWeight: 500 }}>
-                  💰 Precio: ${newApptForm.servicePrice}
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={styles.lbl}>Descuento (%)</label>
+                      <div style={{ position: 'relative' }}>
+                        <input type="number" min="0" max="100" step="5"
+                          value={newApptForm.discountPct}
+                          onChange={e => setNewApptForm(f => ({...f, discountPct: parseFloat(e.target.value) || 0}))}
+                          style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
+                        <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, padding: '8px 12px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
+                      {newApptForm.discountPct > 0 ? (
+                        <>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-success)', marginBottom: 2 }}>
+                            <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>${newApptForm.servicePrice}</span>
+                            {' '}-{newApptForm.discountPct}%
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>
+                            💰 ${(newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2)}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>
+                          💰 ${newApptForm.servicePrice}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1607,6 +1643,20 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       )}
                     </div>
 
+                    {/* Servicio y precio */}
+                    {(appt.serviceName || appt.servicePrice > 0) && (
+                      <div style={{ marginTop: 10, padding: '8px 12px', background: 'var(--color-background-success)', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>{appt.serviceName || 'Servicio'}</div>
+                          {appt.discountPct > 0 && (
+                            <div style={{ fontSize: 11, color: 'var(--color-text-success)' }}>🏷️ {appt.discountPct}% descuento aplicado</div>
+                          )}
+                        </div>
+                        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 600, color: 'var(--color-text-success)' }}>
+                          ${appt.servicePrice}
+                        </div>
+                      </div>
+                    )}
                     {appt.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: 6 }}>📝 {appt.notes}</div>}
                   </div>
                 )}
