@@ -2038,31 +2038,41 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
       {/* Modal de cobro */}
       {showCobroForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
-          <div style={{ background: 'var(--color-background-primary)', borderRadius: 16, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ ...styles.cardH3, margin: 0 }}>💰 Cobro — {showCobroForm.client?.name}</h3>
+        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(6px)' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--color-background-primary)', borderRadius: 20, padding: 28, maxWidth: 440, width: '100%', boxShadow: '0 25px 80px rgba(0,0,0,0.5)', margin: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cobro del servicio</div>
+                <h3 style={{ ...styles.cardH3, margin: '2px 0 0' }}>💰 {showCobroForm.client?.name}</h3>
+              </div>
               <button onClick={() => setShowCobroForm(null)} style={styles.iconBtn}><X size={16} /></button>
             </div>
 
             {/* Resumen de mascotas y precios */}
-            <div style={{ marginBottom: 16 }}>
-              {(showCobroForm.pets || []).map((ap, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: 13 }}>
-                  <span>🐾 {ap.pet?.name || 'Mascota'} — {ap.service || 'Servicio'}</span>
-                  <span style={{ fontWeight: 600 }}>${ap.amount || 0}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px', fontSize: 15, fontWeight: 700 }}>
+            <div style={{ background: 'var(--color-background-secondary)', borderRadius: 12, padding: '10px 14px', marginBottom: 16 }}>
+              {(showCobroForm.pets || []).length > 0 ? (
+                (showCobroForm.pets || []).map((ap, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none', fontSize: 13 }}>
+                    <span style={{ color: 'var(--color-text-primary)' }}>
+                      🐾 {ap.pet?.name || ap.petId?.slice(0,8) || 'Mascota'} 
+                      {ap.service ? <span style={{ color: 'var(--color-text-secondary)', marginLeft: 4 }}>— {ap.service}</span> : ''}
+                    </span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-text-success)' }}>${ap.amount || 0}</span>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Sin mascotas registradas</div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTop: '1px solid var(--color-border-secondary)', fontSize: 16, fontWeight: 700 }}>
                 <span>Total</span>
-                <span style={{ color: 'var(--color-text-success)' }}>
+                <span style={{ color: 'var(--color-text-success)', fontFamily: 'Fraunces, serif' }}>
                   ${(showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0).toFixed(2)}
                 </span>
               </div>
             </div>
 
             {/* Método de pago */}
-            <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 14 }}>
               <label style={styles.lbl}>Método de pago</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 6 }}>
                 {PAYMENT_METHODS.map(m => (
@@ -2074,7 +2084,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               </div>
               {cobroForm.method === 'Tarjeta crédito' && (
                 <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta
+                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta al total
                 </div>
               )}
             </div>
