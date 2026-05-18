@@ -564,7 +564,7 @@ export default function App() {
             addClient={addClient} updateClient={updateClient} removeClient={removeClient}
             addPet={addPet} updatePet={updatePet}
             servicePrices={servicePrices} addAppointment={addAppointment} vans={visibleVans}
-            settings={settings}
+            settings={settings} refreshAppointments={refreshAppointments}
           />
         )}
         {tab === 'razas' && <RazasTab session={session} />}
@@ -3137,7 +3137,7 @@ function BreedInput({ value, onChange, placeholder = 'Escribir raza...' }) {
 }
 
 // ===== CLIENTES TAB =====
-function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings }) {
+function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
@@ -3189,6 +3189,8 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
   const [showEditPet, setShowEditPet] = useState(false);
   const [editClientForm, setEditClientForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
   const [editPetForm, setEditPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+  const [editingAppt, setEditingAppt] = useState(null);
+  const [editApptForm, setEditApptForm] = useState({});
 
   const startEditClient = (c) => {
     setEditingClient(c);
@@ -3767,16 +3769,121 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
             {clientHistory.length > 0 && (
               <div style={{ ...styles.card, marginTop: 12 }}>
                 <h3 style={{ ...styles.cardH3, marginBottom: 10 }}>Historial de visitas</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {clientHistory.map(a => {
                     const sc = STATUS_COLORS[a.status] || STATUS_COLORS.unconfirmed;
+                    const isEditingAppt = editingAppt?.id === a.id;
                     return (
-                      <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: 13 }}>
-                        <div>
-                          <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 999, background: sc.bg, color: sc.text, marginRight: 8 }}>{STATUS_LABELS[a.status]}</span>
-                          {formatDateNice(a.date)}
-                        </div>
-                        <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{a.timeStart}</span>
+                      <div key={a.id} style={{ padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
+                        {isEditingAppt ? (
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>✏️ Editar cita</div>
+                            <div style={styles.formGrid}>
+                              <div>
+                                <label style={styles.lbl}>Fecha</label>
+                                <input type="date" value={editApptForm.date} onChange={e => setEditApptForm(f => ({...f, date: e.target.value}))} style={styles.input} />
+                              </div>
+                              <div>
+                                <label style={styles.lbl}>Van</label>
+                                <select value={editApptForm.vanId} onChange={e => setEditApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
+                                  {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={styles.lbl}>Hora inicio</label>
+                                <input type="time" value={editApptForm.timeStart} onChange={e => setEditApptForm(f => ({...f, timeStart: e.target.value}))} style={styles.input} />
+                              </div>
+                              <div>
+                                <label style={styles.lbl}>Hora fin</label>
+                                <input type="time" value={editApptForm.timeEnd} onChange={e => setEditApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
+                              </div>
+                              <div style={{ gridColumn: 'span 2' }}>
+                                <label style={styles.lbl}>Notas</label>
+                                <input value={editApptForm.notes} onChange={e => setEditApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
+                              </div>
+                              <div style={{ gridColumn: 'span 2' }}>
+                                <label style={styles.lbl}>⚠️ Notas de alerta</label>
+                                <input value={editApptForm.alertNotes} onChange={e => setEditApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo..." />
+                              </div>
+                            </div>
+                            {/* Editar servicio por mascota */}
+                            {a.pets?.length > 0 && (
+                              <div style={{ marginTop: 10 }}>
+                                <label style={styles.lbl}>Servicios por mascota</label>
+                                {a.pets.map((ap, idx) => (
+                                  <div key={ap.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
+                                    <span style={{ fontSize: 12, minWidth: 80 }}>🐾 {ap.pet?.name || 'Mascota'}</span>
+                                    <select defaultValue={ap.service}
+                                      onChange={async e => {
+                                        const svcName = e.target.value;
+                                        const svc = (servicePrices || []).find(p => `${p.name} · ${p.size?.split('(')[0]?.trim()} · ${p.hair_type}` === svcName || p.name === svcName);
+                                        await supabase.from('appointment_pets').update({ service: svcName, amount: svc?.price || ap.amount }).eq('id', ap.id);
+                                      }}
+                                      style={{ ...styles.input, flex: 1, fontSize: 12 }}>
+                                      <option value={ap.service || ''}>{ap.service || 'Sin servicio'}</option>
+                                      {['Signature Bath','Full Groom','Add-on'].map(cat => (
+                                        <optgroup key={cat} label={cat}>
+                                          {(servicePrices || []).filter(p => p.category === cat).map(p => (
+                                            <option key={p.id} value={`${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}`}>
+                                              {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
+                                            </option>
+                                          ))}
+                                        </optgroup>
+                                      ))}
+                                    </select>
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-success)' }}>${ap.amount || 0}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                              <button onClick={() => { setEditingAppt(null); setEditApptForm({}); }} style={styles.btnSecondary}><X size={13} /> Cancelar</button>
+                              <button onClick={async () => {
+                                setSaving(true);
+                                await supabase.from('appointments').update({
+                                  date: editApptForm.date, time_start: editApptForm.timeStart,
+                                  time_end: editApptForm.timeEnd, van_id: editApptForm.vanId,
+                                  notes: editApptForm.notes, alert_notes: editApptForm.alertNotes,
+                                }).eq('id', a.id);
+                                await refreshAppointments();
+                                setEditingAppt(null);
+                                setSaving(false);
+                              }} style={styles.btnPrimary} disabled={saving}>
+                                {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={13} />}
+                                Guardar cambios
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[a.status]}</span>
+                                <span style={{ fontSize: 13, fontWeight: 500 }}>{formatDateNice(a.date)} · {a.timeStart}</span>
+                              </div>
+                              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                {vans.find(v => v.id === a.vanId)?.name} — {vans.find(v => v.id === a.vanId)?.groomer}
+                              </div>
+                              {a.pets?.length > 0 && (
+                                <div style={{ marginTop: 4 }}>
+                                  {a.pets.map(ap => (
+                                    <div key={ap.id} style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                      🐾 {ap.pet?.name || 'Mascota'} — {ap.service || 'Sin servicio'} {ap.amount > 0 ? `· $${ap.amount}` : ''}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {isAdmin && ['unconfirmed','confirmed'].includes(a.status) && (
+                              <button onClick={() => {
+                                setEditingAppt(a);
+                                setEditApptForm({ date: a.date, timeStart: a.timeStart, timeEnd: a.timeEnd || '', vanId: a.vanId, notes: a.notes || '', alertNotes: a.alertNotes || '' });
+                              }} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11, flexShrink: 0 }}>
+                                <Edit2 size={12} /> Editar
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
