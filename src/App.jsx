@@ -1259,7 +1259,8 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
   const [showCobroForm, setShowCobroForm] = useState(null);
   const [cobroForm, setCobroForm] = useState({ method: 'Efectivo', tip: '' });
-  const [viewMode, setViewMode] = useState(isAdmin ? 'calendario' : 'lista');
+  const [viewMode, setViewMode] = useState('lista');
+  const [selectedRutaVan, setSelectedRutaVan] = useState(null);
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
@@ -1423,6 +1424,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               </button>
               <button onClick={() => setViewMode('calendario')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'calendario' ? 600 : 400, background: viewMode === 'calendario' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'calendario' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
                 📅 Calendario
+              </button>
+              <button onClick={() => setViewMode('ruta')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'ruta' ? 600 : 400, background: viewMode === 'ruta' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'ruta' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                🗺️ Ruta
               </button>
             </div>
             <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> Nueva cita</button>
@@ -1699,6 +1703,147 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       )}
 
       {/* Lista de citas */}
+      {/* ===== VISTA RUTA ===== */}
+      {viewMode === 'ruta' && (
+        <div style={{ marginBottom: 20 }}>
+          {/* Selector de van para admin */}
+          {!isGroomer && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {vans.map(v => {
+                const color = getVanColor(v.id);
+                const count = dayAppts.filter(a => a.vanId === v.id).length;
+                return (
+                  <button key={v.id} onClick={() => setSelectedRutaVan(v.id)}
+                    style={{ padding: '6px 14px', borderRadius: 999, border: `1.5px solid ${selectedRutaVan === v.id ? color.border : 'var(--color-border-tertiary)'}`, background: selectedRutaVan === v.id ? color.bg : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: selectedRutaVan === v.id ? 600 : 400, color: selectedRutaVan === v.id ? color.text : 'var(--color-text-secondary)' }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: color.dot, display: 'inline-block', marginRight: 6 }} />
+                    {v.name} — {v.groomer} ({count})
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Ruta del día */}
+          {(() => {
+            const rutaVanId = isGroomer ? myVanId : (selectedRutaVan || vans[0]?.id);
+            const rutaAppts = dayAppts.filter(a => a.vanId === rutaVanId).sort((a,b) => a.timeStart.localeCompare(b.timeStart));
+            const rutaVan = vans.find(v => v.id === rutaVanId);
+            const color = getVanColor(rutaVanId);
+
+            if (rutaAppts.length === 0) return (
+              <div style={styles.empty}>
+                <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin citas para esta van hoy</p>
+              </div>
+            );
+
+            // Botón para abrir TODA la ruta en Google Maps
+            const allAddresses = rutaAppts.map(a => a.client?.address).filter(Boolean);
+            const mapsRouteUrl = allAddresses.length > 0
+              ? `https://www.google.com/maps/dir/${allAddresses.map(a => encodeURIComponent(a)).join('/')}`
+              : null;
+
+            return (
+              <div>
+                {/* Header de la ruta */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: color.text }}>{rutaVan?.name} — {rutaVan?.groomer}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>{rutaAppts.length} cita{rutaAppts.length !== 1 ? 's' : ''} · {formatDateNice(date)}</div>
+                  </div>
+                  {mapsRouteUrl && (
+                    <button onClick={() => window.open(mapsRouteUrl, '_blank')}
+                      style={{ ...styles.btnPrimary, background: '#1a73e8', borderColor: '#1a73e8', color: '#fff' }}>
+                      <MapPin size={15} /> Abrir ruta completa en Maps
+                    </button>
+                  )}
+                </div>
+
+                {/* Citas en orden de ruta */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {rutaAppts.map((appt, idx) => {
+                    const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+                    const mapsUrl = appt.client?.address
+                      ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(appt.client.address)}`
+                      : null;
+                    return (
+                      <div key={appt.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                        {/* Número de parada */}
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: color.bg, border: `2px solid ${color.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 700, fontSize: 14, color: color.text }}>
+                          {idx + 1}
+                        </div>
+
+                        {/* Línea conectora */}
+                        <div style={{ flex: 1 }}>
+                          <div style={{ ...styles.card, padding: '12px 14px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                  <span style={{ fontSize: 13, fontWeight: 600 }}>{appt.timeStart}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}</span>
+                                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[appt.status]}</span>
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 500 }}>{appt.client?.name || 'Sin cliente'}</div>
+                                {appt.client?.address && (
+                                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                                    📍 {appt.client.address}
+                                  </div>
+                                )}
+                                {appt.pets?.length > 0 && (
+                                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
+                                    {appt.pets.map(ap => `🐾 ${ap.pet?.name || 'Mascota'} — ${ap.service || ''} $${ap.amount || 0}`).join(' · ')}
+                                  </div>
+                                )}
+                                {appt.alertNotes && (
+                                  <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginTop: 4 }}>⚠️ {appt.alertNotes}</div>
+                                )}
+                              </div>
+                              {mapsUrl && (
+                                <button onClick={() => window.open(mapsUrl, '_blank')}
+                                  style={{ ...styles.btnSecondary, padding: '6px 10px', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>
+                                  <MapPin size={13} /> Maps
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {/* Línea conectora entre paradas */}
+                          {idx < rutaAppts.length - 1 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 4px 0', marginLeft: -20 }}>
+                              <div style={{ width: 2, height: 24, background: color.border, marginLeft: 15, borderRadius: 2 }} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Resumen de la ruta */}
+                <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--color-background-secondary)', borderRadius: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>Resumen del día</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: color.text }}>{rutaAppts.length}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Citas</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: color.text }}>
+                        {rutaAppts.reduce((sum, a) => sum + (a.pets?.length || 0), 0)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Mascotas</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text-success)' }}>
+                        ${rutaAppts.reduce((sum, a) => sum + (a.pets?.reduce((s, ap) => s + (ap.amount || 0), 0) || 0), 0).toFixed(0)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Esperado</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* ===== VISTA LISTA ===== */}
       {viewMode === 'lista' && (dayAppts.length === 0 ? (
         <div style={styles.empty}>
