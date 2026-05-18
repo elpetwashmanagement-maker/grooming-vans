@@ -468,8 +468,24 @@ export default function App() {
     return ok;
   };
   const removeClient = async (id) => {
-    if (!confirm('¿Borrar este cliente y todas sus mascotas? No se puede deshacer.')) return;
+    const client = clients.find(c => c.id === id);
+    const clientAppts = appointments.filter(a => a.clientId === id);
+    const clientPetsList = pets.filter(p => p.client_id === id);
+
+    const msg = `⚠️ ¿Borrar a ${client?.name}?\n\nEsto eliminará permanentemente:\n• ${clientPetsList.length} mascota(s)\n• ${clientAppts.length} cita(s)\n• Todas las fichas de grooming\n\nNo se puede deshacer.`;
+    if (!confirm(msg)) return;
+
+    // Borrar estado local
     setClients(prev => prev.filter(c => c.id !== id));
+    setPets(prev => prev.filter(p => p.client_id !== id));
+    setAppointments(prev => prev.filter(a => a.clientId !== id));
+
+    // Borrar en Supabase en cascada
+    for (const appt of clientAppts) {
+      await supabase.from('grooming_records').delete().eq('appointment_id', appt.id);
+      await supabase.from('appointment_pets').delete().eq('appointment_id', appt.id);
+    }
+    await supabase.from('appointments').delete().eq('client_id', id);
     await supabase.from('pets').delete().eq('client_id', id);
     await supabase.from('clients').delete().eq('id', id);
   };
@@ -2022,7 +2038,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
       {/* Modal de cobro */}
       {showCobroForm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: 'var(--color-background-primary)', borderRadius: 16, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ ...styles.cardH3, margin: 0 }}>💰 Cobro — {showCobroForm.client?.name}</h3>
@@ -3213,6 +3229,22 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
   const handleCreateAll = async () => {
     if (!clientForm.name.trim()) { alert('Ingresa el nombre del cliente'); return; }
     if (petForms.some(p => !p.name.trim())) { alert('Ingresa el nombre de cada mascota'); return; }
+
+    // Validación de duplicados
+    const nameLower = clientForm.name.trim().toLowerCase();
+    const addrLower = clientForm.address?.trim().toLowerCase();
+
+    const dupName = clients.find(c => c.name.toLowerCase() === nameLower);
+    const dupAddr = addrLower ? clients.find(c => c.address?.toLowerCase() === addrLower) : null;
+
+    if (dupName) {
+      const ok = window.confirm(`⚠️ Ya existe un cliente con el nombre "${clientForm.name.trim()}".\n\n¿Es un cliente diferente? Clic OK para continuar de todas formas.\nClic Cancelar para revisar.`);
+      if (!ok) return;
+    } else if (dupAddr) {
+      const ok = window.confirm(`⚠️ Ya existe un cliente en la dirección "${clientForm.address}":\n${dupAddr.name}\n\n¿Es un cliente diferente? Clic OK para continuar.\nClic Cancelar para revisar.`);
+      if (!ok) return;
+    }
+
     setSaving(true);
 
     // 1. Crear cliente
