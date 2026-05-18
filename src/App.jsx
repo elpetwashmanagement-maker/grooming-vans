@@ -25,6 +25,51 @@ const DEFAULT_VANS = [
 const DEFAULT_ADMIN_PIN = '9999';
 const DEFAULT_CATEGORIES = ['Gasolina', 'Shampoo', 'Colonias', 'Materiales', 'Mantenimiento', 'Otros'];
 
+// ===== RAZAS POPULARES =====
+const DOG_BREEDS = [
+  'Affenpinscher','Afghan Hound','Airedale Terrier','Akita','Alaskan Malamute',
+  'American Bulldog','American Eskimo Dog','American Staffordshire Terrier',
+  'Australian Shepherd','Basenji','Basset Hound','Beagle','Bichon Frise',
+  'Border Collie','Boston Terrier','Boxer','Bulldog','Bullmastiff',
+  'Cairn Terrier','Cavalier King Charles Spaniel','Chihuahua','Chow Chow',
+  'Cocker Spaniel','Dachshund','Dalmatian','Doberman Pinscher',
+  'English Springer Spaniel','French Bulldog','German Shepherd',
+  'German Shorthaired Pointer','Golden Retriever','Great Dane','Greyhound',
+  'Havanese','Irish Setter','Jack Russell Terrier','Labrador Retriever',
+  'Lhasa Apso','Maltese','Miniature Pinscher','Miniature Schnauzer',
+  'Newfoundland','Pekingese','Pembroke Welsh Corgi','Pit Bull','Pointer',
+  'Pomeranian','Poodle (Miniature)','Poodle (Standard)','Poodle (Toy)',
+  'Portuguese Water Dog','Pug','Rottweiler','Saint Bernard',
+  'Samoyed','Schnauzer','Shetland Sheepdog','Shih Tzu','Siberian Husky',
+  'Staffordshire Bull Terrier','Vizsla','Weimaraner','West Highland White Terrier',
+  'Whippet','Yorkshire Terrier','Goldendoodle','Labradoodle','Cockapoo',
+  'Maltipoo','Morkie','Pomsky','Schnoodle','Sheepadoodle','Teddy Bear',
+  'Bernedoodle','Aussiedoodle','Cavapoo','Belgian Malinois','Doberman',
+  'Abyssinian','Persian','Siamese','Mixed Breed','Mestizo',
+];
+
+// ===== PRECIO AUTOMÁTICO POR PESO =====
+const getSizeByWeight = (weight) => {
+  const w = parseFloat(weight) || 0;
+  if (w <= 0) return '';
+  if (w <= 20) return 'Small (1-20 lbs)';
+  if (w <= 40) return 'Medium (21-40 lbs)';
+  if (w <= 60) return 'Large (41-60 lbs)';
+  if (w <= 80) return 'Big (61-80 lbs)';
+  if (w <= 100) return 'Extra Large (81-100 lbs)';
+  if (w <= 120) return 'Giant (100-120 lbs)';
+  return 'Extra Giant (+120 lbs)';
+};
+
+const getAutoPrice = (servicePrices, category, size, hairType) => {
+  if (!servicePrices || !category || !size || !hairType) return null;
+  return servicePrices.find(p =>
+    p.category === category &&
+    p.size === size &&
+    p.hair_type === hairType
+  ) || null;
+};
+
 // ===== HELPERS =====
 const todayISO = () => { const d = new Date(); const tz = d.getTimezoneOffset() * 60000; return new Date(d - tz).toISOString().slice(0, 10); };
 const fmt = (n) => `$${(Number(n) || 0).toFixed(2)}`;
@@ -1475,7 +1520,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Nueva mascota</div>
               <div style={styles.formGrid}>
                 <div><label style={styles.lbl}>Nombre *</label><input value={newPetForm.name} onChange={e => setNewPetForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre" /></div>
-                <div><label style={styles.lbl}>Raza</label><input value={newPetForm.breed} onChange={e => setNewPetForm(f => ({...f, breed: e.target.value}))} style={styles.input} placeholder="Raza" /></div>
+                <div><label style={styles.lbl}>Raza</label><BreedInput value={newPetForm.breed} onChange={v => setNewPetForm(f => ({...f, breed: v}))} /></div>
                 <div><label style={styles.lbl}>Tamaño</label><select value={newPetForm.size} onChange={e => setNewPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label style={styles.lbl}>Pelo</label><select value={newPetForm.hairType} onChange={e => setNewPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
                 <div><label style={styles.lbl}>Alergias</label><input value={newPetForm.allergies} onChange={e => setNewPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="Ninguna" /></div>
@@ -2574,6 +2619,41 @@ function KpiCard({ label, value, highlight, accent }) {
   );
 }
 
+// ===== BREED AUTOCOMPLETE =====
+function BreedInput({ value, onChange, placeholder = 'Escribir raza...' }) {
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const suggestions = useMemo(() => {
+    if (!value || value.length < 2) return [];
+    const q = value.toLowerCase();
+    return DOG_BREEDS.filter(b => b.toLowerCase().includes(q)).slice(0, 8);
+  }, [value]);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={value}
+        onChange={e => { onChange(e.target.value); setShowSuggestions(true); }}
+        onFocus={() => setShowSuggestions(true)}
+        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        style={styles.input}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {showSuggestions && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid var(--color-border-secondary)', borderRadius: 8, boxShadow: '0 8px 24px -8px rgba(0,0,0,0.15)', zIndex: 100, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
+          {suggestions.map(breed => (
+            <button key={breed} onMouseDown={e => { e.preventDefault(); onChange(breed); setShowSuggestions(false); }}
+              className="suggestion-hover"
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '0.5px solid var(--color-border-tertiary)', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-primary)' }}>
+              🐾 {breed}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===== CLIENTES TAB =====
 function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings }) {
   const [search, setSearch] = useState('');
@@ -2626,17 +2706,53 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
     setPetForms(prev => prev.map((p, i) => {
       if (i !== idx) return p;
       const updated = { ...p, [field]: value };
+
+      // Cuando cambia el peso → actualizar tamaño automáticamente
+      if (field === 'weight') {
+        updated.size = getSizeByWeight(value) || updated.size;
+        // Recalcular precio si ya tiene servicio seleccionado
+        if (updated.serviceCategory && updated.hairType && updated.size) {
+          const svc = getAutoPrice(servicePrices, updated.serviceCategory, updated.size, updated.hairType);
+          if (svc) {
+            updated.serviceId = svc.id;
+            updated.serviceName = svc.name;
+            updated.servicePrice = svc.price;
+            updated.finalPrice = parseFloat((svc.price * (1 - (updated.discountPct || 0) / 100)).toFixed(2));
+          }
+        }
+      }
+
+      // Cuando cambia el tipo de pelo o categoría → recalcular precio
+      if (field === 'hairType' || field === 'serviceCategory') {
+        const cat = field === 'serviceCategory' ? value : updated.serviceCategory;
+        const hair = field === 'hairType' ? value : updated.hairType;
+        const size = updated.size;
+        if (cat && hair && size) {
+          const svc = getAutoPrice(servicePrices, cat, size, hair);
+          if (svc) {
+            updated.serviceId = svc.id;
+            updated.serviceName = svc.name;
+            updated.servicePrice = svc.price;
+            updated.finalPrice = parseFloat((svc.price * (1 - (updated.discountPct || 0) / 100)).toFixed(2));
+          }
+        }
+      }
+
+      // Cuando selecciona servicio manualmente
       if (field === 'serviceId') {
         const svc = (servicePrices || []).find(s => s.id === value);
         updated.serviceName = svc?.name || '';
         updated.servicePrice = svc?.price || 0;
-        updated.finalPrice = svc?.price || 0;
+        updated.serviceCategory = svc?.category || '';
+        updated.finalPrice = parseFloat(((svc?.price || 0) * (1 - (updated.discountPct || 0) / 100)).toFixed(2));
       }
-      if (field === 'servicePrice' || field === 'discountPct') {
-        const price = field === 'servicePrice' ? parseFloat(value) || 0 : updated.servicePrice;
-        const disc = field === 'discountPct' ? parseFloat(value) || 0 : updated.discountPct;
-        updated.finalPrice = parseFloat((price * (1 - disc / 100)).toFixed(2));
+
+      // Cuando cambia el descuento
+      if (field === 'discountPct') {
+        const disc = parseFloat(value) || 0;
+        updated.finalPrice = parseFloat((updated.servicePrice * (1 - disc / 100)).toFixed(2));
       }
+
       return updated;
     }));
   };
@@ -2754,60 +2870,99 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                 {/* Datos de la mascota */}
                 <div style={styles.formGrid}>
                   <div><label style={styles.lbl}>Nombre *</label><input value={pf.name} onChange={e => updatePetForm(idx, 'name', e.target.value)} style={styles.input} placeholder="Nombre" /></div>
-                  <div><label style={styles.lbl}>Raza</label><input value={pf.breed} onChange={e => updatePetForm(idx, 'breed', e.target.value)} style={styles.input} placeholder="Raza" /></div>
-                  <div><label style={styles.lbl}>Tamaño *</label><select value={pf.size} onChange={e => updatePetForm(idx, 'size', e.target.value)} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                  <div><label style={styles.lbl}>Raza</label><BreedInput value={pf.breed} onChange={v => updatePetForm(idx, 'breed', v)} /></div>
+                  <div>
+                    <label style={styles.lbl}>Peso (lbs) *</label>
+                    <input type="number" value={pf.weight} onChange={e => updatePetForm(idx, 'weight', e.target.value)} style={styles.input} placeholder="0" />
+                    {pf.weight > 0 && (
+                      <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 4, fontWeight: 500 }}>
+                        📏 {getSizeByWeight(pf.weight)}
+                      </div>
+                    )}
+                  </div>
                   <div><label style={styles.lbl}>Tipo de pelo *</label><select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
                   <div><label style={styles.lbl}>Edad</label><input value={pf.age} onChange={e => updatePetForm(idx, 'age', e.target.value)} style={styles.input} placeholder="Ej: 3 años" /></div>
                   <div><label style={styles.lbl}>Color</label><input value={pf.color} onChange={e => updatePetForm(idx, 'color', e.target.value)} style={styles.input} placeholder="Ej: Blanco y negro" /></div>
-                  <div><label style={styles.lbl}>Peso (lbs)</label><input type="number" value={pf.weight} onChange={e => updatePetForm(idx, 'weight', e.target.value)} style={styles.input} placeholder="0" /></div>
                   <div><label style={styles.lbl}>Alergias</label><input value={pf.allergies} onChange={e => updatePetForm(idx, 'allergies', e.target.value)} style={styles.input} placeholder="Ninguna" /></div>
+                  <div><label style={styles.lbl}>Notas médicas</label><input value={pf.medicalNotes} onChange={e => updatePetForm(idx, 'medicalNotes', e.target.value)} style={styles.input} placeholder="Ninguna" /></div>
                   <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas de comportamiento</label><input value={pf.behaviorNotes} onChange={e => updatePetForm(idx, 'behaviorNotes', e.target.value)} style={styles.input} placeholder="Ej: Ansioso con tijeras, mordió en visita anterior..." /></div>
                 </div>
 
                 {/* Servicio y precio */}
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Servicio de esta visita</div>
-                  <div style={styles.formGrid}>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label style={styles.lbl}>Servicio</label>
-                      <select value={pf.serviceId} onChange={e => updatePetForm(idx, 'serviceId', e.target.value)} style={styles.input}>
-                        <option value="">Seleccionar servicio...</option>
-                        {['Signature Bath', 'Full Groom', 'Add-on'].map(cat => (
-                          <optgroup key={cat} label={cat}>
-                            {(servicePrices || []).filter(p => p.category === cat).map(p => (
-                              <option key={p.id} value={p.id}>{p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — $${p.price}</option>
-                            ))}
-                          </optgroup>
-                        ))}
+
+                  {/* Selector simplificado: tipo + pelo → precio automático */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                    <div>
+                      <label style={styles.lbl}>Tipo de servicio</label>
+                      <select value={pf.serviceCategory || ''} onChange={e => updatePetForm(idx, 'serviceCategory', e.target.value)} style={styles.input}>
+                        <option value="">Seleccionar...</option>
+                        <option value="Signature Bath">🛁 Signature Bath</option>
+                        <option value="Full Groom">✂️ Full Groom</option>
                       </select>
                     </div>
-                    {pf.servicePrice > 0 && (
-                      <>
-                        <div>
-                          <label style={styles.lbl}>Descuento (%)</label>
-                          <div style={{ position: 'relative' }}>
-                            <input type="number" min="0" max="100" step="5" value={pf.discountPct}
-                              onChange={e => updatePetForm(idx, 'discountPct', e.target.value)}
-                              style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
-                            <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                          <div style={{ width: '100%', padding: '10px 12px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
-                            {pf.discountPct > 0 ? (
-                              <>
-                                <div style={{ fontSize: 11, color: 'var(--color-text-success)', textDecoration: 'line-through', opacity: 0.7 }}>${pf.servicePrice}</div>
-                                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.finalPrice}</div>
-                                <div style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}% descuento</div>
-                              </>
-                            ) : (
-                              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.servicePrice}</div>
-                            )}
-                          </div>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <label style={styles.lbl}>Tipo de pelo</label>
+                      <select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>
+                        {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
+                      </select>
+                    </div>
                   </div>
+
+                  {/* Precio automático calculado */}
+                  {pf.servicePrice > 0 ? (
+                    <div style={{ padding: '10px 14px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)', marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-success)', marginBottom: 4 }}>
+                        {pf.serviceName} · {getSizeByWeight(pf.weight)} · {pf.hairType}
+                      </div>
+                      {pf.discountPct > 0 ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 14, textDecoration: 'line-through', opacity: 0.6, color: 'var(--color-text-success)' }}>${pf.servicePrice}</span>
+                          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.finalPrice}</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}%</span>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.servicePrice}</div>
+                      )}
+                    </div>
+                  ) : pf.serviceCategory && !pf.weight ? (
+                    <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
+                      ⚠️ Ingresa el peso del perro para calcular el precio automáticamente
+                    </div>
+                  ) : pf.serviceCategory && pf.weight && !pf.servicePrice ? (
+                    <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
+                      ⚠️ No se encontró precio para esta combinación
+                    </div>
+                  ) : null}
+
+                  {/* Add-ons */}
+                  <div>
+                    <label style={styles.lbl}>Add-ons (opcional)</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                      {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => (
+                        <label key={addon.id} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: (pf.addons || []).includes(addon.id) ? 'var(--color-background-info)' : 'var(--color-background-secondary)', border: `0.5px solid ${(pf.addons || []).includes(addon.id) ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12 }}>
+                          <input type="checkbox" checked={(pf.addons || []).includes(addon.id)}
+                            onChange={e => updatePetForm(idx, 'addons', e.target.checked ? [...(pf.addons || []), addon.id] : (pf.addons || []).filter(id => id !== addon.id))}
+                            style={{ display: 'none' }} />
+                          {addon.name} +${addon.price}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Descuento */}
+                  {pf.servicePrice > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <label style={styles.lbl}>Descuento (%)</label>
+                      <div style={{ position: 'relative', maxWidth: 150 }}>
+                        <input type="number" min="0" max="100" step="5" value={pf.discountPct}
+                          onChange={e => updatePetForm(idx, 'discountPct', e.target.value)}
+                          style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
+                        <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Ficha de grooming */}
