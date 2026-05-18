@@ -1356,8 +1356,25 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     const hasData = groomingRecord.headTool || groomingRecord.bodyTool || groomingRecord.notes;
     if (!hasData) { alert('Completa al menos una área o agrega notas'); return; }
     setSaving(true);
-    const mainBlade = groomingRecord.bodyTool || groomingRecord.headTool || '';
-    const mainCombo = groomingRecord.legsTool || groomingRecord.bodyTool || '';
+
+    // Solo guardar como last_blade si es un blade REAL (empieza con #)
+    const isRealBlade = (tool) => tool && BLADES.includes(tool);
+    const isRealCombo = (tool) => tool && COMBOS.includes(tool);
+
+    const mainBlade = [groomingRecord.bodyTool, groomingRecord.headTool, groomingRecord.legsTool]
+      .find(t => isRealBlade(t)) || '';
+    const mainCombo = [groomingRecord.bodyTool, groomingRecord.legsTool, groomingRecord.headTool]
+      .find(t => isRealCombo(t)) || '';
+
+    // Resumen de herramientas por área para referencia
+    const toolSummary = [
+      groomingRecord.headTool && `Cabeza: ${groomingRecord.headTool}`,
+      groomingRecord.earsTool && `Orejas: ${groomingRecord.earsTool}`,
+      groomingRecord.bodyTool && `Cuerpo: ${groomingRecord.bodyTool}`,
+      groomingRecord.legsTool && `Patas: ${groomingRecord.legsTool}`,
+      groomingRecord.tailTool && `Cola: ${groomingRecord.tailTool}`,
+    ].filter(Boolean).join(' · ');
+
     const record = {
       id: uid(), appointmentId: apptId, petId, vanId: myVanId || vans[0]?.id, date,
       blade: mainBlade, combo: mainCombo,
@@ -1371,9 +1388,14 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       healthNails: groomingRecord.healthNails, healthBehavior: groomingRecord.healthBehavior,
     };
     await saveGroomingRecord(record);
-    if (petId && mainBlade) {
-      await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
+
+    // Guardar resumen completo de herramientas en el perfil de la mascota
+    if (petId) {
+      const updateData = { last_combo: toolSummary };
+      if (mainBlade) updateData.last_blade = mainBlade;
+      await supabase.from('pets').update(updateData).eq('id', petId);
     }
+
     setSaving(false);
     setShowGroomingForm(null);
     setGroomingRecord({ headTool: '', headNotes: '', earsTool: '', earsNotes: '', bodyTool: '', bodyNotes: '', legsTool: '', legsNotes: '', tailTool: '', tailNotes: '', notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm' });
@@ -1992,14 +2014,21 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                                   )}
 
                                   {/* Último corte como referencia */}
-                                  {ap.pet?.lastBlade && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--color-border-tertiary)' }}>
-                                      <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12 }}>✂️</div>
+                                  {(ap.pet?.lastBlade || ap.pet?.lastCombo) && (
+                                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '7px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--color-border-tertiary)' }}>
+                                      <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, marginTop: 1 }}>✂️</div>
                                       <div>
-                                        <div style={{ fontSize: 12, fontWeight: 500 }}>Referencia último corte</div>
-                                        <div style={{ fontSize: 11, color: 'var(--color-text-info)' }}>
-                                          Blade {ap.pet.lastBlade}{ap.pet.lastCombo ? ` · Combo ${ap.pet.lastCombo}` : ''}
-                                        </div>
+                                        <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 2 }}>Referencia último corte</div>
+                                        {ap.pet?.lastBlade && (
+                                          <div style={{ fontSize: 12, color: 'var(--color-text-info)', fontWeight: 600 }}>
+                                            Blade principal: {ap.pet.lastBlade}
+                                          </div>
+                                        )}
+                                        {ap.pet?.lastCombo && (
+                                          <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 2 }}>
+                                            {ap.pet.lastCombo}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   )}
