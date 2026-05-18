@@ -2854,7 +2854,15 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
     }));
   };
 
-  const totalCita = petForms.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+  const getAddonsTotal = (pf) => {
+    return (servicePrices || []).filter(p => (pf.addons || []).includes(p.id)).reduce((sum, p) => sum + p.price, 0);
+  };
+
+  const getPetTotal = (pf) => {
+    return (pf.finalPrice || 0) + getAddonsTotal(pf);
+  };
+
+  const totalCita = petForms.reduce((sum, p) => sum + getPetTotal(p), 0);
 
   const handleCreateAll = async () => {
     if (!clientForm.name.trim()) { alert('Ingresa el nombre del cliente'); return; }
@@ -2895,7 +2903,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
         if (mainBlade) await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
       }
 
-      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: pf.finalPrice, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
+      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: getPetTotal(pf), tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
     }
 
     // 3. Crear cita
@@ -3016,11 +3024,14 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                       {pf.discountPct > 0 ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 14, textDecoration: 'line-through', opacity: 0.6, color: 'var(--color-text-success)' }}>${pf.servicePrice}</span>
-                          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.finalPrice}</span>
-                          <span style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}%</span>
+                          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${getPetTotal(pf).toFixed(2)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}%{getAddonsTotal(pf) > 0 ? ` +$${getAddonsTotal(pf)} add-ons` : ''}</span>
                         </div>
                       ) : (
-                        <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.servicePrice}</div>
+                        <div>
+                          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${getPetTotal(pf).toFixed(2)}</div>
+                          {getAddonsTotal(pf) > 0 && <div style={{ fontSize: 11, color: 'var(--color-text-success)' }}>Servicio ${pf.servicePrice} + Add-ons ${getAddonsTotal(pf)}</div>}
+                        </div>
                       )}
                     </div>
                   ) : pf.serviceCategory && !pf.weight ? (
@@ -3049,11 +3060,6 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                       })}
                     </div>
                     {/* Total add-ons */}
-                    {(pf.addons || []).length > 0 && (
-                      <div style={{ marginTop: 6, fontSize: 12, color: 'var(--color-text-info)', fontWeight: 500 }}>
-                        Add-ons: +${(servicePrices || []).filter(p => (pf.addons || []).includes(p.id)).reduce((sum, p) => sum + p.price, 0)}
-                      </div>
-                    )}
                   </div>
 
                   {/* Descuento — solo admin */}
@@ -3113,10 +3119,13 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
             {totalCita > 0 && (
               <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-success)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Resumen de la cita</div>
-                {petForms.filter(p => p.finalPrice > 0).map((p, i) => (
+                {petForms.filter(p => getPetTotal(p) > 0).map((p, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--color-text-success)', marginBottom: 4 }}>
-                    <span>🐾 {p.name || `Mascota ${i+1}`} — {p.serviceName}</span>
-                    <span style={{ fontWeight: 500 }}>${p.finalPrice}</span>
+                    <div>
+                      <span>🐾 {p.name || `Mascota ${i+1}`} — {p.serviceName}</span>
+                      {getAddonsTotal(p) > 0 && <div style={{ fontSize: 11, opacity: 0.8 }}>+ {(p.addons || []).length} add-on(s)</div>}
+                    </div>
+                    <span style={{ fontWeight: 500 }}>${getPetTotal(p).toFixed(2)}</span>
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)', paddingTop: 8, borderTop: '0.5px solid var(--color-border-success)', marginTop: 6 }}>
