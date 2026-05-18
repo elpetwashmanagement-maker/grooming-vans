@@ -3809,29 +3809,60 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                             {/* Editar servicio por mascota */}
                             {a.pets?.length > 0 && (
                               <div style={{ marginTop: 10 }}>
-                                <label style={styles.lbl}>Servicios por mascota</label>
+                                <label style={styles.lbl}>Servicios y add-ons por mascota</label>
                                 {a.pets.map((ap, idx) => (
-                                  <div key={ap.id} style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
-                                    <span style={{ fontSize: 12, minWidth: 80 }}>🐾 {ap.pet?.name || 'Mascota'}</span>
-                                    <select defaultValue={ap.service}
-                                      onChange={async e => {
-                                        const svcName = e.target.value;
-                                        const svc = (servicePrices || []).find(p => `${p.name} · ${p.size?.split('(')[0]?.trim()} · ${p.hair_type}` === svcName || p.name === svcName);
-                                        await supabase.from('appointment_pets').update({ service: svcName, amount: svc?.price || ap.amount }).eq('id', ap.id);
-                                      }}
-                                      style={{ ...styles.input, flex: 1, fontSize: 12 }}>
-                                      <option value={ap.service || ''}>{ap.service || 'Sin servicio'}</option>
-                                      {['Signature Bath','Full Groom','Add-on'].map(cat => (
-                                        <optgroup key={cat} label={cat}>
-                                          {(servicePrices || []).filter(p => p.category === cat).map(p => (
-                                            <option key={p.id} value={`${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}`}>
-                                              {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
-                                            </option>
-                                          ))}
-                                        </optgroup>
-                                      ))}
-                                    </select>
-                                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-success)' }}>${ap.amount || 0}</span>
+                                  <div key={ap.id} style={{ marginTop: 8, padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
+                                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>🐾 {ap.pet?.name || 'Mascota'}</div>
+                                    
+                                    {/* Selector de servicio principal */}
+                                    <div style={{ marginBottom: 8 }}>
+                                      <label style={{ ...styles.lbl, fontSize: 11 }}>Servicio principal</label>
+                                      <select defaultValue={ap.service}
+                                        onChange={async e => {
+                                          const svcName = e.target.value;
+                                          const svc = (servicePrices || []).find(p =>
+                                            `${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}` === svcName
+                                          );
+                                          await supabase.from('appointment_pets').update({ service: svcName, amount: svc?.price || ap.amount }).eq('id', ap.id);
+                                          await refreshAppointments();
+                                        }}
+                                        style={{ ...styles.input, fontSize: 12 }}>
+                                        <option value={ap.service || ''}>{ap.service || 'Sin servicio'}</option>
+                                        {['Signature Bath','Full Groom'].map(cat => (
+                                          <optgroup key={cat} label={cat}>
+                                            {(servicePrices || []).filter(p => p.category === cat).map(p => (
+                                              <option key={p.id} value={`${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}`}>
+                                                {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
+                                              </option>
+                                            ))}
+                                          </optgroup>
+                                        ))}
+                                      </select>
+                                    </div>
+
+                                    {/* Add-ons */}
+                                    <div>
+                                      <label style={{ ...styles.lbl, fontSize: 11 }}>Add-ons</label>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                                        {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => (
+                                          <button key={addon.id} type="button"
+                                            onClick={async () => {
+                                              const currentAmt = ap.amount || 0;
+                                              const newAmt = currentAmt + addon.price;
+                                              const newService = ap.service ? `${ap.service} + ${addon.name}` : addon.name;
+                                              await supabase.from('appointment_pets').update({ amount: newAmt, service: newService }).eq('id', ap.id);
+                                              await refreshAppointments();
+                                            }}
+                                            style={{ padding: '4px 10px', background: 'var(--color-background-primary)', border: '1px solid var(--color-border-secondary)', borderRadius: 999, cursor: 'pointer', fontSize: 11, color: 'var(--color-text-secondary)' }}>
+                                            + {addon.name} +${addon.price}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+                                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)' }}>Total: ${ap.amount || 0}</span>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
