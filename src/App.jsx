@@ -2038,95 +2038,101 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
       {/* Modal de cobro */}
       {showCobroForm && (
-        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(6px)' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--color-background-primary)', borderRadius: 20, padding: 28, maxWidth: 440, width: '100%', boxShadow: '0 25px 80px rgba(0,0,0,0.5)', margin: 'auto' }}>
+        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: 20, padding: 28, maxWidth: 460, width: '100%', boxShadow: '0 25px 80px rgba(0,0,0,0.5)', margin: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cobro del servicio</div>
-                <h3 style={{ ...styles.cardH3, margin: '2px 0 0' }}>💰 {showCobroForm.client?.name}</h3>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cobro del servicio</div>
+                <h3 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: '4px 0 0', fontFamily: 'Fraunces, serif' }}>💰 {showCobroForm.client?.name}</h3>
               </div>
-              <button onClick={() => setShowCobroForm(null)} style={styles.iconBtn}><X size={16} /></button>
+              <button onClick={() => setShowCobroForm(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
             </div>
 
-            {/* Resumen de mascotas y precios */}
-            <div style={{ background: 'var(--color-background-secondary)', borderRadius: 12, padding: '10px 14px', marginBottom: 16 }}>
+            {/* Resumen mascotas */}
+            <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px', marginBottom: 18, border: '1px solid #e2e8f0' }}>
               {(showCobroForm.pets || []).length > 0 ? (
-                (showCobroForm.pets || []).map((ap, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '0.5px solid var(--color-border-tertiary)' : 'none', fontSize: 13 }}>
-                    <span style={{ color: 'var(--color-text-primary)' }}>
-                      🐾 {ap.pet?.name || ap.petId?.slice(0,8) || 'Mascota'} 
-                      {ap.service ? <span style={{ color: 'var(--color-text-secondary)', marginLeft: 4 }}>— {ap.service}</span> : ''}
-                    </span>
-                    <span style={{ fontWeight: 600, color: 'var(--color-text-success)' }}>${ap.amount || 0}</span>
-                  </div>
-                ))
+                (showCobroForm.pets || []).map((ap, i) => {
+                  // Buscar nombre real de la mascota
+                  const petName = ap.pet?.name || ap.petName || 'Mascota';
+                  return (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '1px solid #e2e8f0' : 'none', fontSize: 15 }}>
+                      <span style={{ color: '#1e293b', fontWeight: 500 }}>
+                        🐾 {petName}
+                        {ap.service ? <span style={{ color: '#64748b', fontWeight: 400 }}> — {ap.service}</span> : ''}
+                      </span>
+                      <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 16 }}>${ap.amount || 0}</span>
+                    </div>
+                  );
+                })
               ) : (
-                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)' }}>Sin mascotas registradas</div>
+                <div style={{ fontSize: 15, color: '#64748b' }}>Sin mascotas registradas</div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 10, marginTop: 4, borderTop: '1px solid var(--color-border-secondary)', fontSize: 16, fontWeight: 700 }}>
-                <span>Total</span>
-                <span style={{ color: 'var(--color-text-success)', fontFamily: 'Fraunces, serif' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 6, borderTop: '2px solid #e2e8f0', fontSize: 18, fontWeight: 800 }}>
+                <span style={{ color: '#0f172a' }}>TOTAL</span>
+                <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 22 }}>
                   ${(showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0).toFixed(2)}
                 </span>
               </div>
             </div>
 
             {/* Método de pago */}
-            <div style={{ marginBottom: 14 }}>
-              <label style={styles.lbl}>Método de pago</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 6 }}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Método de pago</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {PAYMENT_METHODS.map(m => (
                   <button key={m} onClick={() => setCobroForm(f => ({...f, method: m}))}
-                    style={{ padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${cobroForm.method === m ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: cobroForm.method === m ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: cobroForm.method === m ? 600 : 400, color: cobroForm.method === m ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                    style={{ padding: '12px 8px', borderRadius: 10, border: `2px solid ${cobroForm.method === m ? '#0f766e' : '#e2e8f0'}`, background: cobroForm.method === m ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 15, fontWeight: cobroForm.method === m ? 700 : 500, color: cobroForm.method === m ? '#0f766e' : '#475569' }}>
                     {m}
                   </button>
                 ))}
               </div>
               {cobroForm.method === 'Tarjeta crédito' && (
-                <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta al total
+                <div style={{ marginTop: 8, padding: '8px 12px', background: '#fffbeb', borderRadius: 8, fontSize: 13, color: '#92400e', border: '1px solid #fcd34d' }}>
+                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta
                 </div>
               )}
             </div>
 
             {/* Propina */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={styles.lbl}>Propina (opcional)</label>
-              {/* Botones de % rápidos */}
-              <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 8 }}>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Propina (opcional)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
                 {[18, 20, 25].map(pct => {
                   const total = (showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
                   const tipAmt = parseFloat((total * pct / 100).toFixed(2));
                   const isSelected = parseFloat(cobroForm.tip) === tipAmt;
                   return (
                     <button key={pct} onClick={() => setCobroForm(f => ({...f, tip: tipAmt}))}
-                      style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${isSelected ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: isSelected ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', textAlign: 'center' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--color-text-info)' : 'var(--color-text-primary)' }}>{pct}%</div>
-                      <div style={{ fontSize: 11, color: isSelected ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>${tipAmt}</div>
+                      style={{ padding: '10px 4px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', textAlign: 'center' }}>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#0f766e' : '#1e293b' }}>{pct}%</div>
+                      <div style={{ fontSize: 13, color: isSelected ? '#0f766e' : '#64748b' }}>${tipAmt}</div>
                     </button>
                   );
                 })}
                 <button onClick={() => setCobroForm(f => ({...f, tip: ''}))}
-                  style={{ flex: 1, padding: '8px 4px', borderRadius: 10, border: `1.5px solid ${cobroForm.tip === '' || ![18,20,25].map(p => parseFloat(((showCobroForm.pets||[]).reduce((s,ap)=>s+(ap.amount||0),0)*p/100).toFixed(2))).includes(parseFloat(cobroForm.tip)) ? 'var(--color-border-tertiary)' : 'var(--color-border-tertiary)'}`, background: 'var(--color-background-secondary)', cursor: 'pointer', textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)' }}>Custom</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Otro</div>
+                  style={{ padding: '10px 4px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', textAlign: 'center' }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#475569' }}>Custom</div>
+                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Otro</div>
                 </button>
               </div>
-              {/* Campo custom */}
               <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 12, top: 11, fontSize: 13, color: '#94a3b8' }}>$</span>
+                <span style={{ position: 'absolute', left: 14, top: 13, fontSize: 16, color: '#94a3b8', fontWeight: 600 }}>$</span>
                 <input type="number" step="1" min="0" value={cobroForm.tip}
                   onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
-                  style={{ ...styles.input, paddingLeft: 28 }} placeholder="0.00" />
+                  style={{ width: '100%', padding: '12px 16px 12px 32px', border: '2px solid #e2e8f0', borderRadius: 10, fontSize: 16, fontWeight: 600, outline: 'none', boxSizing: 'border-box', background: '#fff' }}
+                  placeholder="0.00" />
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowCobroForm(null)} style={{ ...styles.btnSecondary, flex: 1, justifyContent: 'center' }}>
-                <X size={15} /> Cancelar
+              <button onClick={() => setShowCobroForm(null)}
+                style={{ flex: 1, padding: '14px', borderRadius: 12, border: '2px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 15, fontWeight: 600, color: '#475569' }}>
+                ✕ Cancelar
               </button>
-              <button onClick={handleConfirmarCobro} style={{ ...styles.btnPrimary, flex: 2, justifyContent: 'center' }} disabled={saving}>
-                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+              <button onClick={handleConfirmarCobro}
+                style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#0f766e', cursor: 'pointer', fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                disabled={saving}>
+                {saving ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : '✓'}
                 {saving ? 'Registrando...' : 'Confirmar cobro'}
               </button>
             </div>
