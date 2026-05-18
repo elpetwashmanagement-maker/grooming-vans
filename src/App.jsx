@@ -1936,7 +1936,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <MapPin size={14} /> Google Maps
                         </button>
                       )}
-                      {appt.status !== 'cancelled' && (
+                      {appt.status !== 'cancelled' && isAdmin && (
                         <button onClick={() => { if (confirm('¿Cancelar esta cita?')) updateApptStatus(appt.id, 'cancelled'); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
                           <X size={14} /> Cancelar
@@ -3079,32 +3079,57 @@ function KpiCard({ label, value, highlight, accent }) {
 // ===== BREED AUTOCOMPLETE =====
 function BreedInput({ value, onChange, placeholder = 'Escribir raza...' }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+
   const suggestions = useMemo(() => {
     if (!value || value.length < 2) return [];
     const q = value.toLowerCase();
     return DOG_BREEDS.filter(b => b.toLowerCase().includes(q)).slice(0, 8);
   }, [value]);
 
+  const handleKeyDown = (e) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx(i => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter' && activeIdx >= 0) {
+      e.preventDefault();
+      onChange(suggestions[activeIdx]);
+      setShowSuggestions(false);
+      setActiveIdx(-1);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
+      setActiveIdx(-1);
+    }
+  };
+
   return (
     <div style={{ position: 'relative' }}>
       <input
         value={value}
-        onChange={e => { onChange(e.target.value); setShowSuggestions(true); }}
+        onChange={e => { onChange(e.target.value); setShowSuggestions(true); setActiveIdx(-1); }}
         onFocus={() => setShowSuggestions(true)}
-        onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+        onBlur={() => setTimeout(() => { setShowSuggestions(false); setActiveIdx(-1); }, 200)}
+        onKeyDown={handleKeyDown}
         style={styles.input}
         placeholder={placeholder}
         autoComplete="off"
       />
       {showSuggestions && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid var(--color-border-secondary)', borderRadius: 8, boxShadow: '0 8px 24px -8px rgba(0,0,0,0.15)', zIndex: 100, overflow: 'hidden', maxHeight: 220, overflowY: 'auto' }}>
-          {suggestions.map(breed => (
-            <button key={breed} onMouseDown={e => { e.preventDefault(); onChange(breed); setShowSuggestions(false); }}
+        <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: '#fff', border: '1px solid var(--color-border-secondary)', borderRadius: 8, boxShadow: '0 8px 24px -8px rgba(0,0,0,0.15)', zIndex: 100, overflow: 'hidden', maxHeight: 250, overflowY: 'auto' }}>
+          {suggestions.map((breed, idx) => (
+            <button key={breed} onMouseDown={e => { e.preventDefault(); onChange(breed); setShowSuggestions(false); setActiveIdx(-1); }}
               className="suggestion-hover"
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', background: 'none', border: 'none', borderBottom: '0.5px solid var(--color-border-tertiary)', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-primary)' }}>
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', background: idx === activeIdx ? 'var(--color-background-info)' : 'none', border: 'none', borderBottom: '0.5px solid var(--color-border-tertiary)', cursor: 'pointer', fontSize: 13, color: idx === activeIdx ? 'var(--color-text-info)' : 'var(--color-text-primary)', fontWeight: idx === activeIdx ? 600 : 400 }}>
               🐾 {breed}
             </button>
           ))}
+          <div style={{ padding: '6px 12px', fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-background-secondary)' }}>
+            ↑↓ para navegar · Enter para seleccionar · Esc para cerrar
+          </div>
         </div>
       )}
     </div>
