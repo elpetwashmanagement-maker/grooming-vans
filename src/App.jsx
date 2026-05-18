@@ -1934,22 +1934,52 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       )}
                     </div>
 
-                    {/* Ficha de grooming por mascota */}
+                    {/* Ficha de grooming y servicio por mascota */}
                     <div>
-                      <div style={styles.lbl}>Fichas de grooming</div>
+                      <div style={styles.lbl}>Mascotas y servicios</div>
                       {appt.pets?.length > 0 ? (
                         appt.pets.map(ap => (
-                          <div key={ap.id} style={{ marginTop: 8 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
-                              <span style={{ fontSize: 13, fontWeight: 500 }}>🐾 {ap.pet?.name || 'Mascota'}</span>
+                          <div key={ap.id} style={{ marginTop: 8, padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>🐾 {ap.pet?.name || 'Mascota'} {ap.pet?.breed ? `(${ap.pet.breed})` : ''}</span>
                               <button onClick={() => { setShowGroomingForm({ ...ap, appointmentId: appt.id }); if (ap.pet?.last_blade) setGroomingRecord(r => ({...r, blade: ap.pet.last_blade || '', combo: ap.pet.last_combo || ''})); }}
                                 style={{ ...styles.btnPrimary, padding: '5px 10px', fontSize: 12 }}>
                                 <Edit2 size={12} /> Llenar ficha
                               </button>
                             </div>
+                            {/* Servicio y precio — editable solo para admin */}
+                            {isAdmin ? (
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <select defaultValue={ap.service}
+                                  onChange={async e => {
+                                    const svc = (servicePrices || []).find(p => `${p.name} ${p.size} ${p.hair_type}`.trim() === e.target.value || p.name === e.target.value);
+                                    const newService = e.target.value;
+                                    const newAmount = svc?.price || ap.amount;
+                                    await supabase.from('appointment_pets').update({ service: newService, amount: newAmount }).eq('id', ap.id);
+                                    await refreshAppointments();
+                                  }}
+                                  style={{ ...styles.input, fontSize: 12, flex: 1, minWidth: 180 }}>
+                                  <option value={ap.service || ''}>{ap.service || 'Sin servicio'}</option>
+                                  {['Signature Bath','Full Groom','Add-on'].map(cat => (
+                                    <optgroup key={cat} label={cat}>
+                                      {(servicePrices || []).filter(p => p.category === cat).map(p => (
+                                        <option key={p.id} value={`${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}`}>
+                                          {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
+                                        </option>
+                                      ))}
+                                    </optgroup>
+                                  ))}
+                                </select>
+                                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)', flexShrink: 0 }}>💰 ${ap.amount || 0}</span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                                {ap.service || 'Sin servicio asignado'} {ap.amount > 0 ? `· $${ap.amount}` : ''}
+                              </div>
+                            )}
                             {ap.pet?.lastBlade && (
-                              <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', padding: '4px 10px' }}>
-                                Último corte: Blade {ap.pet.lastBlade} {ap.pet.lastCombo ? `· Combo ${ap.pet.lastCombo}` : ''}
+                              <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 4 }}>
+                                ✂️ Último corte: Blade {ap.pet.lastBlade} {ap.pet.lastCombo ? `· Combo ${ap.pet.lastCombo}` : ''}
                               </div>
                             )}
                           </div>
