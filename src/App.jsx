@@ -1955,16 +1955,89 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       <div style={styles.lbl}>Mascotas y servicios</div>
                       {appt.pets?.length > 0 ? (
                         appt.pets.map(ap => (
-                          <div key={ap.id} style={{ marginTop: 8, padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                              <span style={{ fontSize: 13, fontWeight: 500 }}>🐾 {ap.pet?.name || 'Mascota'} {ap.pet?.breed ? `(${ap.pet.breed})` : ''}</span>
+                          <div key={ap.id} style={{ marginTop: 8, padding: '12px 14px', background: 'var(--color-background-secondary)', borderRadius: 10, border: '1px solid var(--color-border-tertiary)' }}>
+                            {/* Header mascota */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                              <div>
+                                <div style={{ fontSize: 14, fontWeight: 700 }}>🐾 {ap.pet?.name || 'Mascota'}</div>
+                                <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 1 }}>
+                                  {[ap.pet?.breed, ap.pet?.size?.split('(')[0]?.trim()].filter(Boolean).join(' · ')}
+                                </div>
+                              </div>
                               <button onClick={() => { setShowGroomingForm({ ...ap, appointmentId: appt.id }); if (ap.pet?.last_blade) setGroomingRecord(r => ({...r, blade: ap.pet.last_blade || '', combo: ap.pet.last_combo || ''})); }}
-                                style={{ ...styles.btnPrimary, padding: '5px 10px', fontSize: 12 }}>
+                                style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
                                 <Edit2 size={12} /> Llenar ficha
                               </button>
                             </div>
-                            {/* Servicio y precio — editable solo para admin */}
-                            {isAdmin ? (
+
+                            {/* Checklist de tareas — vista groomer */}
+                            {!isAdmin && (
+                              <div style={{ marginBottom: 10 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                                  Lo que debes hacer hoy:
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                                  {/* Servicio principal */}
+                                  {ap.service && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#fff', borderRadius: 8, border: '1.5px solid var(--color-border-info)' }}>
+                                      <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid var(--color-border-info)', background: 'var(--color-background-info)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                        <span style={{ fontSize: 10, color: 'var(--color-text-info)', fontWeight: 700 }}>1</span>
+                                      </div>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-info)' }}>{ap.service}</div>
+                                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>Servicio principal</div>
+                                      </div>
+                                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)' }}>${ap.amount || 0}</span>
+                                    </div>
+                                  )}
+
+                                  {/* Último corte como referencia */}
+                                  {ap.pet?.lastBlade && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff', borderRadius: 8, border: '1px solid var(--color-border-tertiary)' }}>
+                                      <div style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--color-border-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12 }}>✂️</div>
+                                      <div>
+                                        <div style={{ fontSize: 12, fontWeight: 500 }}>Referencia último corte</div>
+                                        <div style={{ fontSize: 11, color: 'var(--color-text-info)' }}>
+                                          Blade {ap.pet.lastBlade}{ap.pet.lastCombo ? ` · Combo ${ap.pet.lastCombo}` : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Alergias — importante */}
+                                  {ap.pet?.allergies && ap.pet.allergies !== 'ninguna' && ap.pet.allergies !== 'Ninguna' && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fff5f5', borderRadius: 8, border: '1.5px solid #fca5a5' }}>
+                                      <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+                                      <div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b' }}>Alergias</div>
+                                        <div style={{ fontSize: 11, color: '#7f1d1d' }}>{ap.pet.allergies}</div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Notas de comportamiento */}
+                                  {ap.pet?.behavior_notes && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: '#fffbeb', borderRadius: 8, border: '1px solid #fcd34d' }}>
+                                      <span style={{ fontSize: 16, flexShrink: 0 }}>🔔</span>
+                                      <div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e' }}>Comportamiento</div>
+                                        <div style={{ fontSize: 11, color: '#78350f' }}>{ap.pet.behavior_notes}</div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Sin servicio asignado */}
+                                  {!ap.service && (
+                                    <div style={{ padding: '8px 10px', background: '#fff7ed', borderRadius: 8, border: '1px solid #fed7aa', fontSize: 12, color: '#c2410c' }}>
+                                      ⚠️ Sin servicio asignado — contacta al administrador
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Vista admin — editable */}
+                            {isAdmin && (
                               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                                 <select defaultValue={ap.service}
                                   onChange={async e => {
@@ -1988,13 +2061,11 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                                 </select>
                                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)', flexShrink: 0 }}>💰 ${ap.amount || 0}</span>
                               </div>
-                            ) : (
-                              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                                {ap.service || 'Sin servicio asignado'} {ap.amount > 0 ? `· $${ap.amount}` : ''}
-                              </div>
                             )}
-                            {ap.pet?.lastBlade && (
-                              <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 4 }}>
+
+                            {/* Último corte — admin */}
+                            {isAdmin && ap.pet?.lastBlade && (
+                              <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 6 }}>
                                 ✂️ Último corte: Blade {ap.pet.lastBlade} {ap.pet.lastCombo ? `· Combo ${ap.pet.lastCombo}` : ''}
                               </div>
                             )}
