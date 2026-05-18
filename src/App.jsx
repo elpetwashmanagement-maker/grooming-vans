@@ -502,6 +502,8 @@ export default function App() {
             session={session} isAdmin={isAdmin || session?.role === 'manager'}
             addClient={addClient} updateClient={updateClient} removeClient={removeClient}
             addPet={addPet} updatePet={updatePet}
+            servicePrices={servicePrices} addAppointment={addAppointment} vans={visibleVans}
+            settings={settings}
           />
         )}
         {tab === 'razas' && <RazasTab session={session} />}
@@ -2573,26 +2575,24 @@ function KpiCard({ label, value, highlight, accent }) {
 }
 
 // ===== CLIENTES TAB =====
-function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet }) {
+function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
-  const [showNewClient, setShowNewClient] = useState(false);
-  const [showNewPet, setShowNewPet] = useState(false);
+  const [showNewForm, setShowNewForm] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [editingPet, setEditingPet] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [clientForm, setClientForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
-  const [petForm, setPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
   const [petGroomingHistory, setPetGroomingHistory] = useState({});
   const [loadingHistory, setLoadingHistory] = useState({});
+  const [apptDate, setApptDate] = useState(todayISO());
 
-  const loadPetHistory = async (petId) => {
-    if (petGroomingHistory[petId] || loadingHistory[petId]) return;
-    setLoadingHistory(h => ({...h, [petId]: true}));
-    const records = await loadGroomingRecords(petId);
-    setPetGroomingHistory(h => ({...h, [petId]: records}));
-    setLoadingHistory(h => ({...h, [petId]: false}));
-  };
+  // Formulario unificado
+  const emptyClient = { name: '', phone: '', email: '', address: '', notes: '' };
+  const emptyPet = () => ({ id: `temp-${uid()}`, name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '', serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, finalPrice: 0, headTool: '', headNotes: '', earsTool: '', earsNotes: '', bodyTool: '', bodyNotes: '', legsTool: '', legsNotes: '', tailTool: '', tailNotes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm', groomingNotes: '' });
+
+  const [clientForm, setClientForm] = useState(emptyClient);
+  const [petForms, setPetForms] = useState([emptyPet()]);
+  const [apptForm, setApptForm] = useState({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
 
   const canViewPhone = isAdmin || session?.permissions?.can_view_clients;
 
@@ -2611,83 +2611,309 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
     return appointments.filter(a => a.clientId === selectedClient.id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
   }, [appointments, selectedClient]);
 
-  const handleSaveClient = async () => {
-    if (!clientForm.name.trim()) { alert('Ingresa el nombre'); return; }
-    setSaving(true);
-    if (editingClient) {
-      await updateClient({ ...editingClient, ...clientForm, name: clientForm.name.trim() });
-      setEditingClient(null);
-    } else {
-      await addClient({ id: uid(), ...clientForm, name: clientForm.name.trim(), active: true });
-      setShowNewClient(false);
-    }
-    setClientForm({ name: '', phone: '', email: '', address: '', notes: '' });
-    setSaving(false);
+  const loadPetHistory = async (petId) => {
+    if (petGroomingHistory[petId] || loadingHistory[petId]) return;
+    setLoadingHistory(h => ({...h, [petId]: true}));
+    const records = await loadGroomingRecords(petId);
+    setPetGroomingHistory(h => ({...h, [petId]: records}));
+    setLoadingHistory(h => ({...h, [petId]: false}));
   };
 
-  const handleSavePet = async () => {
-    if (!petForm.name.trim()) { alert('Ingresa el nombre de la mascota'); return; }
-    if (!selectedClient) return;
+  const addPetForm = () => setPetForms(prev => [...prev, emptyPet()]);
+  const removePetForm = (idx) => setPetForms(prev => prev.filter((_, i) => i !== idx));
+
+  const updatePetForm = (idx, field, value) => {
+    setPetForms(prev => prev.map((p, i) => {
+      if (i !== idx) return p;
+      const updated = { ...p, [field]: value };
+      if (field === 'serviceId') {
+        const svc = (servicePrices || []).find(s => s.id === value);
+        updated.serviceName = svc?.name || '';
+        updated.servicePrice = svc?.price || 0;
+        updated.finalPrice = svc?.price || 0;
+      }
+      if (field === 'servicePrice' || field === 'discountPct') {
+        const price = field === 'servicePrice' ? parseFloat(value) || 0 : updated.servicePrice;
+        const disc = field === 'discountPct' ? parseFloat(value) || 0 : updated.discountPct;
+        updated.finalPrice = parseFloat((price * (1 - disc / 100)).toFixed(2));
+      }
+      return updated;
+    }));
+  };
+
+  const totalCita = petForms.reduce((sum, p) => sum + (p.finalPrice || 0), 0);
+
+  const handleCreateAll = async () => {
+    if (!clientForm.name.trim()) { alert('Ingresa el nombre del cliente'); return; }
+    if (petForms.some(p => !p.name.trim())) { alert('Ingresa el nombre de cada mascota'); return; }
     setSaving(true);
-    if (editingPet) {
-      await updatePet({ ...editingPet, ...petForm, name: petForm.name.trim(), clientId: selectedClient.id, client_id: selectedClient.id });
-      setEditingPet(null);
-    } else {
-      await addPet({ id: uid(), ...petForm, name: petForm.name.trim(), clientId: selectedClient.id, client_id: selectedClient.id });
-      setShowNewPet(false);
+
+    // 1. Crear cliente
+    const clientId = uid();
+    const client = { id: clientId, ...clientForm, name: clientForm.name.trim(), active: true };
+    await addClient(client);
+
+    // 2. Crear mascotas y cita
+    const apptId = uid();
+    const apptPets = [];
+
+    for (const pf of petForms) {
+      const petId = uid();
+      const pet = { id: petId, clientId, client_id: clientId, name: pf.name.trim(), breed: pf.breed, size: pf.size, hairType: pf.hairType, hair_type: pf.hairType, age: pf.age, color: pf.color, weight: pf.weight, allergies: pf.allergies, medicalNotes: pf.medicalNotes, medical_notes: pf.medicalNotes, behaviorNotes: pf.behaviorNotes, behavior_notes: pf.behaviorNotes };
+      await addPet(pet);
+
+      // Guardar ficha de grooming si tiene datos
+      const hasGrooming = pf.headTool || pf.bodyTool || pf.groomingNotes;
+      if (hasGrooming) {
+        const mainBlade = pf.bodyTool || pf.headTool || '';
+        const mainCombo = pf.legsTool || pf.bodyTool || '';
+        await saveGroomingRecord({
+          id: uid(), appointmentId: apptId, petId, vanId: apptForm.vanId, date: apptDate,
+          blade: mainBlade, combo: mainCombo,
+          head: `${pf.headTool}${pf.headNotes ? ' — ' + pf.headNotes : ''}`,
+          ears: `${pf.earsTool}${pf.earsNotes ? ' — ' + pf.earsNotes : ''}`,
+          body: `${pf.bodyTool}${pf.bodyNotes ? ' — ' + pf.bodyNotes : ''}`,
+          legs: `${pf.legsTool}${pf.legsNotes ? ' — ' + pf.legsNotes : ''}`,
+          tail: `${pf.tailTool}${pf.tailNotes ? ' — ' + pf.tailNotes : ''}`,
+          notes: pf.groomingNotes,
+          healthSkin: pf.healthSkin, healthEars: pf.healthEars,
+          healthNails: pf.healthNails, healthBehavior: pf.healthBehavior,
+        });
+        if (mainBlade) await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
+      }
+
+      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: pf.finalPrice, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
     }
-    setPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+
+    // 3. Crear cita
+    const appt = {
+      id: apptId, date: apptDate, timeStart: apptForm.timeStart, timeEnd: apptForm.timeEnd,
+      vanId: apptForm.vanId, clientId, status: 'unconfirmed',
+      notes: apptForm.notes, alertNotes: apptForm.alertNotes, agreementSigned: false,
+      client: { id: clientId, name: clientForm.name.trim(), address: clientForm.address },
+      pets: apptPets,
+    };
+    await addAppointment(appt);
+    for (const ap of apptPets) await saveAppointmentPet({ ...ap, appointmentId: apptId });
+
     setSaving(false);
+    setShowNewForm(false);
+    setClientForm(emptyClient);
+    setPetForms([emptyPet()]);
+    setApptForm({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
+    alert(`✅ ${clientForm.name} creado con ${petForms.length} mascota(s) y su cita`);
   };
 
   const startEditClient = (c) => {
     setEditingClient(c);
-    setClientForm({ name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', notes: c.notes || '' });
     setSelectedClient(null);
-  };
-
-  const startEditPet = (p) => {
-    setEditingPet(p);
-    setPetForm({ name: p.name, breed: p.breed || '', size: p.size || 'Small (1-20 lbs)', hairType: p.hair_type || 'Short Hair', age: p.age || '', color: p.color || '', weight: p.weight || '', allergies: p.allergies || '', medicalNotes: p.medical_notes || '', behaviorNotes: p.behavior_notes || '' });
-    setShowNewPet(false);
   };
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Base de datos" title="Clientes y mascotas"
         right={
-          <button onClick={() => { setShowNewClient(true); setEditingClient(null); setClientForm({ name: '', phone: '', email: '', address: '', notes: '' }); }} style={styles.btnPrimary}>
+          <button onClick={() => { setShowNewForm(!showNewForm); setClientForm(emptyClient); setPetForms([emptyPet()]); }} style={styles.btnPrimary}>
             <Plus size={15} /> Nuevo cliente
           </button>
         }
       />
 
-      {/* Formulario nuevo/editar cliente */}
-      {(showNewClient || editingClient) && (
-        <div style={{ ...styles.card, marginBottom: 20, border: `1px solid var(--color-border-${editingClient ? 'warning' : 'info'})`, background: `var(--color-background-${editingClient ? 'warning' : 'info'})` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h3 style={{ ...styles.cardH3, margin: 0 }}>{editingClient ? 'Editar cliente' : 'Nuevo cliente'}</h3>
-            <button onClick={() => { setShowNewClient(false); setEditingClient(null); }} style={styles.iconBtn}><X size={16} /></button>
+      {/* ===== FORMULARIO UNIFICADO ===== */}
+      {showNewForm && (
+        <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>Nuevo cliente + mascota(s) + cita</h3>
+            <button onClick={() => setShowNewForm(false)} style={styles.iconBtn}><X size={16} /></button>
           </div>
-          <div style={styles.formGrid}>
-            <div><label style={styles.lbl}>Nombre *</label><input value={clientForm.name} onChange={e => setClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
-            <div><label style={styles.lbl}>Teléfono</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
-            <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={clientForm.address} onChange={e => setClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
-            <div><label style={styles.lbl}>Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
-            <div><label style={styles.lbl}>Notas internas (solo admin)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Notas privadas..." /></div>
+
+          {/* PASO 1: Cliente */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 1 — Datos del cliente</div>
+            <div style={styles.formGrid}>
+              <div><label style={styles.lbl}>Nombre *</label><input value={clientForm.name} onChange={e => setClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
+              <div><label style={styles.lbl}>Teléfono</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
+              <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={clientForm.address} onChange={e => setClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
+              <div><label style={styles.lbl}>Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
+              <div><label style={styles.lbl}>Notas internas (solo admin)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Notas privadas..." /></div>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
-            <button onClick={() => { setShowNewClient(false); setEditingClient(null); }} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
-            <button onClick={handleSaveClient} style={styles.btnPrimary} disabled={saving}>
+
+          {/* PASO 2: Mascotas con servicio y ficha */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 2 — Mascota(s)</div>
+            {petForms.map((pf, idx) => (
+              <div key={pf.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>🐾 Mascota {idx + 1}</div>
+                  {petForms.length > 1 && (
+                    <button onClick={() => removePetForm(idx)} style={{ ...styles.iconBtn, color: 'var(--color-text-danger)' }}><X size={14} /></button>
+                  )}
+                </div>
+
+                {/* Datos de la mascota */}
+                <div style={styles.formGrid}>
+                  <div><label style={styles.lbl}>Nombre *</label><input value={pf.name} onChange={e => updatePetForm(idx, 'name', e.target.value)} style={styles.input} placeholder="Nombre" /></div>
+                  <div><label style={styles.lbl}>Raza</label><input value={pf.breed} onChange={e => updatePetForm(idx, 'breed', e.target.value)} style={styles.input} placeholder="Raza" /></div>
+                  <div><label style={styles.lbl}>Tamaño *</label><select value={pf.size} onChange={e => updatePetForm(idx, 'size', e.target.value)} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                  <div><label style={styles.lbl}>Tipo de pelo *</label><select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                  <div><label style={styles.lbl}>Edad</label><input value={pf.age} onChange={e => updatePetForm(idx, 'age', e.target.value)} style={styles.input} placeholder="Ej: 3 años" /></div>
+                  <div><label style={styles.lbl}>Color</label><input value={pf.color} onChange={e => updatePetForm(idx, 'color', e.target.value)} style={styles.input} placeholder="Ej: Blanco y negro" /></div>
+                  <div><label style={styles.lbl}>Peso (lbs)</label><input type="number" value={pf.weight} onChange={e => updatePetForm(idx, 'weight', e.target.value)} style={styles.input} placeholder="0" /></div>
+                  <div><label style={styles.lbl}>Alergias</label><input value={pf.allergies} onChange={e => updatePetForm(idx, 'allergies', e.target.value)} style={styles.input} placeholder="Ninguna" /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas de comportamiento</label><input value={pf.behaviorNotes} onChange={e => updatePetForm(idx, 'behaviorNotes', e.target.value)} style={styles.input} placeholder="Ej: Ansioso con tijeras, mordió en visita anterior..." /></div>
+                </div>
+
+                {/* Servicio y precio */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Servicio de esta visita</div>
+                  <div style={styles.formGrid}>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={styles.lbl}>Servicio</label>
+                      <select value={pf.serviceId} onChange={e => updatePetForm(idx, 'serviceId', e.target.value)} style={styles.input}>
+                        <option value="">Seleccionar servicio...</option>
+                        {['Signature Bath', 'Full Groom', 'Add-on'].map(cat => (
+                          <optgroup key={cat} label={cat}>
+                            {(servicePrices || []).filter(p => p.category === cat).map(p => (
+                              <option key={p.id} value={p.id}>{p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — $${p.price}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </div>
+                    {pf.servicePrice > 0 && (
+                      <>
+                        <div>
+                          <label style={styles.lbl}>Descuento (%)</label>
+                          <div style={{ position: 'relative' }}>
+                            <input type="number" min="0" max="100" step="5" value={pf.discountPct}
+                              onChange={e => updatePetForm(idx, 'discountPct', e.target.value)}
+                              style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
+                            <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                          <div style={{ width: '100%', padding: '10px 12px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
+                            {pf.discountPct > 0 ? (
+                              <>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-success)', textDecoration: 'line-through', opacity: 0.7 }}>${pf.servicePrice}</div>
+                                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.finalPrice}</div>
+                                <div style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}% descuento</div>
+                              </>
+                            ) : (
+                              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${pf.servicePrice}</div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Ficha de grooming */}
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Ficha de grooming (opcional)</div>
+                  {[['headTool','headNotes','Cabeza'],['earsTool','earsNotes','Orejas'],['bodyTool','bodyNotes','Cuerpo'],['legsTool','legsNotes','Patas'],['tailTool','tailNotes','Cola']].map(([toolKey, notesKey, label]) => (
+                    <div key={toolKey} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 500 }}>{label}</span>
+                      <select value={pf[toolKey]} onChange={e => updatePetForm(idx, toolKey, e.target.value)} style={{ ...styles.input, fontSize: 12 }}>
+                        <option value="">Sin herramienta</option>
+                        <optgroup label="Blades">{BLADES.map(b => <option key={b} value={b}>Blade {b}</option>)}</optgroup>
+                        <optgroup label="Combos">{COMBOS.map(c => <option key={c} value={c}>Combo {c}</option>)}</optgroup>
+                        <option value="Tijeras">✂️ Tijeras</option>
+                        <option value="Tijeras curvas">✂️ Tijeras curvas</option>
+                      </select>
+                      <input value={pf[notesKey]} onChange={e => updatePetForm(idx, notesKey, e.target.value)} style={{ ...styles.input, fontSize: 12 }} placeholder={`Notas ${label.toLowerCase()}...`} />
+                    </div>
+                  ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                    {[['healthSkin','Piel'],['healthEars','Orejas'],['healthNails','Uñas'],['healthBehavior','Comportamiento']].map(([key, label]) => (
+                      <div key={key}>
+                        <label style={{ ...styles.lbl, fontSize: 10 }}>{label}</label>
+                        <select value={pf[key]} onChange={e => updatePetForm(idx, key, e.target.value)} style={{ ...styles.input, fontSize: 12 }}>
+                          {key === 'healthBehavior'
+                            ? [['calm','Tranquilo'],['nervous','Nervioso'],['aggressive','Agresivo'],['energetic','Energético']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
+                            : [['ok','Normal'],['attention','Requiere atención'],['urgent','Urgente']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
+                          }
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <label style={styles.lbl}>Notas especiales del corte</label>
+                    <textarea value={pf.groomingNotes} onChange={e => updatePetForm(idx, 'groomingNotes', e.target.value)} style={{ ...styles.input, minHeight: 50, resize: 'vertical' }} placeholder="Observaciones del corte..." />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button onClick={addPetForm} style={{ ...styles.btnSecondary, width: '100%', justifyContent: 'center' }}>
+              <Plus size={14} /> Agregar otra mascota
+            </button>
+          </div>
+
+          {/* PASO 3: Cita */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 3 — Cita</div>
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.lbl}>Fecha *</label>
+                <input type="date" value={apptDate} onChange={e => setApptDate(e.target.value)} style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.lbl}>Van asignada *</label>
+                <select value={apptForm.vanId} onChange={e => setApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
+                  {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={styles.lbl}>Hora inicio</label>
+                <input type="time" value={apptForm.timeStart} onChange={e => setApptForm(f => ({...f, timeStart: e.target.value}))} style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.lbl}>Hora fin (estimada)</label>
+                <input type="time" value={apptForm.timeEnd} onChange={e => setApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>Notas de la cita</label>
+                <input value={apptForm.notes} onChange={e => setApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>⚠️ Notas de alerta (privado)</label>
+                <input value={apptForm.alertNotes} onChange={e => setApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo, cliente difícil..." />
+              </div>
+            </div>
+
+            {/* Total de la cita */}
+            {totalCita > 0 && (
+              <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-success)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Resumen de la cita</div>
+                {petForms.filter(p => p.finalPrice > 0).map((p, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--color-text-success)', marginBottom: 4 }}>
+                    <span>🐾 {p.name || `Mascota ${i+1}`} — {p.serviceName}</span>
+                    <span style={{ fontWeight: 500 }}>${p.finalPrice}</span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)', paddingTop: 8, borderTop: '0.5px solid var(--color-border-success)', marginTop: 6 }}>
+                  <span>TOTAL CITA</span>
+                  <span>${totalCita.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button onClick={() => setShowNewForm(false)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
+            <button onClick={handleCreateAll} style={styles.btnPrimary} disabled={saving}>
               {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-              {saving ? 'Guardando...' : editingClient ? 'Guardar cambios' : 'Crear cliente'}
+              {saving ? 'Creando...' : 'Crear cliente, mascotas y cita'}
             </button>
           </div>
         </div>
       )}
 
+      {/* ===== LISTA DE CLIENTES ===== */}
       <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 1.5fr' : '1fr', gap: 20 }}>
-        {/* Lista de clientes */}
         <div>
           <div style={{ position: 'relative', marginBottom: 12 }}>
             <input value={search} onChange={e => setSearch(e.target.value)} style={styles.input} placeholder="Buscar cliente..." />
@@ -2703,19 +2929,11 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                     <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{c.address || 'Sin dirección'}</div>
                     {canViewPhone && c.phone && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 2 }}>{c.phone}</div>}
                   </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-background-secondary)', padding: '2px 6px', borderRadius: 999 }}>
                       {pets.filter(p => p.client_id === c.id).length} 🐾
                     </span>
-                    {isAdmin && (
-                      <button onClick={e => { e.stopPropagation(); startEditClient(c); }} style={styles.iconBtn}><Edit2 size={13} /></button>
-                    )}
-                    {isAdmin && (
-                      <button onClick={e => { e.stopPropagation(); removeClient(c.id); setSelectedClient(null); }}
-                        style={{ ...styles.iconBtn, color: 'var(--color-text-danger)' }} title="Borrar cliente">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+                    {isAdmin && <button onClick={e => { e.stopPropagation(); removeClient(c.id); setSelectedClient(null); }} style={{ ...styles.iconBtn, color: 'var(--color-text-danger)' }}><Trash2 size={13} /></button>}
                   </div>
                 </div>
               </div>
@@ -2728,10 +2946,9 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
           </div>
         </div>
 
-        {/* Detalle del cliente */}
+        {/* ===== DETALLE DEL CLIENTE ===== */}
         {selectedClient && (
           <div>
-            {/* Info del cliente */}
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
@@ -2740,62 +2957,26 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                 </div>
                 <button onClick={() => setSelectedClient(null)} style={styles.iconBtn}><X size={15} /></button>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {canViewPhone && selectedClient.phone && (
-                  <div style={{ display: 'flex', gap: 8, fontSize: 13 }}><span style={{ color: 'var(--color-text-secondary)', width: 60 }}>Teléfono</span><span style={{ color: 'var(--color-text-info)', fontWeight: 500 }}>{selectedClient.phone}</span></div>
-                )}
-                {canViewPhone && selectedClient.email && (
-                  <div style={{ display: 'flex', gap: 8, fontSize: 13 }}><span style={{ color: 'var(--color-text-secondary)', width: 60 }}>Email</span><span>{selectedClient.email}</span></div>
-                )}
-                {isAdmin && selectedClient.notes && (
-                  <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                    📝 {selectedClient.notes}
-                  </div>
-                )}
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-                  {clientHistory.length} visita{clientHistory.length !== 1 ? 's' : ''} registrada{clientHistory.length !== 1 ? 's' : ''}
-                </span>
+              {canViewPhone && selectedClient.phone && (
+                <div style={{ fontSize: 13, color: 'var(--color-text-info)', marginBottom: 4 }}>📞 {selectedClient.phone}</div>
+              )}
+              {canViewPhone && selectedClient.email && (
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginBottom: 4 }}>✉️ {selectedClient.email}</div>
+              )}
+              {isAdmin && selectedClient.notes && (
+                <div style={{ padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)', marginTop: 6 }}>
+                  📝 {selectedClient.notes}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 8 }}>
+                {clientHistory.length} visita{clientHistory.length !== 1 ? 's' : ''} registrada{clientHistory.length !== 1 ? 's' : ''}
               </div>
             </div>
 
-            {/* Mascotas del cliente */}
+            {/* Mascotas */}
             <div style={{ ...styles.card, marginTop: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <h3 style={{ ...styles.cardH3, margin: 0 }}>Mascotas</h3>
-                <button onClick={() => { setShowNewPet(true); setEditingPet(null); setPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' }); }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
-                  <Plus size={13} /> Agregar
-                </button>
-              </div>
-
-              {/* Formulario nueva/editar mascota */}
-              {(showNewPet || editingPet) && (
-                <div style={{ padding: 12, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 10 }}>{editingPet ? 'Editar mascota' : 'Nueva mascota'}</div>
-                  <div style={styles.formGrid}>
-                    <div><label style={styles.lbl}>Nombre *</label><input value={petForm.name} onChange={e => setPetForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre" /></div>
-                    <div><label style={styles.lbl}>Raza</label><input value={petForm.breed} onChange={e => setPetForm(f => ({...f, breed: e.target.value}))} style={styles.input} placeholder="Raza" /></div>
-                    <div><label style={styles.lbl}>Tamaño</label><select value={petForm.size} onChange={e => setPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                    <div><label style={styles.lbl}>Tipo de pelo</label><select value={petForm.hairType} onChange={e => setPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
-                    <div><label style={styles.lbl}>Edad</label><input value={petForm.age} onChange={e => setPetForm(f => ({...f, age: e.target.value}))} style={styles.input} placeholder="Ej: 3 años" /></div>
-                    <div><label style={styles.lbl}>Color</label><input value={petForm.color} onChange={e => setPetForm(f => ({...f, color: e.target.value}))} style={styles.input} placeholder="Ej: Blanco y negro" /></div>
-                    <div><label style={styles.lbl}>Peso (lbs)</label><input type="number" value={petForm.weight} onChange={e => setPetForm(f => ({...f, weight: e.target.value}))} style={styles.input} placeholder="0" /></div>
-                    <div><label style={styles.lbl}>Alergias</label><input value={petForm.allergies} onChange={e => setPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="Ninguna" /></div>
-                    <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas médicas</label><input value={petForm.medicalNotes} onChange={e => setPetForm(f => ({...f, medicalNotes: e.target.value}))} style={styles.input} placeholder="Condiciones médicas..." /></div>
-                    <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas de comportamiento</label><input value={petForm.behaviorNotes} onChange={e => setPetForm(f => ({...f, behaviorNotes: e.target.value}))} style={styles.input} placeholder="Ej: Ansioso con tijeras, mordió en visita anterior..." /></div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-                    <button onClick={() => { setShowNewPet(false); setEditingPet(null); }} style={styles.btnSecondary}><X size={13} /> Cancelar</button>
-                    <button onClick={handleSavePet} style={styles.btnPrimary} disabled={saving}>
-                      {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={13} />}
-                      {saving ? 'Guardando...' : 'Guardar'}
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {clientPets.length === 0 && !showNewPet ? (
+              <h3 style={{ ...styles.cardH3, marginBottom: 12 }}>Mascotas</h3>
+              {clientPets.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 16, color: 'var(--color-text-secondary)', fontSize: 13 }}>Sin mascotas registradas</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2807,20 +2988,15 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                           <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>
                             {[p.breed, p.size?.split('(')[0]?.trim(), p.hair_type].filter(Boolean).join(' · ')}
                           </div>
-                          {p.age && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{p.age} {p.weight ? `· ${p.weight} lbs` : ''} {p.color ? `· ${p.color}` : ''}</div>}
+                          {p.age && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{p.age}{p.weight ? ` · ${p.weight} lbs` : ''}{p.color ? ` · ${p.color}` : ''}</div>}
                           {p.allergies && <div style={{ fontSize: 11, color: 'var(--color-text-danger)', marginTop: 3 }}>⚠️ Alergias: {p.allergies}</div>}
                           {p.behavior_notes && <div style={{ fontSize: 11, color: 'var(--color-text-warning)', marginTop: 2 }}>🔔 {p.behavior_notes}</div>}
-                          {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade} {p.last_combo ? `· Combo ${p.last_combo}` : ''}</div>}
+                          {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade}{p.last_combo ? ` · Combo ${p.last_combo}` : ''}</div>}
                         </div>
-                        <div style={{ display: 'flex', gap: 4 }}>
-                          <button onClick={() => { loadPetHistory(p.id); }} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>
-                            📋 Ver fichas
-                          </button>
-                          <button onClick={() => startEditPet(p)} style={styles.iconBtn}><Edit2 size={13} /></button>
-                        </div>
+                        <button onClick={() => loadPetHistory(p.id)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>📋 Ver fichas</button>
                       </div>
 
-                      {/* Historial de fichas de grooming */}
+                      {/* Historial de fichas */}
                       {petGroomingHistory[p.id] && (
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
@@ -2830,32 +3006,20 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                             <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Sin fichas registradas aún</div>
                           ) : (
                             petGroomingHistory[p.id].map(r => (
-                              <div key={r.id} style={{ marginBottom: 10, padding: '8px 10px', background: 'var(--color-background-primary)', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <div key={r.id} style={{ marginBottom: 8, padding: '8px 10px', background: 'var(--color-background-primary)', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                                   <span style={{ fontSize: 12, fontWeight: 500 }}>{formatDateNice(r.date)}</span>
-                                  {r.blade && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#E6F1FB', color: '#0C447C' }}>✂️ {r.blade} {r.combo ? `· ${r.combo}` : ''}</span>}
+                                  {r.blade && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#E6F1FB', color: '#0C447C' }}>✂️ {r.blade}{r.combo ? ` · ${r.combo}` : ''}</span>}
                                 </div>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 4 }}>
                                   {[['Cabeza', r.head], ['Orejas', r.ears], ['Cuerpo', r.body], ['Patas', r.legs], ['Cola', r.tail]].filter(([,v]) => v).map(([label, val]) => (
                                     <div key={label} style={{ fontSize: 11 }}>
                                       <span style={{ color: 'var(--color-text-secondary)' }}>{label}: </span>
-                                      <span style={{ color: 'var(--color-text-primary)' }}>{val}</span>
+                                      <span>{val}</span>
                                     </div>
                                   ))}
                                 </div>
                                 {r.notes && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4, fontStyle: 'italic' }}>📝 {r.notes}</div>}
-                                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                                  {r.health_behavior && r.health_behavior !== 'calm' && (
-                                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: 'var(--color-background-warning)', color: 'var(--color-text-warning)' }}>
-                                      {r.health_behavior === 'aggressive' ? '⚠️ Agresivo' : r.health_behavior === 'nervous' ? '😰 Nervioso' : '⚡ Energético'}
-                                    </span>
-                                  )}
-                                  {[['health_skin','Piel'],['health_ears','Orejas'],['health_nails','Uñas']].filter(([k]) => r[k] && r[k] !== 'ok').map(([k, label]) => (
-                                    <span key={k} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 999, background: r[k] === 'urgent' ? 'var(--color-background-danger)' : 'var(--color-background-warning)', color: r[k] === 'urgent' ? 'var(--color-text-danger)' : 'var(--color-text-warning)' }}>
-                                      {label}: {r[k] === 'urgent' ? 'Urgente' : 'Atención'}
-                                    </span>
-                                  ))}
-                                </div>
                               </div>
                             ))
                           )}
@@ -2893,6 +3057,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
     </div>
   );
 }
+
 
 // ===== IA RAZAS TAB =====
 function RazasTab({ session }) {
