@@ -2634,12 +2634,21 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
       {/* Vans y PINs */}
       <div style={{ ...styles.card, marginTop: 16 }}>
-        <h3 style={styles.cardH3}>Vans, groomers y PINs</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>Vans, groomers y PINs</h3>
+          <button onClick={() => {
+            const newVan = { id: `van-${uid().slice(0,6)}`, name: `Van ${vans.length + 1}`, groomer: '', pin: '', commissionPct: 45, active: true };
+            updateVans([...vans, newVan]);
+            setEditVan(prev => ({ ...prev, [newVan.id]: { name: newVan.name, groomer: '', pin: '', commissionPct: 45 } }));
+          }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+            <Plus size={14} /> Nueva van
+          </button>
+        </div>
         <div style={styles.vanList}>
           {vans.map(v => {
             const editing = editVan[v.id];
             return (
-              <div key={v.id} style={styles.vanRow}>
+              <div key={v.id} style={{ ...styles.vanRow, opacity: v.active === false ? 0.5 : 1 }}>
                 {editing ? (
                   <>
                     <input value={editing.name} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, name: e.target.value } })}
@@ -2669,6 +2678,14 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                       {v.commissionPct || 45}%
                     </div>
                     <button onClick={() => startEdit(v)} style={styles.iconBtn}><Edit2 size={15} /></button>
+                    <button onClick={() => {
+                      const active = v.active !== false;
+                      if (!confirm(`¿${active ? 'Desactivar' : 'Activar'} ${v.name}?`)) return;
+                      updateVans(vans.map(van => van.id === v.id ? { ...van, active: !active } : van));
+                    }} style={{ ...styles.iconBtn, color: v.active === false ? 'var(--color-text-success)' : 'var(--color-text-danger)' }}
+                      title={v.active === false ? 'Activar van' : 'Desactivar van'}>
+                      {v.active === false ? <Check size={15} /> : <Trash2 size={15} />}
+                    </button>
                   </>
                 )}
               </div>
