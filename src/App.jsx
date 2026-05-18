@@ -1257,11 +1257,28 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
-  const [showCobroForm, setShowCobroForm] = useState(null); // appt
+  const [showCobroForm, setShowCobroForm] = useState(null);
   const [cobroForm, setCobroForm] = useState({ method: 'Efectivo', tip: '' });
+  const [viewMode, setViewMode] = useState(isAdmin ? 'calendario' : 'lista');
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
+
+  // Colores por van
+  const VAN_COLORS = [
+    { bg: '#EFF6FF', border: '#3B82F6', text: '#1D4ED8', dot: '#3B82F6' },
+    { bg: '#F0FDF4', border: '#22C55E', text: '#15803D', dot: '#22C55E' },
+    { bg: '#FFF7ED', border: '#F97316', text: '#C2410C', dot: '#F97316' },
+    { bg: '#FDF4FF', border: '#A855F7', text: '#7E22CE', dot: '#A855F7' },
+    { bg: '#FFF1F2', border: '#F43F5E', text: '#BE123C', dot: '#F43F5E' },
+    { bg: '#F0FDFA', border: '#14B8A6', text: '#0F766E', dot: '#14B8A6' },
+    { bg: '#FFFBEB', border: '#EAB308', text: '#92400E', dot: '#EAB308' },
+  ];
+
+  const getVanColor = (vanId) => {
+    const idx = vans.findIndex(v => v.id === vanId);
+    return VAN_COLORS[idx % VAN_COLORS.length] || VAN_COLORS[0];
+  };
 
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === date);
@@ -1399,10 +1416,94 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         right={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...styles.input, padding: '6px 10px', fontSize: 13 }} />
+            {/* Toggle vista */}
+            <div style={{ display: 'flex', background: 'var(--color-background-secondary)', borderRadius: 8, padding: 3, gap: 2 }}>
+              <button onClick={() => setViewMode('lista')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'lista' ? 600 : 400, background: viewMode === 'lista' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'lista' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                📋 Lista
+              </button>
+              <button onClick={() => setViewMode('calendario')} style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'calendario' ? 600 : 400, background: viewMode === 'calendario' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'calendario' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                📅 Calendario
+              </button>
+            </div>
             <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> Nueva cita</button>
           </div>
         }
       />
+
+      {/* ===== VISTA CALENDARIO ===== */}
+      {viewMode === 'calendario' && (
+        <div style={{ overflowX: 'auto', marginBottom: 20 }}>
+          {/* Leyenda de vans */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            {(isGroomer ? vans.filter(v => v.id === myVanId) : vans).map((v, idx) => {
+              const color = getVanColor(v.id);
+              return (
+                <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: color.bg, border: `1px solid ${color.border}`, borderRadius: 999, fontSize: 12 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: color.dot }} />
+                  <span style={{ color: color.text, fontWeight: 500 }}>{v.name} — {v.groomer}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Grid del calendario */}
+          <div style={{ display: 'grid', gridTemplateColumns: `60px repeat(${isGroomer ? 1 : vans.length}, minmax(140px, 1fr))`, gap: 0, border: '1px solid var(--color-border-tertiary)', borderRadius: 12, overflow: 'hidden', minWidth: isGroomer ? 300 : vans.length * 160 }}>
+
+            {/* Header */}
+            <div style={{ background: 'var(--color-background-secondary)', borderBottom: '1px solid var(--color-border-tertiary)', padding: '8px 6px', fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 600 }}>Hora</div>
+            {(isGroomer ? vans.filter(v => v.id === myVanId) : vans).map(v => {
+              const color = getVanColor(v.id);
+              const vanAppts = dayAppts.filter(a => a.vanId === v.id);
+              return (
+                <div key={v.id} style={{ background: color.bg, borderBottom: `1px solid ${color.border}`, borderLeft: '1px solid var(--color-border-tertiary)', padding: '8px 10px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: color.text }}>{v.name}</div>
+                  <div style={{ fontSize: 11, color: color.text, opacity: 0.8 }}>{v.groomer} · {vanAppts.length} cita{vanAppts.length !== 1 ? 's' : ''}</div>
+                </div>
+              );
+            })}
+
+            {/* Filas por hora */}
+            {Array.from({ length: 13 }, (_, i) => i + 7).map(hour => {
+              const hourStr = `${hour.toString().padStart(2, '0')}:00`;
+              const nextHourStr = `${(hour + 1).toString().padStart(2, '0')}:00`;
+              return (
+                <React.Fragment key={hour}>
+                  {/* Columna de hora */}
+                  <div style={{ padding: '8px 6px', fontSize: 11, color: 'var(--color-text-secondary)', borderTop: '1px solid var(--color-border-tertiary)', background: 'var(--color-background-secondary)', textAlign: 'right', minHeight: 60 }}>
+                    {hour}:00
+                  </div>
+                  {/* Columnas por van */}
+                  {(isGroomer ? vans.filter(v => v.id === myVanId) : vans).map(v => {
+                    const color = getVanColor(v.id);
+                    const appts = dayAppts.filter(a => {
+                      if (a.vanId !== v.id) return false;
+                      const start = a.timeStart || '00:00';
+                      return start >= hourStr && start < nextHourStr;
+                    });
+                    return (
+                      <div key={v.id} style={{ borderTop: '1px solid var(--color-border-tertiary)', borderLeft: '1px solid var(--color-border-tertiary)', padding: 4, minHeight: 60, background: 'var(--color-background-primary)', position: 'relative' }}>
+                        {appts.map(appt => {
+                          const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+                          return (
+                            <div key={appt.id} onClick={() => { setSelectedAppt(selectedAppt === appt.id ? null : appt.id); setViewMode('lista'); }}
+                              style={{ padding: '4px 6px', borderRadius: 6, background: color.bg, border: `1.5px solid ${color.border}`, marginBottom: 3, cursor: 'pointer', fontSize: 11 }}>
+                              <div style={{ fontWeight: 600, color: color.text }}>{appt.timeStart} {appt.client?.name || 'Cliente'}</div>
+                              <div style={{ color: color.text, opacity: 0.8 }}>
+                                {appt.pets?.map(ap => ap.pet?.name).filter(Boolean).join(', ') || ''}
+                              </div>
+                              <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[appt.status]}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Formulario nueva cita */}
       {showNewAppt && (
@@ -1598,7 +1699,8 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       )}
 
       {/* Lista de citas */}
-      {dayAppts.length === 0 ? (
+      {/* ===== VISTA LISTA ===== */}
+      {viewMode === 'lista' && (dayAppts.length === 0 ? (
         <div style={styles.empty}>
           <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin citas para este día</p>
           <p style={{ marginTop: 6, fontSize: 13, color: '#94a3b8' }}>Agrega una nueva cita con el botón de arriba</p>
@@ -1741,7 +1843,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             );
           })}
         </div>
-      )}
+      ))}
 
       {/* Modal de cobro */}
       {showCobroForm && (
