@@ -2799,6 +2799,45 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
   const addPetForm = () => setPetForms(prev => [...prev, emptyPet()]);
   const removePetForm = (idx) => setPetForms(prev => prev.filter((_, i) => i !== idx));
 
+  // Estados para edición
+  const [showEditClient, setShowEditClient] = useState(false);
+  const [showEditPet, setShowEditPet] = useState(false);
+  const [editClientForm, setEditClientForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
+  const [editPetForm, setEditPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+
+  const startEditClient = (c) => {
+    setEditingClient(c);
+    setEditClientForm({ name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', notes: c.notes || '' });
+    setShowEditClient(true);
+    setShowEditPet(false);
+  };
+
+  const startEditPet = (p) => {
+    setEditingPet(p);
+    setEditPetForm({ name: p.name, breed: p.breed || '', size: p.size || 'Small (1-20 lbs)', hairType: p.hair_type || 'Short Hair', age: p.age || '', color: p.color || '', weight: p.weight || '', allergies: p.allergies || '', medicalNotes: p.medical_notes || '', behaviorNotes: p.behavior_notes || '' });
+    setShowEditPet(true);
+    setShowEditClient(false);
+  };
+
+  const handleSaveEditClient = async () => {
+    if (!editClientForm.name.trim()) { alert('Ingresa el nombre'); return; }
+    setSaving(true);
+    await updateClient({ ...editingClient, ...editClientForm, name: editClientForm.name.trim() });
+    setSelectedClient(prev => prev ? { ...prev, ...editClientForm, name: editClientForm.name.trim() } : null);
+    setShowEditClient(false);
+    setEditingClient(null);
+    setSaving(false);
+  };
+
+  const handleSaveEditPet = async () => {
+    if (!editPetForm.name.trim()) { alert('Ingresa el nombre'); return; }
+    setSaving(true);
+    await updatePet({ ...editingPet, ...editPetForm, name: editPetForm.name.trim(), clientId: editingPet.client_id, client_id: editingPet.client_id, hair_type: editPetForm.hairType, medical_notes: editPetForm.medicalNotes, behavior_notes: editPetForm.behaviorNotes });
+    setShowEditPet(false);
+    setEditingPet(null);
+    setSaving(false);
+  };
+
   const updatePetForm = (idx, field, value) => {
     setPetForms(prev => prev.map((p, i) => {
       if (i !== idx) return p;
@@ -2923,11 +2962,6 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
     setPetForms([emptyPet()]);
     setApptForm({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
     alert(`✅ ${clientForm.name} creado con ${petForms.length} mascota(s) y su cita`);
-  };
-
-  const startEditClient = (c) => {
-    setEditingClient(c);
-    setSelectedClient(null);
   };
 
   return (
@@ -3183,13 +3217,73 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
         {/* ===== DETALLE DEL CLIENTE ===== */}
         {selectedClient && (
           <div>
+            {/* Formulario editar cliente */}
+            {showEditClient && editingClient?.id === selectedClient.id ? (
+              <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Editar cliente</h3>
+                  <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.iconBtn}><X size={16} /></button>
+                </div>
+                <div style={styles.formGrid}>
+                  <div><label style={styles.lbl}>Nombre *</label><input value={editClientForm.name} onChange={e => setEditClientForm(f => ({...f, name: e.target.value}))} style={styles.input} /></div>
+                  <div><label style={styles.lbl}>Teléfono</label><input value={editClientForm.phone} onChange={e => setEditClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={editClientForm.address} onChange={e => setEditClientForm(f => ({...f, address: e.target.value}))} style={styles.input} /></div>
+                  <div><label style={styles.lbl}>Email</label><input value={editClientForm.email} onChange={e => setEditClientForm(f => ({...f, email: e.target.value}))} style={styles.input} /></div>
+                  <div><label style={styles.lbl}>Notas internas</label><input value={editClientForm.notes} onChange={e => setEditClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} /></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
+                  <button onClick={handleSaveEditClient} style={styles.btnPrimary} disabled={saving}>
+                    {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Formulario editar mascota */}
+            {showEditPet && editingPet && (
+              <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Editar mascota — {editingPet.name}</h3>
+                  <button onClick={() => { setShowEditPet(false); setEditingPet(null); }} style={styles.iconBtn}><X size={16} /></button>
+                </div>
+                <div style={styles.formGrid}>
+                  <div><label style={styles.lbl}>Nombre *</label><input value={editPetForm.name} onChange={e => setEditPetForm(f => ({...f, name: e.target.value}))} style={styles.input} /></div>
+                  <div><label style={styles.lbl}>Raza</label><BreedInput value={editPetForm.breed} onChange={v => setEditPetForm(f => ({...f, breed: v}))} /></div>
+                  <div>
+                    <label style={styles.lbl}>Peso (lbs)</label>
+                    <input type="number" value={editPetForm.weight} onChange={e => setEditPetForm(f => ({...f, weight: e.target.value, size: getSizeByWeight(e.target.value) || f.size}))} style={styles.input} />
+                    {editPetForm.weight > 0 && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 4 }}>📏 {getSizeByWeight(editPetForm.weight)}</div>}
+                  </div>
+                  <div><label style={styles.lbl}>Tipo de pelo</label><select value={editPetForm.hairType} onChange={e => setEditPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
+                  <div><label style={styles.lbl}>Tamaño</label><select value={editPetForm.size} onChange={e => setEditPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                  <div><label style={styles.lbl}>Edad</label><input value={editPetForm.age} onChange={e => setEditPetForm(f => ({...f, age: e.target.value}))} style={styles.input} placeholder="Ej: 3 años" /></div>
+                  <div><label style={styles.lbl}>Color</label><input value={editPetForm.color} onChange={e => setEditPetForm(f => ({...f, color: e.target.value}))} style={styles.input} /></div>
+                  <div><label style={styles.lbl}>Alergias</label><input value={editPetForm.allergies} onChange={e => setEditPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas médicas</label><input value={editPetForm.medicalNotes} onChange={e => setEditPetForm(f => ({...f, medicalNotes: e.target.value}))} style={styles.input} /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notas de comportamiento</label><input value={editPetForm.behaviorNotes} onChange={e => setEditPetForm(f => ({...f, behaviorNotes: e.target.value}))} style={styles.input} /></div>
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+                  <button onClick={() => { setShowEditPet(false); setEditingPet(null); }} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
+                  <button onClick={handleSaveEditPet} style={styles.btnPrimary} disabled={saving}>
+                    {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
+                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <h3 style={{ ...styles.cardH3, margin: 0 }}>{selectedClient.name}</h3>
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>{selectedClient.address}</div>
                 </div>
-                <button onClick={() => setSelectedClient(null)} style={styles.iconBtn}><X size={15} /></button>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {isAdmin && <button onClick={() => startEditClient(selectedClient)} style={{ ...styles.btnSecondary, padding: '5px 10px', fontSize: 12 }}><Edit2 size={13} /> Editar</button>}
+                  <button onClick={() => setSelectedClient(null)} style={styles.iconBtn}><X size={15} /></button>
+                </div>
               </div>
               {canViewPhone && selectedClient.phone && (
                 <div style={{ fontSize: 13, color: 'var(--color-text-info)', marginBottom: 4 }}>📞 {selectedClient.phone}</div>
@@ -3227,7 +3321,10 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                           {p.behavior_notes && <div style={{ fontSize: 11, color: 'var(--color-text-warning)', marginTop: 2 }}>🔔 {p.behavior_notes}</div>}
                           {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade}{p.last_combo ? ` · Combo ${p.last_combo}` : ''}</div>}
                         </div>
-                        <button onClick={() => loadPetHistory(p.id)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>📋 Ver fichas</button>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          {isAdmin && <button onClick={() => startEditPet(p)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}><Edit2 size={12} /> Editar</button>}
+                          <button onClick={() => loadPetHistory(p.id)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>📋 Fichas</button>
+                        </div>
                       </div>
 
                       {/* Historial de fichas */}
