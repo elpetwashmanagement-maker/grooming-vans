@@ -566,7 +566,7 @@ export default function App() {
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
-            addCategory={addCategory} removeCategory={removeCategory}
+            addCategory={addCategory} removeCategory={removeCategory} expenses={expenses}
             users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive}
             servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice} />
         )}
@@ -2421,7 +2421,7 @@ function SemanaTab({ vans, services, expenses, settings }) {
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice }) {
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null); // { old, new }
@@ -2617,6 +2617,12 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                     {price.name}
                     {price.size && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.size.split('(')[0].trim()}</span>}
                     {price.hair_type && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.hair_type}</span>}
+                    {/* Peso del tamaño */}
+                    {price.size && (
+                      <span style={{ marginLeft: 6, fontSize: 11, padding: '1px 6px', background: 'var(--color-background-info)', color: 'var(--color-text-info)', borderRadius: 999 }}>
+                        {price.size.match(/\(([^)]+)\)/)?.[1] || ''}
+                      </span>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{price.duration_minutes}min</div>
                   {editingPrice[price.id] !== undefined ? (
@@ -2874,8 +2880,9 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         <h3 style={styles.cardH3}>⛽ Categorías de gastos</h3>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>Los groomers usan estas categorías al registrar sus gastos</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          {categories.map(c => (
-            editingCategory?.old === c ? (
+          {categories.map(c => {
+            const expCount = (expenses || []).filter(e => e.category === c).length;
+            return editingCategory?.old === c ? (
               <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <input value={editingCategory.new} onChange={e => setEditingCategory({ ...editingCategory, new: e.target.value })}
                   onKeyDown={e => { if (e.key === 'Enter') handleRenameCategory(); if (e.key === 'Escape') setEditingCategory(null); }}
@@ -2886,20 +2893,26 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             ) : (
               <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, fontSize: 13 }}>
                 <span style={{ color: '#0f766e', fontWeight: 500 }}>{c}</span>
+                {expCount > 0 && (
+                  <span style={{ fontSize: 10, background: 'var(--color-background-info)', color: 'var(--color-text-info)', padding: '1px 5px', borderRadius: 999 }}>{expCount}</span>
+                )}
                 <button onClick={() => setEditingCategory({ old: c, new: c })}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#94a3b8', display: 'flex' }}>
                   <Edit2 size={11} />
                 </button>
-                {!['Gasolina','Shampoo','Colonias','Materiales','Mantenimiento','Otros'].includes(c) && (
-                  <button onClick={() => { if (confirm(`¿Eliminar "${c}"?`)) removeCategory(c); }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#94a3b8', display: 'flex' }}>
-                    <X size={11} />
-                  </button>
-                )}
+                <button onClick={() => {
+                  if (expCount > 0) {
+                    alert(`No se puede eliminar "${c}" porque tiene ${expCount} gasto${expCount !== 1 ? 's' : ''} registrado${expCount !== 1 ? 's' : ''}. Primero renómbrala si quieres cambiarla.`);
+                    return;
+                  }
+                  if (confirm(`¿Eliminar la categoría "${c}"?`)) removeCategory(c);
+                }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: expCount > 0 ? '#e2e8f0' : '#94a3b8', display: 'flex' }}
+                   title={expCount > 0 ? `Tiene ${expCount} gastos — no se puede borrar` : 'Eliminar categoría'}>
+                  <X size={11} />
+                </button>
               </div>
-            )
-          ))}
-          ))}
+            );
+          })}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <input value={newCategory} onChange={e => setNewCategory(e.target.value)}
