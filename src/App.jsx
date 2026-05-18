@@ -779,7 +779,6 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
     { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
     { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
-    { id: 'registro', label: isGroomer ? 'Cobrar' : 'Registro', icon: Plus, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
     { id: 'auditoria', label: 'Auditoría', icon: FileText, show: isAdmin },
@@ -1258,6 +1257,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
+  const [showCobroForm, setShowCobroForm] = useState(null); // appt
+  const [cobroForm, setCobroForm] = useState({ method: 'Efectivo', tip: '' });
+
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
 
@@ -1282,10 +1284,38 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     await refreshAppointments();
   };
 
-  const handleComplete = async (apptId) => {
-    await updateApptStatus(apptId, 'completed');
+  const handleComplete = (appt) => {
+    setShowCobroForm(appt);
+    setCobroForm({ method: 'Efectivo', tip: '' });
+  };
+
+  const handleConfirmarCobro = async () => {
+    if (!showCobroForm) return;
+    setSaving(true);
+    const appt = showCobroForm;
+    const tip = parseFloat(cobroForm.tip) || 0;
+    const cardFeePct = settings?.cardFeePct || 5.5;
+    const gasFee = settings?.gasFee || 7;
+    const method = cobroForm.method;
+
+    // Registrar cada mascota como servicio en el cierre diario
+    for (const ap of (appt.pets || [])) {
+      const amount = ap.amount || appt.servicePrice || 0;
+      const cardFee = method === 'Tarjeta crédito' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
+      await supabase.from('services').insert({
+        id: uid(), date: appt.date, van_id: appt.vanId,
+        client: appt.client?.name || '', pet: ap.pet?.name || '',
+        service: ap.service || appt.serviceName || '',
+        method, amount, tip, card_fee: cardFee,
+      });
+    }
+
+    await updateApptStatus(appt.id, 'completed');
     await refreshAppointments();
+    setSaving(false);
+    setShowCobroForm(null);
     setSelectedAppt(null);
+    alert('✅ Cobro registrado en el Cierre Diario');
   };
 
   const handleSaveGrooming = async (apptId, petId) => {
@@ -1634,8 +1664,8 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                       {appt.status === 'in_progress' && (
-                        <button onClick={() => handleComplete(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
-                          <Check size={14} /> Completar
+                        <button onClick={() => handleComplete(appt)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
+                          <DollarSign size={14} /> Completar y cobrar
                         </button>
                       )}
                       {appt.client?.address && (
@@ -1710,6 +1740,73 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Modal de cobro */}
+      {showCobroForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--color-background-primary)', borderRadius: 16, padding: 24, maxWidth: 420, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h3 style={{ ...styles.cardH3, margin: 0 }}>💰 Cobro — {showCobroForm.client?.name}</h3>
+              <button onClick={() => setShowCobroForm(null)} style={styles.iconBtn}><X size={16} /></button>
+            </div>
+
+            {/* Resumen de mascotas y precios */}
+            <div style={{ marginBottom: 16 }}>
+              {(showCobroForm.pets || []).map((ap, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '0.5px solid var(--color-border-tertiary)', fontSize: 13 }}>
+                  <span>🐾 {ap.pet?.name || 'Mascota'} — {ap.service || 'Servicio'}</span>
+                  <span style={{ fontWeight: 600 }}>${ap.amount || 0}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px', fontSize: 15, fontWeight: 700 }}>
+                <span>Total</span>
+                <span style={{ color: 'var(--color-text-success)' }}>
+                  ${(showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0).toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            {/* Método de pago */}
+            <div style={{ marginBottom: 12 }}>
+              <label style={styles.lbl}>Método de pago</label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 6 }}>
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m} onClick={() => setCobroForm(f => ({...f, method: m}))}
+                    style={{ padding: '10px 8px', borderRadius: 10, border: `1.5px solid ${cobroForm.method === m ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: cobroForm.method === m ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: cobroForm.method === m ? 600 : 400, color: cobroForm.method === m ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {cobroForm.method === 'Tarjeta crédito' && (
+                <div style={{ marginTop: 8, padding: '6px 10px', background: 'var(--color-background-warning)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-warning)' }}>
+                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta
+                </div>
+              )}
+            </div>
+
+            {/* Propina */}
+            <div style={{ marginBottom: 20 }}>
+              <label style={styles.lbl}>Propina (opcional)</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: 12, top: 11, fontSize: 13, color: '#94a3b8' }}>$</span>
+                <input type="number" step="1" min="0" value={cobroForm.tip}
+                  onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
+                  style={{ ...styles.input, paddingLeft: 28 }} placeholder="0.00" />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowCobroForm(null)} style={{ ...styles.btnSecondary, flex: 1, justifyContent: 'center' }}>
+                <X size={15} /> Cancelar
+              </button>
+              <button onClick={handleConfirmarCobro} style={{ ...styles.btnPrimary, flex: 2, justifyContent: 'center' }} disabled={saving}>
+                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+                {saving ? 'Registrando...' : 'Confirmar cobro'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -2971,41 +3068,6 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                       </div>
                     </div>
                   )}
-                </div>
-
-                {/* Ficha de grooming */}
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Ficha de grooming (opcional)</div>
-                  {[['headTool','headNotes','Cabeza'],['earsTool','earsNotes','Orejas'],['bodyTool','bodyNotes','Cuerpo'],['legsTool','legsNotes','Patas'],['tailTool','tailNotes','Cola']].map(([toolKey, notesKey, label]) => (
-                    <div key={toolKey} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontWeight: 500 }}>{label}</span>
-                      <select value={pf[toolKey]} onChange={e => updatePetForm(idx, toolKey, e.target.value)} style={{ ...styles.input, fontSize: 12 }}>
-                        <option value="">Sin herramienta</option>
-                        <optgroup label="Blades">{BLADES.map(b => <option key={b} value={b}>Blade {b}</option>)}</optgroup>
-                        <optgroup label="Combos">{COMBOS.map(c => <option key={c} value={c}>Combo {c}</option>)}</optgroup>
-                        <option value="Tijeras">✂️ Tijeras</option>
-                        <option value="Tijeras curvas">✂️ Tijeras curvas</option>
-                      </select>
-                      <input value={pf[notesKey]} onChange={e => updatePetForm(idx, notesKey, e.target.value)} style={{ ...styles.input, fontSize: 12 }} placeholder={`Notas ${label.toLowerCase()}...`} />
-                    </div>
-                  ))}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                    {[['healthSkin','Piel'],['healthEars','Orejas'],['healthNails','Uñas'],['healthBehavior','Comportamiento']].map(([key, label]) => (
-                      <div key={key}>
-                        <label style={{ ...styles.lbl, fontSize: 10 }}>{label}</label>
-                        <select value={pf[key]} onChange={e => updatePetForm(idx, key, e.target.value)} style={{ ...styles.input, fontSize: 12 }}>
-                          {key === 'healthBehavior'
-                            ? [['calm','Tranquilo'],['nervous','Nervioso'],['aggressive','Agresivo'],['energetic','Energético']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
-                            : [['ok','Normal'],['attention','Requiere atención'],['urgent','Urgente']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
-                          }
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <label style={styles.lbl}>Notas especiales del corte</label>
-                    <textarea value={pf.groomingNotes} onChange={e => updatePetForm(idx, 'groomingNotes', e.target.value)} style={{ ...styles.input, minHeight: 50, resize: 'vertical' }} placeholder="Observaciones del corte..." />
-                  </div>
                 </div>
               </div>
             ))}
