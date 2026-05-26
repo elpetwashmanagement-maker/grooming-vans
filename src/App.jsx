@@ -3389,7 +3389,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
 
   // Formulario unificado
   const emptyClient = { name: '', phone: '', email: '', address: '', notes: '' };
-  const emptyPet = () => ({ id: `temp-${uid()}`, name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '', serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, finalPrice: 0, headTool: '', headNotes: '', earsTool: '', earsNotes: '', bodyTool: '', bodyNotes: '', legsTool: '', legsNotes: '', tailTool: '', tailNotes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm', groomingNotes: '' });
+  const emptyPet = () => ({ id: `temp-${uid()}`, name: '', breed: '', species: 'dog', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', color: '', weight: '', allergies: '', medicalNotes: '', behaviorNotes: '', serviceId: '', serviceName: '', serviceCategory: '', servicePrice: 0, discountPct: 0, finalPrice: 0, addons: [] });
 
   const [clientForm, setClientForm] = useState(emptyClient);
   const [petForms, setPetForms] = useState([emptyPet()]);
