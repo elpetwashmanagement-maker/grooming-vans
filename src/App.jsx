@@ -659,7 +659,8 @@ export default function App() {
             addClient={addClient} updateClient={updateClient} removeClient={removeClient}
             addPet={addPet} updatePet={updatePet}
             servicePrices={servicePrices} addAppointment={addAppointment} vans={visibleVans}
-            settings={settings} refreshAppointments={refreshAppointments}
+            settings={{ ...settings, companies, groomersList: groomers }}
+            refreshAppointments={refreshAppointments}
           />
         )}
         {tab === 'razas' && <RazasTab session={session} />}
@@ -1399,9 +1400,13 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === date);
     if (isGroomer) list = list.filter(a => a.vanId === myVanId);
-    else if (filterVanId !== 'todos') list = list.filter(a => a.vanId === filterVanId);
+    else if (filterVanId === 'epw' || filterVanId === 'atw') {
+      list = list.filter(a => vans.find(v => v.id === a.vanId)?.companyId === filterVanId);
+    } else if (filterVanId !== 'todos') {
+      list = list.filter(a => a.vanId === filterVanId);
+    }
     return list.sort((a,b) => a.timeStart.localeCompare(b.timeStart));
-  }, [appointments, date, isGroomer, myVanId, filterVanId]);
+  }, [appointments, date, isGroomer, myVanId, filterVanId, vans]);
 
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clients.slice(0, 8);
@@ -1572,25 +1577,42 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         }
       />
 
-      {/* Filtro de groomer — solo admin */}
+      {/* Filtro de empresa y groomer — solo admin */}
       {!isGroomer && (
-        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-          <button onClick={() => setFilterVanId('todos')}
-            style={{ padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'todos' ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'todos' ? 'var(--color-background-info)' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'todos' ? 700 : 400, color: filterVanId === 'todos' ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
-            Todos ({appointments.filter(a => a.date === date).length})
-          </button>
-          {vans.map(v => {
-            const color = getVanColor(v.id);
-            const count = appointments.filter(a => a.date === date && a.vanId === v.id).length;
-            const isSelected = filterVanId === v.id;
-            return (
-              <button key={v.id} onClick={() => setFilterVanId(v.id)}
-                style={{ padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${isSelected ? color.border : 'var(--color-border-tertiary)'}`, background: isSelected ? color.bg : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? color.text : 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 7, height: 7, borderRadius: '50%', background: color.dot }} />
-                {v.groomer || v.name} ({count})
-              </button>
-            );
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+          {/* Filtro por empresa */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Empresa:</span>
+            <button onClick={() => setFilterVanId('todos')}
+              style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'todos' ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'todos' ? 'var(--color-background-info)' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'todos' ? 700 : 400, color: filterVanId === 'todos' ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+              🏢 Todas ({appointments.filter(a => a.date === date).length})
+            </button>
+            <button onClick={() => setFilterVanId('epw')}
+              style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'epw' ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'epw' ? '#f0fdfa' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'epw' ? 700 : 400, color: filterVanId === 'epw' ? '#0f766e' : 'var(--color-text-secondary)' }}>
+              🐾 El Pet Wash ({appointments.filter(a => a.date === date && vans.find(v => v.id === a.vanId)?.companyId === 'epw').length})
+            </button>
+            <button onClick={() => setFilterVanId('atw')}
+              style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'atw' ? '#7c3aed' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'atw' ? '#faf5ff' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'atw' ? 700 : 400, color: filterVanId === 'atw' ? '#7c3aed' : 'var(--color-text-secondary)' }}>
+              🐕 All Tails Wag ({appointments.filter(a => a.date === date && vans.find(v => v.id === a.vanId)?.companyId === 'atw').length})
+            </button>
+          </div>
+
+          {/* Filtro por groomer */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Groomer:</span>
+            {vans.filter(v => filterVanId === 'todos' || filterVanId === v.id || v.companyId === filterVanId).map(v => {
+              const color = getVanColor(v.id);
+              const count = appointments.filter(a => a.date === date && a.vanId === v.id).length;
+              const isSelected = filterVanId === v.id;
+              return (
+                <button key={v.id} onClick={() => setFilterVanId(isSelected ? 'todos' : v.id)}
+                  style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${isSelected ? color.border : 'var(--color-border-tertiary)'}`, background: isSelected ? color.bg : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? color.text : 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: color.dot }} />
+                  {v.groomer || v.name} ({count})
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -3178,7 +3200,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             </div>
           </div>
           <div>
-            <label style={styles.lbl}>Fee tarjeta crédito</label>
+            <label style={styles.lbl}>Fee tarjeta crédito (global)</label>
             <div style={{ position: 'relative' }}>
               <input type="number" min="0" max="100" step="0.1" value={settings.cardFeePct}
                 onChange={e => updateSettings({ ...settings, cardFeePct: parseFloat(e.target.value) || 0 })}
@@ -3187,15 +3209,33 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             </div>
             <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Solo se suma cuando pagan con tarjeta</p>
           </div>
-          <div>
-            <label style={styles.lbl}>Fee de gasolina (por servicio)</label>
-            <div style={{ position: 'relative' }}>
-              <input type="number" min="0" step="0.50" value={settings.gasFee}
-                onChange={e => updateSettings({ ...settings, gasFee: parseFloat(e.target.value) || 0 })}
-                style={{ ...styles.input, paddingLeft: 24 }} />
-              <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Se cobra en todos los métodos de pago</p>
+        </div>
+
+        {/* Fees por empresa */}
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
+            Fee de gasolina por empresa
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {(groomers ? [{ id: 'epw', name: 'El Pet Wash', logoEmoji: '🐾' }, { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕' }] : []).map(co => {
+              const company = (groomers?.companies || []).find(c => c.id === co.id) || co;
+              return (
+                <div key={co.id} style={{ padding: '12px 14px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{co.logoEmoji} {co.name}</div>
+                  <label style={styles.lbl}>Fee gasolina por servicio</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min="0" step="0.50"
+                      defaultValue={co.id === 'epw' ? (settings.gasFee || 7) : (settings.gasFeeATW || 7)}
+                      onChange={e => {
+                        if (co.id === 'epw') updateSettings({ ...settings, gasFee: parseFloat(e.target.value) || 0 });
+                        else updateSettings({ ...settings, gasFeeATW: parseFloat(e.target.value) || 0 });
+                      }}
+                      style={{ ...styles.input, paddingLeft: 24 }} />
+                    <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -3426,7 +3466,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
 
   const [clientForm, setClientForm] = useState(emptyClient);
   const [petForms, setPetForms] = useState([emptyPet()]);
-  const [apptForm, setApptForm] = useState({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
+  const [apptForm, setApptForm] = useState({ vanId: vans[0]?.id || '', companyId: 'epw', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
 
   const canViewPhone = isAdmin || session?.permissions?.can_view_clients;
 
@@ -3836,10 +3876,28 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                 <label style={styles.lbl}>Fecha *</label>
                 <input type="date" value={apptDate} onChange={e => setApptDate(e.target.value)} style={styles.input} />
               </div>
+              {/* Selector de empresa — solo admin/manager */}
+              {isAdmin && (
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={styles.lbl}>Empresa</label>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {(settings?.companies || [{ id: 'epw', name: 'El Pet Wash', logoEmoji: '🐾' }, { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕' }]).map(c => (
+                      <button key={c.id} type="button"
+                        onClick={() => setApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || '' }))}
+                        style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${apptForm.companyId === c.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: apptForm.companyId === c.id ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: apptForm.companyId === c.id ? 700 : 400, color: apptForm.companyId === c.id ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                        {c.logoEmoji} {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={styles.lbl}>Van asignada *</label>
                 <select value={apptForm.vanId} onChange={e => setApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
-                  {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer}</option>)}
+                  {vans.filter(v => !apptForm.companyId || v.companyId === apptForm.companyId || !v.companyId).map(v => {
+                    const groomer = (settings?.groomersList || []).find(g => g.vanId === v.id);
+                    return <option key={v.id} value={v.id}>{v.name}{groomer ? ` — ${groomer.name}` : ''}</option>;
+                  })}
                 </select>
               </div>
               <div>
