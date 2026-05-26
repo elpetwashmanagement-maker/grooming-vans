@@ -614,11 +614,12 @@ export default function App() {
   const activeCompany = companies.find(c => c.id === activeCompanyId) || DEFAULT_COMPANIES[0];
 
   const currentVan = isGroomer ? vans.find(v => v.id === session.vanId) : null;
-  const visibleServices = canViewAllSchedule ? services.filter(s => !s.companyId || s.companyId === activeCompanyId) : services.filter(s => s.vanId === session.vanId);
-  const visibleExpenses = canViewAllSchedule ? expenses.filter(e => !e.companyId || e.companyId === activeCompanyId) : expenses.filter(e => e.vanId === session.vanId);
-  const visibleVans = canViewAllSchedule
-    ? vans.filter(v => v.companyId === activeCompanyId || !v.companyId)
-    : (currentVan ? [currentVan] : vans.filter(v => v.companyId === activeCompanyId));
+  const visibleServices = canViewAllSchedule ? services : services.filter(s => s.vanId === session.vanId);
+  const visibleExpenses = canViewAllSchedule ? expenses : expenses.filter(e => e.vanId === session.vanId);
+  // Admin ve todas las vans, groomer solo la suya
+  const visibleVans = isGroomer
+    ? (currentVan ? [currentVan] : [])
+    : vans; // Admin y manager ven todas
 
   return (
     <div style={styles.app}>
@@ -691,8 +692,7 @@ export default function App() {
 
 // ===== LOGIN =====
 function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, loadingUsers }) {
-  const [step, setStep] = useState('company');
-  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [step, setStep] = useState('select');
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState(false);
@@ -701,7 +701,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
   const admins = users.filter(u => u.role === 'admin');
   const managers = users.filter(u => u.role === 'manager');
   const groomers = (groomersList && groomersList.length > 0)
-    ? groomersList.filter(g => g.active !== false && (!selectedCompany || g.companyId === selectedCompany || g.companyId === null || !g.companyId)).map(g => ({
+    ? groomersList.filter(g => g.active !== false).map(g => ({
         id: g.id, name: g.name, pin: g.pin, role: 'groomer',
         van_id: g.vanId, vanId: g.vanId, commissionPct: g.commissionPct,
         companyId: g.companyId || 'epw',
@@ -709,11 +709,6 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
         can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
       }))
     : users.filter(u => u.role === 'groomer');
-
-  const handleSelectCompany = (companyId) => {
-    setSelectedCompany(companyId);
-    setStep('select');
-  };
 
   const handleSelect = (user) => {
     setSelectedUser(user); setStep('pin'); setPinInput(''); setError(false);
@@ -736,7 +731,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
         role: selectedUser.role,
         vanId: selectedUser.van_id || selectedUser.vanId,
         commissionPct: selectedUser.commissionPct,
-        companyId: selectedCompany || selectedUser.companyId || 'epw',
+        companyId: selectedUser.companyId || 'epw',
         permissions: {
           can_create_clients: selectedUser.can_create_clients ?? true,
           can_view_clients: selectedUser.can_view_clients ?? false,
@@ -757,44 +752,13 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
   const getRoleColor = (role) => ({ admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' }[role] || '#64748b');
   const getRoleIcon = (role) => ({ admin: '👑', manager: '📋', groomer: '🚐' }[role] || '👤');
 
-  // Pantalla de selección de empresa
-  if (step === 'company') return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
-        <div style={{ marginBottom: 32 }}>
-          <div style={{ fontSize: 48, marginBottom: 12 }}>🏢</div>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
-            Group Guerrero Orejarena
-          </div>
-          <div style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Selecciona la empresa</div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
-          {(companies || DEFAULT_COMPANIES).filter(c => c.active).map(company => (
-            <button key={company.id} onClick={() => handleSelectCompany(company.id)}
-              style={{ padding: '28px 20px', background: 'var(--color-background-primary)', border: '2px solid var(--color-border-tertiary)', borderRadius: 16, cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f766e'; e.currentTarget.style.background = '#f0fdfa'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border-tertiary)'; e.currentTarget.style.background = 'var(--color-background-primary)'; }}>
-              <div style={{ fontSize: 40 }}>{company.logoEmoji}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{company.name}</div>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
-          Powered by Group Guerrero Orejarena
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ ...styles.loginCard, maxWidth: step === 'select' ? 560 : 400 }}>
         <div style={styles.loginHeader}>
           <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
           <div>
-            <h1 style={styles.title}>El Pet Wash</h1>
+            <h1 style={styles.title}>Group Guerrero Orejarena</h1>
             <p style={styles.subtitle}>{step === 'select' ? 'Selecciona tu usuario' : `Hola, ${selectedUser?.name}`}</p>
           </div>
         </div>
@@ -945,7 +909,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
         <div style={styles.brand}>
           <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
           <div>
-            <h1 style={styles.title}>{activeCompany?.name || 'El Pet Wash'}</h1>
+            <h1 style={styles.title}>{(isAdmin || isManager) ? 'Group Guerrero Orejarena' : (activeCompany?.name || 'El Pet Wash')}</h1>
             <p style={styles.subtitle}>
               {isGroomer ? `${currentVan?.name} · ${session?.userName}` : roleLabels[session?.role] || ''}
             </p>
