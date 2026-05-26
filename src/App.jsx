@@ -546,7 +546,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <LoginScreen users={users} vans={vans} onLogin={setSession} loadingUsers={loading} />;
+  if (!session) return <LoginScreen users={users} vans={vans} groomers={groomers} onLogin={setSession} loadingUsers={loading} />;
 
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
@@ -631,7 +631,7 @@ export default function App() {
 }
 
 // ===== LOGIN =====
-function LoginScreen({ users, vans, onLogin, loadingUsers }) {
+function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUsers }) {
   const [step, setStep] = useState('select');
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
@@ -640,7 +640,15 @@ function LoginScreen({ users, vans, onLogin, loadingUsers }) {
 
   const admins = users.filter(u => u.role === 'admin');
   const managers = users.filter(u => u.role === 'manager');
-  const groomers = users.filter(u => u.role === 'groomer');
+  // Usar groomers de la nueva tabla si están disponibles, si no usar users
+  const groomers = (groomersList && groomersList.length > 0)
+    ? groomersList.filter(g => g.active !== false).map(g => ({
+        id: g.id, name: g.name, pin: g.pin, role: 'groomer',
+        van_id: g.vanId, commissionPct: g.commissionPct,
+        can_create_clients: true, can_view_clients: false, can_schedule: true,
+        can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
+      }))
+    : users.filter(u => u.role === 'groomer');
 
   const handleSelect = (user) => {
     setSelectedUser(user); setStep('pin'); setPinInput(''); setError(false);
@@ -661,15 +669,16 @@ function LoginScreen({ users, vans, onLogin, loadingUsers }) {
         userId: selectedUser.id,
         userName: selectedUser.name,
         role: selectedUser.role,
-        vanId: selectedUser.van_id,
+        vanId: selectedUser.van_id || selectedUser.vanId,
+        commissionPct: selectedUser.commissionPct,
         permissions: {
-          can_create_clients: selectedUser.can_create_clients,
-          can_view_clients: selectedUser.can_view_clients,
-          can_schedule: selectedUser.can_schedule,
-          can_view_all_schedule: selectedUser.can_view_all_schedule,
-          can_view_finances: selectedUser.can_view_finances,
-          can_view_reports: selectedUser.can_view_reports,
-          can_edit_config: selectedUser.can_edit_config,
+          can_create_clients: selectedUser.can_create_clients ?? true,
+          can_view_clients: selectedUser.can_view_clients ?? false,
+          can_schedule: selectedUser.can_schedule ?? true,
+          can_view_all_schedule: selectedUser.can_view_all_schedule ?? false,
+          can_view_finances: selectedUser.can_view_finances ?? false,
+          can_view_reports: selectedUser.can_view_reports ?? false,
+          can_edit_config: selectedUser.can_edit_config ?? false,
         }
       });
     } else {
@@ -2730,8 +2739,9 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
   const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
   const roleLabels = { admin: '👑 Admin', manager: '📋 Administradora', groomer: '🚐 Groomer' };
-  const activeUsers = users.filter(u => u.active);
-  const inactiveUsers = users.filter(u => !u.active);
+  // Solo mostrar admin y managers en usuarios del sistema — los groomers van en su propia sección
+  const activeUsers = users.filter(u => u.active && u.role !== 'groomer');
+  const inactiveUsers = users.filter(u => !u.active && u.role !== 'groomer');
 
   const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '', commissionPct: v.commissionPct || 45 } });
   const cancelEdit = (id) => { const copy = { ...editVan }; delete copy[id]; setEditVan(copy); };
@@ -2955,7 +2965,6 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
               <div>
                 <label style={styles.lbl}>Rol *</label>
                 <select value={newUser.role} onChange={e => handleRoleChange(e.target.value, true)} style={styles.input}>
-                  <option value="groomer">🚐 Groomer</option>
                   <option value="manager">📋 Administradora</option>
                   <option value="admin">👑 Admin</option>
                 </select>
@@ -3012,7 +3021,6 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                     <div>
                       <label style={styles.lbl}>Rol</label>
                       <select value={editingUser.role} onChange={e => handleRoleChange(e.target.value, false)} style={styles.input} disabled={editingUser.role === 'admin'}>
-                        <option value="groomer">🚐 Groomer</option>
                         <option value="manager">📋 Administradora</option>
                         <option value="admin">👑 Admin</option>
                       </select>
@@ -3103,19 +3111,11 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         )}
       </div>
 
-      {/* Comisiones y fees */}
+      {/* Propinas y fees */}
       <div style={styles.card}>
-        <h3 style={styles.cardH3}>Comisiones, propinas y fees</h3>
+        <h3 style={styles.cardH3}>💳 Propinas y fees</h3>
+        <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>La comisión de cada groomer se configura en la sección ✂️ Groomers</p>
         <div style={styles.formGrid}>
-          <div>
-            <label style={styles.lbl}>% Comisión sobre ventas</label>
-            <div style={{ position: 'relative' }}>
-              <input type="number" min="0" max="100" step="1" value={settings.commissionPct}
-                onChange={e => updateSettings({ ...settings, commissionPct: parseFloat(e.target.value) || 0 })}
-                style={{ ...styles.input, paddingRight: 32 }} />
-              <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-            </div>
-          </div>
           <div>
             <label style={styles.lbl}>% Propinas al groomer</label>
             <div style={{ position: 'relative' }}>
@@ -3143,7 +3143,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                 style={{ ...styles.input, paddingLeft: 24 }} />
               <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
             </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Se cobra en todos los métodos de pago. Actualizar cuando cambie la gasolina</p>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Se cobra en todos los métodos de pago</p>
           </div>
         </div>
       </div>
@@ -3222,37 +3222,23 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         <div style={styles.vanList}>
           {vans.map(v => {
             const editing = editVan[v.id];
+            const assignedGroomer = (groomers || []).find(g => g.vanId === v.id);
             return (
               <div key={v.id} style={{ ...styles.vanRow, opacity: v.active === false ? 0.5 : 1 }}>
                 {editing ? (
                   <>
                     <input value={editing.name} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, name: e.target.value } })}
-                      placeholder="Van" style={{ ...styles.input, flex: '0 0 80px' }} />
-                    <input value={editing.groomer} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, groomer: e.target.value } })}
-                      placeholder="Groomer" style={{ ...styles.input, flex: 1, minWidth: 100 }} />
-                    <input type="text" maxLength="4" value={editing.pin}
-                      onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, pin: e.target.value.replace(/\D/g, '').slice(0, 4) } })}
-                      placeholder="PIN" style={{ ...styles.input, flex: '0 0 80px', fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} />
-                    <div style={{ position: 'relative', flex: '0 0 90px' }}>
-                      <input type="number" min="0" max="100" step="1" value={editing.commissionPct}
-                        onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, commissionPct: e.target.value } })}
-                        style={{ ...styles.input, paddingRight: 24 }} />
-                      <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                    </div>
+                      placeholder="Nombre del puesto" style={{ ...styles.input, flex: 1 }} />
                     <button onClick={() => saveEdit(v.id)} style={styles.iconBtnGreen}><Check size={16} /></button>
                     <button onClick={() => cancelEdit(v.id)} style={styles.iconBtn}><X size={16} /></button>
                   </>
                 ) : (
                   <>
-                    <div style={{ flex: '0 0 80px', fontWeight: 600 }}>{v.name}</div>
-                    <div style={{ flex: 1, minWidth: 100, color: v.groomer ? '#0f172a' : '#94a3b8' }}>{v.groomer || 'Sin groomer'}</div>
-                    <div style={{ flex: '0 0 80px', fontFamily: 'monospace', textAlign: 'center', background: '#fff', padding: '6px 10px', borderRadius: 6, border: '1px solid #e2e8f0', letterSpacing: '0.15em', color: '#475569' }}>
-                      {v.pin || '----'}
+                    <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{v.name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', flex: 1 }}>
+                      {assignedGroomer ? `✂️ ${assignedGroomer.name}` : 'Sin groomer asignado'}
                     </div>
-                    <div style={{ flex: '0 0 70px', textAlign: 'center', background: '#f0fdfa', padding: '6px 10px', borderRadius: 6, border: '1px solid #ccfbf1', color: '#0f766e', fontWeight: 700, fontSize: 13 }}>
-                      {v.commissionPct || 45}%
-                    </div>
-                    <button onClick={() => startEdit(v)} style={styles.iconBtn}><Edit2 size={15} /></button>
+                    <button onClick={() => setEditVan({ ...editVan, [v.id]: { name: v.name } })} style={styles.iconBtn}><Edit2 size={15} /></button>
                     <button onClick={() => {
                       const active = v.active !== false;
                       if (!confirm(`¿${active ? 'Desactivar' : 'Activar'} ${v.name}?`)) return;
