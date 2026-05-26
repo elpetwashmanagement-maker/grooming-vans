@@ -1277,6 +1277,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [cobroForm, setCobroForm] = useState({ method: 'Efectivo', tip: '' });
   const [viewMode, setViewMode] = useState('lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
+  const [filterVanId, setFilterVanId] = useState('todos');
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
@@ -1300,8 +1301,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const dayAppts = useMemo(() => {
     let list = appointments.filter(a => a.date === date);
     if (isGroomer) list = list.filter(a => a.vanId === myVanId);
+    else if (filterVanId !== 'todos') list = list.filter(a => a.vanId === filterVanId);
     return list.sort((a,b) => a.timeStart.localeCompare(b.timeStart));
-  }, [appointments, date, isGroomer, myVanId]);
+  }, [appointments, date, isGroomer, myVanId, filterVanId]);
 
   const filteredClients = useMemo(() => {
     if (!clientSearch.trim()) return clients.slice(0, 8);
@@ -1471,6 +1473,28 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
           </div>
         }
       />
+
+      {/* Filtro de groomer — solo admin */}
+      {!isGroomer && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+          <button onClick={() => setFilterVanId('todos')}
+            style={{ padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'todos' ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'todos' ? 'var(--color-background-info)' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'todos' ? 700 : 400, color: filterVanId === 'todos' ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+            Todos ({appointments.filter(a => a.date === date).length})
+          </button>
+          {vans.map(v => {
+            const color = getVanColor(v.id);
+            const count = appointments.filter(a => a.date === date && a.vanId === v.id).length;
+            const isSelected = filterVanId === v.id;
+            return (
+              <button key={v.id} onClick={() => setFilterVanId(v.id)}
+                style={{ padding: '5px 14px', borderRadius: 999, border: `1.5px solid ${isSelected ? color.border : 'var(--color-border-tertiary)'}`, background: isSelected ? color.bg : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? color.text : 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: color.dot }} />
+                {v.groomer || v.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* ===== VISTA CALENDARIO ===== */}
       {viewMode === 'calendario' && (
