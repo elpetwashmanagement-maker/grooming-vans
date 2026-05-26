@@ -25,6 +25,24 @@ const DEFAULT_VANS = [
 const DEFAULT_ADMIN_PIN = '9999';
 const DEFAULT_CATEGORIES = ['Gasolina', 'Shampoo', 'Colonias', 'Materiales', 'Mantenimiento', 'Otros'];
 
+// ===== ESPECIES =====
+const SPECIES = [
+  { id: 'dog',    label: 'Perro',   icon: '🐕', hasSize: true,  hasHair: true  },
+  { id: 'cat',    label: 'Gato',    icon: '🐈', hasSize: false, hasHair: false },
+  { id: 'rabbit', label: 'Conejo',  icon: '🐇', hasSize: false, hasHair: false },
+  { id: 'bird',   label: 'Ave',     icon: '🦜', hasSize: false, hasHair: false },
+  { id: 'goat',   label: 'Cabra',   icon: '🐐', hasSize: false, hasHair: false },
+  { id: 'exotic', label: 'Exótico', icon: '🦔', hasSize: false, hasHair: false },
+];
+const getSpecies = (id) => SPECIES.find(s => s.id === id) || SPECIES[0];
+
+const CAT_BREEDS = [
+  'Persian','Maine Coon','Siamese','British Shorthair','Ragdoll','Bengal',
+  'Abyssinian','Sphynx','Scottish Fold','Norwegian Forest Cat','Turkish Angora',
+  'Russian Blue','Birman','Burmese','Himalayan','Devon Rex','Cornish Rex',
+  'American Shorthair','Domestic Shorthair','Domestic Longhair','Mixed Breed',
+];
+
 // ===== RAZAS POPULARES =====
 const DOG_BREEDS = [
   'Affenpinscher','Afghan Hound','Airedale Terrier','Akita','Alaskan Malamute',
@@ -168,6 +186,7 @@ const loadPets = async () => {
 const savePet = async (pet) => {
   const { error } = await supabase.from('pets').upsert({
     id: pet.id, client_id: pet.clientId, name: pet.name, breed: pet.breed || '',
+    species: pet.species || 'dog',
     size: pet.size || '', hair_type: pet.hairType || '', weight: pet.weight || 0,
     color: pet.color || '', age: pet.age || '', allergies: pet.allergies || '',
     medical_notes: pet.medicalNotes || '', behavior_notes: pet.behaviorNotes || '',
@@ -3295,15 +3314,17 @@ function KpiCard({ label, value, highlight, accent }) {
 }
 
 // ===== BREED AUTOCOMPLETE =====
-function BreedInput({ value, onChange, placeholder = 'Escribir raza...' }) {
+function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir raza...' }) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
+
+  const breedList = species === 'cat' ? CAT_BREEDS : DOG_BREEDS;
 
   const suggestions = useMemo(() => {
     if (!value || value.length < 2) return [];
     const q = value.toLowerCase();
-    return DOG_BREEDS.filter(b => b.toLowerCase().includes(q)).slice(0, 8);
-  }, [value]);
+    return breedList.filter(b => b.toLowerCase().includes(q)).slice(0, 8);
+  }, [value, breedList]);
 
   const handleKeyDown = (e) => {
     if (!showSuggestions || suggestions.length === 0) return;
@@ -3540,7 +3561,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
 
     for (const pf of petForms) {
       const petId = uid();
-      const pet = { id: petId, clientId, client_id: clientId, name: pf.name.trim(), breed: pf.breed, size: pf.size, hairType: pf.hairType, hair_type: pf.hairType, age: pf.age, color: pf.color, weight: pf.weight, allergies: pf.allergies, medicalNotes: pf.medicalNotes, medical_notes: pf.medicalNotes, behaviorNotes: pf.behaviorNotes, behavior_notes: pf.behaviorNotes };
+      const pet = { id: petId, clientId, client_id: clientId, name: pf.name.trim(), breed: pf.breed, species: pf.species || 'dog', size: pf.size, hairType: pf.hairType, hair_type: pf.hairType, age: pf.age, color: pf.color, weight: pf.weight, allergies: pf.allergies, medicalNotes: pf.medicalNotes, medical_notes: pf.medicalNotes, behaviorNotes: pf.behaviorNotes, behavior_notes: pf.behaviorNotes };
       await addPet(pet);
 
       // Guardar ficha de grooming si tiene datos
@@ -3629,8 +3650,20 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
 
                 {/* Datos de la mascota */}
                 <div style={styles.formGrid}>
+                  {/* Selector de especie */}
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={styles.lbl}>Especie</label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                      {SPECIES.map(sp => (
+                        <button key={sp.id} type="button" onClick={() => updatePetForm(idx, 'species', sp.id)}
+                          style={{ padding: '6px 14px', borderRadius: 999, border: `1.5px solid ${pf.species === sp.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: pf.species === sp.id ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: pf.species === sp.id ? 600 : 400, color: pf.species === sp.id ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                          {sp.icon} {sp.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div><label style={styles.lbl}>Nombre *</label><input value={pf.name} onChange={e => updatePetForm(idx, 'name', e.target.value)} style={styles.input} placeholder="Nombre" /></div>
-                  <div><label style={styles.lbl}>Raza</label><BreedInput value={pf.breed} onChange={v => updatePetForm(idx, 'breed', v)} /></div>
+                  <div><label style={styles.lbl}>Raza</label><BreedInput value={pf.breed} onChange={v => updatePetForm(idx, 'breed', v)} species={pf.species || 'dog'} /></div>
                   <div>
                     <label style={styles.lbl}>Peso (lbs) *</label>
                     <input type="number" value={pf.weight} onChange={e => updatePetForm(idx, 'weight', e.target.value)} style={styles.input} placeholder="0" />
@@ -3653,28 +3686,52 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Servicio de esta visita</div>
 
                   {/* Selector simplificado: tipo + pelo → precio automático */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                    <div>
-                      <label style={styles.lbl}>Tipo de servicio</label>
-                      <select value={pf.serviceCategory || ''} onChange={e => updatePetForm(idx, 'serviceCategory', e.target.value)} style={styles.input}>
-                        <option value="">Seleccionar...</option>
-                        <option value="Signature Bath">🛁 Signature Bath</option>
-                        <option value="Full Groom">✂️ Full Groom</option>
-                      </select>
+                  {/* Selector de servicio según especie */}
+                  {pf.species === 'dog' ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                      <div>
+                        <label style={styles.lbl}>Tipo de servicio</label>
+                        <select value={pf.serviceCategory || ''} onChange={e => updatePetForm(idx, 'serviceCategory', e.target.value)} style={styles.input}>
+                          <option value="">Seleccionar...</option>
+                          <option value="Signature Bath">🛁 Signature Bath</option>
+                          <option value="Full Groom">✂️ Full Groom</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Tipo de pelo</label>
+                        <select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>
+                          {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
+                        </select>
+                      </div>
                     </div>
-                    <div>
-                      <label style={styles.lbl}>Tipo de pelo</label>
-                      <select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>
-                        {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
-                      </select>
+                  ) : (
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={styles.lbl}>Servicio</label>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                        {(servicePrices || []).filter(p => p.category === (pf.species === 'cat' ? 'Cat' : 'Exotic')).map(p => (
+                          <button key={p.id} type="button"
+                            onClick={() => {
+                              updatePetForm(idx, 'serviceId', p.id);
+                              updatePetForm(idx, 'serviceName', p.name);
+                              updatePetForm(idx, 'servicePrice', p.price);
+                              updatePetForm(idx, 'serviceCategory', p.category);
+                              updatePetForm(idx, 'finalPrice', p.price);
+                            }}
+                            style={{ padding: '8px 16px', borderRadius: 10, border: `1.5px solid ${pf.serviceId === p.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: pf.serviceId === p.id ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: pf.serviceId === p.id ? 600 : 400, color: pf.serviceId === p.id ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                            {p.name}
+                            <span style={{ marginLeft: 8, fontWeight: 700, color: pf.serviceId === p.id ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>${p.price}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Precio automático calculado */}
+                  {/* Precio calculado */}
                   {pf.servicePrice > 0 ? (
                     <div style={{ padding: '10px 14px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)', marginBottom: 10 }}>
                       <div style={{ fontSize: 12, color: 'var(--color-text-success)', marginBottom: 4 }}>
-                        {pf.serviceName} · {getSizeByWeight(pf.weight)} · {pf.hairType}
+                        {pf.serviceName}
+                        {pf.species === 'dog' && ` · ${getSizeByWeight(pf.weight)} · ${pf.hairType}`}
                       </div>
                       {pf.discountPct > 0 ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -3689,11 +3746,11 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                         </div>
                       )}
                     </div>
-                  ) : pf.serviceCategory && !pf.weight ? (
+                  ) : pf.species === 'dog' && pf.serviceCategory && !pf.weight ? (
                     <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                      ⚠️ Ingresa el peso del perro para calcular el precio automáticamente
+                      ⚠️ Ingresa el peso para calcular el precio automáticamente
                     </div>
-                  ) : pf.serviceCategory && pf.weight && !pf.servicePrice ? (
+                  ) : pf.species === 'dog' && pf.serviceCategory && pf.weight && !pf.servicePrice ? (
                     <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
                       ⚠️ No se encontró precio para esta combinación
                     </div>
