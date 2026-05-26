@@ -787,16 +787,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       </div>
     </div>
   );
-    <div style={styles.loginScreen}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
-        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-        * { box-sizing: border-box; } body { margin: 0; } button { font-family: 'Manrope', sans-serif; }
-        .pin-btn:hover { background: #f0fdfa !important; border-color: #0f766e !important; color: #0f766e !important; }
-        .pin-btn:active { transform: scale(0.94); }
-        .user-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -6px rgba(0,0,0,0.15) !important; }
-      `}</style>
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ ...styles.loginCard, maxWidth: step === 'select' ? 560 : 400 }}>
