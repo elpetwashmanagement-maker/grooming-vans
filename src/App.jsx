@@ -250,7 +250,7 @@ const loadVans = async () => {
   if (error) { console.error(error); return DEFAULT_VANS; }
   return (data || DEFAULT_VANS).map(v => ({
     id: v.id, name: v.name, groomer: v.groomer || '', pin: v.pin,
-    commissionPct: parseFloat(v.commission_pct) || 45,
+    commissionPct: parseFloat(v.commission_pct) || 45, active: v.active !== false,
   }));
 };
 const saveVan = async (van) => {
@@ -259,6 +259,25 @@ const saveVan = async (van) => {
     commission_pct: van.commissionPct || 45,
   });
   if (error) console.error(error);
+};
+const loadGroomers = async () => {
+  const { data, error } = await supabase.from('groomers').select('*').order('name');
+  if (error) { console.error(error); return []; }
+  return (data || []).map(g => ({
+    id: g.id, name: g.name, pin: g.pin,
+    commissionPct: parseFloat(g.commission_pct) || 45,
+    vanId: g.van_id, active: g.active !== false, language: g.language || 'es',
+  }));
+};
+const saveGroomer = async (groomer) => {
+  const { error } = await supabase.from('groomers').upsert({
+    id: groomer.id, name: groomer.name, pin: groomer.pin,
+    commission_pct: groomer.commissionPct || 45,
+    van_id: groomer.vanId || null, active: groomer.active !== false,
+    language: groomer.language || 'es',
+  });
+  if (error) console.error(error);
+  return !error;
 };
 const loadServices = async () => {
   const { data, error } = await supabase.from('services').select('*').order('created_at', { ascending: false });
@@ -359,17 +378,18 @@ export default function App() {
   const [clients, setClients] = useState([]);
   const [pets, setPets] = useState([]);
   const [servicePrices, setServicePrices] = useState([]);
+  const [groomers, setGroomers] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
-        loadServicePrices()
+        loadServicePrices(), loadGroomers()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
-      setClients(cls); setPets(pts); setServicePrices(svc);
+      setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -393,6 +413,21 @@ export default function App() {
   }, [session?.role]);
 
   const updateVans = async (newVans) => { setVans(newVans); for (const v of newVans) await saveVan(v); };
+
+  const addGroomer = async (groomer) => {
+    const ok = await saveGroomer(groomer);
+    if (ok) setGroomers(prev => [...prev, groomer].sort((a,b) => a.name.localeCompare(b.name)));
+    return ok;
+  };
+  const updateGroomer = async (groomer) => {
+    const ok = await saveGroomer(groomer);
+    if (ok) setGroomers(prev => prev.map(g => g.id === groomer.id ? groomer : g));
+    return ok;
+  };
+  const toggleGroomerActive = async (id, active) => {
+    await supabase.from('groomers').update({ active }).eq('id', id);
+    setGroomers(prev => prev.map(g => g.id === id ? { ...g, active } : g));
+  };
   const addService = async (service) => { setServices(prev => [service, ...prev]); await saveService(service); };
   const updateService = async (service) => { setServices(prev => prev.map(s => s.id === service.id ? service : s)); await saveService(service); };
   const removeService = async (id) => { setServices(prev => prev.filter(s => s.id !== id)); await deleteService(id); };
@@ -584,7 +619,9 @@ export default function App() {
             services={services} clearServices={clearServices} categories={categories}
             addCategory={addCategory} removeCategory={removeCategory} expenses={expenses}
             users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive}
-            servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice} />
+            servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice}
+            groomers={groomers} addGroomer={addGroomer} updateGroomer={updateGroomer} toggleGroomerActive={toggleGroomerActive}
+          />
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
@@ -2598,7 +2635,7 @@ function SemanaTab({ vans, services, expenses, settings }) {
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive }) {
   const [editVan, setEditVan] = useState({});
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null); // { old, new }
@@ -2824,6 +2861,77 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ===== GROOMERS ===== */}
+      <div style={{ ...styles.card, marginTop: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>✂️ Groomers</h3>
+          <button onClick={() => {
+            const newG = { id: `groomer-${uid().slice(0,6)}`, name: '', pin: '', commissionPct: 45, vanId: vans[0]?.id || null, active: true, language: 'es' };
+            addGroomer(newG);
+          }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+            <Plus size={14} /> Nuevo groomer
+          </button>
+        </div>
+
+        {/* Tabla de groomers */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(groomers || []).map(g => {
+            const isEditing = editVan[`groomer-${g.id}`];
+            return (
+              <div key={g.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10, opacity: g.active === false ? 0.5 : 1 }}>
+                {isEditing ? (
+                  <>
+                    <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, name: e.target.value } })}
+                      placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
+                    <input type="text" maxLength="4" value={isEditing.pin}
+                      onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
+                      placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
+                    <div style={{ position: 'relative', width: 90 }}>
+                      <input type="number" min="0" max="100" value={isEditing.commissionPct}
+                        onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, commissionPct: e.target.value } })}
+                        style={{ ...styles.input, paddingRight: 24 }} />
+                      <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                    </div>
+                    <select value={isEditing.vanId || ''} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, vanId: e.target.value } })}
+                      style={{ ...styles.input, minWidth: 120 }}>
+                      <option value="">Sin van</option>
+                      {vans.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                    <button onClick={async () => {
+                      const ed = editVan[`groomer-${g.id}`];
+                      await updateGroomer({ ...g, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
+                      setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; });
+                    }} style={styles.iconBtnGreen}><Check size={16} /></button>
+                    <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{g.name || 'Sin nombre'}</div>
+                    <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#fff', padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', letterSpacing: '0.15em', color: '#475569' }}>{g.pin || '----'}</div>
+                    <div style={{ background: '#f0fdfa', padding: '4px 10px', borderRadius: 6, border: '1px solid #ccfbf1', color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{g.commissionPct || 45}%</div>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', minWidth: 80 }}>
+                      {vans.find(v => v.id === g.vanId)?.name || 'Sin van'}
+                    </div>
+                    <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${g.id}`]: { name: g.name, pin: g.pin, commissionPct: g.commissionPct, vanId: g.vanId }}))} style={styles.iconBtn}><Edit2 size={15} /></button>
+                    <button onClick={() => {
+                      if (!confirm(`¿${g.active === false ? 'Activar' : 'Desactivar'} a ${g.name}?`)) return;
+                      toggleGroomerActive(g.id, g.active === false);
+                    }} style={{ ...styles.iconBtn, color: g.active === false ? 'var(--color-text-success)' : 'var(--color-text-danger)' }}>
+                      {g.active === false ? <Check size={15} /> : <Trash2 size={15} />}
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {(!groomers || groomers.length === 0) && (
+            <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-secondary)', fontSize: 13 }}>
+              Sin groomers registrados. Clic en "Nuevo groomer" para agregar.
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ===== USUARIOS ===== */}
@@ -3102,7 +3210,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       {/* Vans y PINs */}
       <div style={{ ...styles.card, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>Vans, groomers y PINs</h3>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>🚐 Vans / Puestos</h3>
           <button onClick={() => {
             const newVan = { id: `van-${uid().slice(0,6)}`, name: `Van ${vans.length + 1}`, groomer: '', pin: '', commissionPct: 45, active: true };
             updateVans([...vans, newVan]);
