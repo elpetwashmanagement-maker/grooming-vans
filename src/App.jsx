@@ -25,6 +25,11 @@ const DEFAULT_VANS = [
 const DEFAULT_ADMIN_PIN = '9999';
 const DEFAULT_CATEGORIES = ['Gasolina', 'Shampoo', 'Colonias', 'Materiales', 'Mantenimiento', 'Otros'];
 
+const DEFAULT_COMPANIES = [
+  { id: 'epw', name: 'El Pet Wash', logoEmoji: '🐾', gasFee: 7, cardFeePct: 5.5, active: true, sortOrder: 1 },
+  { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕', gasFee: 7, cardFeePct: 5.5, active: true, sortOrder: 2 },
+];
+
 // ===== ESPECIES =====
 const SPECIES = [
   { id: 'dog',    label: 'Perro',   icon: '🐕', hasSize: true,  hasHair: true  },
@@ -270,7 +275,28 @@ const loadVans = async () => {
   return (data || DEFAULT_VANS).map(v => ({
     id: v.id, name: v.name, groomer: v.groomer || '', pin: v.pin,
     commissionPct: parseFloat(v.commission_pct) || 45, active: v.active !== false,
+    companyId: v.company_id || 'epw',
   }));
+};
+
+const loadCompanies = async () => {
+  const { data, error } = await supabase.from('companies').select('*').order('sort_order');
+  if (error) { console.error(error); return DEFAULT_COMPANIES; }
+  return (data || DEFAULT_COMPANIES).map(c => ({
+    id: c.id, name: c.name, logoEmoji: c.logo_emoji || '🐾',
+    gasFee: parseFloat(c.gas_fee) || 7, cardFeePct: parseFloat(c.card_fee_pct) || 5.5,
+    active: c.active !== false, sortOrder: c.sort_order || 0,
+  }));
+};
+
+const saveCompany = async (company) => {
+  const { error } = await supabase.from('companies').upsert({
+    id: company.id, name: company.name, logo_emoji: company.logoEmoji || '🐾',
+    gas_fee: company.gasFee || 7, card_fee_pct: company.cardFeePct || 5.5,
+    active: company.active !== false, sort_order: company.sortOrder || 0,
+  });
+  if (error) console.error(error);
+  return !error;
 };
 const saveVan = async (van) => {
   const { error } = await supabase.from('vans').upsert({
@@ -398,17 +424,20 @@ export default function App() {
   const [pets, setPets] = useState([]);
   const [servicePrices, setServicePrices] = useState([]);
   const [groomers, setGroomers] = useState([]);
+  const [companies, setCompanies] = useState(DEFAULT_COMPANIES);
+  const [selectedCompany, setSelectedCompany] = useState(null);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
-        loadServicePrices(), loadGroomers()
+        loadServicePrices(), loadGroomers(), loadCompanies()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
       setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
+      setCompanies(cos);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -432,6 +461,11 @@ export default function App() {
   }, [session?.role]);
 
   const updateVans = async (newVans) => { setVans(newVans); for (const v of newVans) await saveVan(v); };
+
+  const updateCompany = async (company) => {
+    setCompanies(prev => prev.map(c => c.id === company.id ? company : c));
+    await saveCompany(company);
+  };
 
   const addGroomer = async (groomer) => {
     const ok = await saveGroomer(groomer);
@@ -565,7 +599,7 @@ export default function App() {
     );
   }
 
-  if (!session) return <LoginScreen users={users} vans={vans} groomers={groomers} onLogin={setSession} loadingUsers={loading} />;
+  if (!session) return <LoginScreen users={users} vans={vans} groomers={groomers} companies={companies} onLogin={setSession} loadingUsers={loading} />;
 
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
@@ -575,10 +609,16 @@ export default function App() {
   const canEditConfig = session.permissions?.can_edit_config || isAdmin;
   const canViewAllSchedule = session.permissions?.can_view_all_schedule || isAdmin;
 
+  // Empresa activa
+  const activeCompanyId = session.companyId || 'epw';
+  const activeCompany = companies.find(c => c.id === activeCompanyId) || DEFAULT_COMPANIES[0];
+
   const currentVan = isGroomer ? vans.find(v => v.id === session.vanId) : null;
-  const visibleServices = canViewAllSchedule ? services : services.filter(s => s.vanId === session.vanId);
-  const visibleExpenses = canViewAllSchedule ? expenses : expenses.filter(e => e.vanId === session.vanId);
-  const visibleVans = canViewAllSchedule ? vans : (currentVan ? [currentVan] : vans);
+  const visibleServices = canViewAllSchedule ? services.filter(s => !s.companyId || s.companyId === activeCompanyId) : services.filter(s => s.vanId === session.vanId);
+  const visibleExpenses = canViewAllSchedule ? expenses.filter(e => !e.companyId || e.companyId === activeCompanyId) : expenses.filter(e => e.vanId === session.vanId);
+  const visibleVans = canViewAllSchedule
+    ? vans.filter(v => v.companyId === activeCompanyId || !v.companyId)
+    : (currentVan ? [currentVan] : vans.filter(v => v.companyId === activeCompanyId));
 
   return (
     <div style={styles.app}>
@@ -599,7 +639,7 @@ export default function App() {
       `}</style>
       <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
-        onLogout={() => setSession(null)} />
+        onLogout={() => setSession(null)} activeCompany={activeCompany} />
       <main style={styles.main}>
         {tab === 'citas' && (
           <CitasTab
@@ -650,8 +690,9 @@ export default function App() {
 }
 
 // ===== LOGIN =====
-function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUsers }) {
-  const [step, setStep] = useState('select');
+function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, loadingUsers }) {
+  const [step, setStep] = useState('company');
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState(false);
@@ -659,15 +700,20 @@ function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUser
 
   const admins = users.filter(u => u.role === 'admin');
   const managers = users.filter(u => u.role === 'manager');
-  // Usar groomers de la nueva tabla si están disponibles, si no usar users
   const groomers = (groomersList && groomersList.length > 0)
-    ? groomersList.filter(g => g.active !== false).map(g => ({
+    ? groomersList.filter(g => g.active !== false && (!selectedCompany || g.companyId === selectedCompany || g.companyId === null || !g.companyId)).map(g => ({
         id: g.id, name: g.name, pin: g.pin, role: 'groomer',
-        van_id: g.vanId, commissionPct: g.commissionPct,
+        van_id: g.vanId, vanId: g.vanId, commissionPct: g.commissionPct,
+        companyId: g.companyId || 'epw',
         can_create_clients: true, can_view_clients: false, can_schedule: true,
         can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
       }))
     : users.filter(u => u.role === 'groomer');
+
+  const handleSelectCompany = (companyId) => {
+    setSelectedCompany(companyId);
+    setStep('select');
+  };
 
   const handleSelect = (user) => {
     setSelectedUser(user); setStep('pin'); setPinInput(''); setError(false);
@@ -690,6 +736,7 @@ function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUser
         role: selectedUser.role,
         vanId: selectedUser.van_id || selectedUser.vanId,
         commissionPct: selectedUser.commissionPct,
+        companyId: selectedCompany || selectedUser.companyId || 'epw',
         permissions: {
           can_create_clients: selectedUser.can_create_clients ?? true,
           can_view_clients: selectedUser.can_view_clients ?? false,
@@ -710,7 +757,36 @@ function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUser
   const getRoleColor = (role) => ({ admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' }[role] || '#64748b');
   const getRoleIcon = (role) => ({ admin: '👑', manager: '📋', groomer: '🚐' }[role] || '👤');
 
-  return (
+  // Pantalla de selección de empresa
+  if (step === 'company') return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div style={{ maxWidth: 480, width: '100%', textAlign: 'center' }}>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🏢</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+            Group Guerrero Orejarena
+          </div>
+          <div style={{ fontSize: 14, color: 'var(--color-text-secondary)' }}>Selecciona la empresa</div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+          {(companies || DEFAULT_COMPANIES).filter(c => c.active).map(company => (
+            <button key={company.id} onClick={() => handleSelectCompany(company.id)}
+              style={{ padding: '28px 20px', background: 'var(--color-background-primary)', border: '2px solid var(--color-border-tertiary)', borderRadius: 16, cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#0f766e'; e.currentTarget.style.background = '#f0fdfa'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border-tertiary)'; e.currentTarget.style.background = 'var(--color-background-primary)'; }}>
+              <div style={{ fontSize: 40 }}>{company.logoEmoji}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary)' }}>{company.name}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+          Powered by Group Guerrero Orejarena
+        </div>
+      </div>
+    </div>
+  );
     <div style={styles.loginScreen}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
@@ -721,6 +797,8 @@ function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUser
         .pin-btn:active { transform: scale(0.94); }
         .user-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -6px rgba(0,0,0,0.15) !important; }
       `}</style>
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ ...styles.loginCard, maxWidth: step === 'select' ? 560 : 400 }}>
         <div style={styles.loginHeader}>
           <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
@@ -851,7 +929,7 @@ function LoginScreen({ users, vans, groomers: groomersList, onLogin, loadingUser
 }
 
 // ===== HEADER =====
-function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout }) {
+function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany }) {
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
@@ -876,7 +954,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
         <div style={styles.brand}>
           <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
           <div>
-            <h1 style={styles.title}>El Pet Wash</h1>
+            <h1 style={styles.title}>{activeCompany?.name || 'El Pet Wash'}</h1>
             <p style={styles.subtitle}>
               {isGroomer ? `${currentVan?.name} · ${session?.userName}` : roleLabels[session?.role] || ''}
             </p>
