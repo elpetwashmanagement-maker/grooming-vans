@@ -1709,6 +1709,29 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       ? parseFloat((newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2))
       : newApptForm.servicePrice;
     const van = vans.find(v => v.id === newApptForm.vanId);
+
+    // Si no hay mascotas seleccionadas pero hay servicio, crear un pet genérico
+    const petsList = newApptForm.petIds.length > 0
+      ? newApptForm.petIds.map(pid => {
+          const p = pets.find(pt => pt.id === pid);
+          return {
+            id: uid(), petId: pid,
+            service: newApptForm.serviceName || '',
+            amount: finalPrice, tip: 0, cardFee: 0,
+            method: 'Efectivo', status: 'pending',
+            checkinTime: '', checkoutTime: '',
+            pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size, allergies: p.allergies, behavior_notes: p.behavior_notes } : null,
+          };
+        })
+      : [{
+          id: uid(), petId: null,
+          service: newApptForm.serviceName || '',
+          amount: finalPrice, tip: 0, cardFee: 0,
+          method: 'Efectivo', status: 'pending',
+          checkinTime: '', checkoutTime: '',
+          pet: null,
+        }];
+
     const appt = {
       id: uid(), date, timeStart: newApptForm.timeStart, timeEnd: newApptForm.timeEnd,
       vanId: newApptForm.vanId, clientId: newApptForm.clientId,
@@ -1722,13 +1745,14 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       serviceName: newApptForm.serviceName,
       discountPct: newApptForm.discountPct,
       client: clients.find(c => c.id === newApptForm.clientId) || null,
-      pets: newApptForm.petIds.map(pid => {
-        const p = pets.find(pt => pt.id === pid);
-        return { id: uid(), petId: pid, service: newApptForm.serviceName, amount: finalPrice, tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size } : null };
-      }),
+      pets: petsList,
     };
     await addAppointment(appt);
-    for (const ap of appt.pets) await saveAppointmentPet({ ...ap, appointmentId: appt.id });
+    for (const ap of appt.pets) {
+      if (ap.petId || ap.service || ap.amount > 0) {
+        await saveAppointmentPet({ ...ap, appointmentId: appt.id });
+      }
+    }
     setSaving(false);
     setShowNewAppt(false);
     setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
@@ -2038,13 +2062,16 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             <div style={{ marginTop: 14 }}>
               <label style={styles.lbl}>Mascotas</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                {clientPets.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: newApptForm.petIds.includes(p.id) ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: '0.5px solid var(--color-border-secondary)', borderRadius: 999, cursor: 'pointer', fontSize: 13 }}>
-                    <input type="checkbox" checked={newApptForm.petIds.includes(p.id)}
-                      onChange={e => setNewApptForm(f => ({ ...f, petIds: e.target.checked ? [...f.petIds, p.id] : f.petIds.filter(id => id !== p.id) }))} style={{ display: 'none' }} />
-                    🐾 {p.name} ({p.breed || 'sin raza'})
-                  </label>
-                ))}
+                {clientPets.map(p => {
+                  const selected = newApptForm.petIds.includes(p.id);
+                  return (
+                    <button key={p.id} type="button"
+                      onClick={() => setNewApptForm(f => ({ ...f, petIds: selected ? f.petIds.filter(id => id !== p.id) : [...f.petIds, p.id] }))}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: selected ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: `1.5px solid ${selected ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
+                      {selected ? '✅ ' : '🐾 '}{p.name} {p.breed ? `(${p.breed})` : ''}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
