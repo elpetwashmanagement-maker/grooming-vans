@@ -4254,6 +4254,8 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
 // ===== CONFIG TAB =====
 function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive }) {
   const [editVan, setEditVan] = useState({});
+  const [showNewGroomerForm, setShowNewGroomerForm] = useState(false);
+  const [newGroomerData, setNewGroomerData] = useState({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
   const [newCategory, setNewCategory] = useState('');
   const [editingCategory, setEditingCategory] = useState(null); // { old, new }
   const [editingUser, setEditingUser] = useState(null);
@@ -4483,14 +4485,81 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       {/* ===== EMPRESAS: VAN + GROOMER JUNTOS ===== */}
       <div style={{ ...styles.card, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companys — Vans y Groomers</h3>
-          <button onClick={() => {
-            const newG = { id: `groomer-${uid().slice(0,6)}`, name: '', pin: '', commissionPct: 45, vanId: null, active: true, language: 'es', companyId: 'epw' };
-            addGroomer(newG);
-          }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
-            <Plus size={14} /> Nuevo groomer
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companies — Vans & Groomers</h3>
+          <button onClick={() => setShowNewGroomerForm(prev => !prev)}
+            style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+            <Plus size={14} /> New Groomer
           </button>
         </div>
+
+        {/* Formulario nuevo groomer */}
+        {showNewGroomerForm && (
+          <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>➕ New Groomer</div>
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.lbl}>Name *</label>
+                <input value={newGroomerData.name} onChange={e => setNewGroomerData(d => ({...d, name: e.target.value}))}
+                  style={styles.input} placeholder="Groomer name" />
+              </div>
+              <div>
+                <label style={styles.lbl}>PIN * (4 digits)</label>
+                <input type="text" maxLength="4" value={newGroomerData.pin}
+                  onChange={e => setNewGroomerData(d => ({...d, pin: e.target.value.replace(/\D/g,'').slice(0,4)}))}
+                  style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} placeholder="0000" />
+              </div>
+              <div>
+                <label style={styles.lbl}>Company *</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {DEFAULT_COMPANIES.map(c => (
+                    <button key={c.id} type="button"
+                      onClick={() => setNewGroomerData(d => ({...d, companyId: c.id, vanId: ''}))}
+                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${newGroomerData.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: newGroomerData.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newGroomerData.companyId === c.id ? 700 : 400, color: newGroomerData.companyId === c.id ? '#0f766e' : '#64748b' }}>
+                      {c.logoEmoji} {c.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={styles.lbl}>Van</label>
+                <select value={newGroomerData.vanId} onChange={e => setNewGroomerData(d => ({...d, vanId: e.target.value}))} style={styles.input}>
+                  <option value="">— No van assigned —</option>
+                  {vans.filter(v => v.companyId === newGroomerData.companyId).map(v => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={styles.lbl}>Commission %</label>
+                <div style={{ position: 'relative' }}>
+                  <input type="number" min="0" max="100" value={newGroomerData.commissionPct}
+                    onChange={e => setNewGroomerData(d => ({...d, commissionPct: e.target.value}))}
+                    style={{ ...styles.input, paddingRight: 28 }} />
+                  <span style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>%</span>
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button onClick={async () => {
+                if (!newGroomerData.name.trim()) { alert('Enter groomer name'); return; }
+                if (!newGroomerData.pin || newGroomerData.pin.length !== 4) { alert('PIN must be 4 digits'); return; }
+                const newG = {
+                  id: `groomer-${uid().slice(0,6)}`, name: newGroomerData.name.trim(),
+                  pin: newGroomerData.pin, commissionPct: parseFloat(newGroomerData.commissionPct) || 45,
+                  vanId: newGroomerData.vanId || null, active: true,
+                  companyId: newGroomerData.companyId,
+                };
+                await addGroomer(newG);
+                setShowNewGroomerForm(false);
+                setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
+              }} style={styles.btnPrimary}>
+                <Plus size={14} /> Add Groomer
+              </button>
+              <button onClick={() => { setShowNewGroomerForm(false); setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' }); }}
+                style={styles.btnSecondary}>Cancel</button>
+            </div>
+          </div>
+        )}
 
         {DEFAULT_COMPANIES.map(company => {
           const companyVans = vans.filter(v => v.companyId === company.id && v.active !== false);
