@@ -1420,6 +1420,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
     { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
     { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
+    { id: 'registro', label: isGroomer ? 'Mi Registro' : 'Registro', icon: FileText, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'gastos-empresa', label: '💼 Gastos', icon: DollarSign, show: isAdmin },
     { id: 'inventario', label: '📦 Inventario', icon: Plus, show: true },
