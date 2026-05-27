@@ -711,6 +711,7 @@ export default function App() {
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'semana' && canViewReports && <SemanaTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
+        {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -1068,6 +1069,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
+    { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, show: isAdmin },
     { id: 'auditoria', label: 'Auditoría', icon: FileText, show: isAdmin },
     { id: 'config', label: 'Configuración', icon: SettingsIcon, show: canEditConfig },
   ].filter(t => t.show);
@@ -1707,9 +1709,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     if (!newApptForm.clientId) { alert('Selecciona un cliente'); return; }
     if (!newApptForm.timeStart) { alert('Ingresa la hora de inicio'); return; }
     setSaving(true);
-    const finalPrice = newApptForm.servicePrice > 0 && newApptForm.discountPct > 0
+    const discountedPrice = newApptForm.servicePrice > 0 && newApptForm.discountPct > 0
       ? parseFloat((newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2))
       : newApptForm.servicePrice;
+    const addonsTotal = (newApptForm.addons || []).reduce((sum, id) => sum + ((servicePrices || []).find(p => p.id === id)?.price || 0), 0);
+    const addonsNames = (newApptForm.addons || []).map(id => (servicePrices || []).find(p => p.id === id)?.name).filter(Boolean).join(', ');
+    const finalPrice = discountedPrice + addonsTotal;
     const van = vans.find(v => v.id === newApptForm.vanId);
 
     // Si no hay mascotas seleccionadas pero hay servicio, crear un pet genérico
@@ -1740,7 +1745,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       groomerId: newApptForm.groomerId || null,
       companyId: newApptForm.companyId || van?.companyId || 'epw',
       status: 'unconfirmed',
-      notes: `${newApptForm.serviceName ? `Servicio: ${newApptForm.serviceName}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
+      notes: `${newApptForm.serviceName ? `Servicio: ${newApptForm.serviceName}` : ''}${addonsNames ? ` + ${addonsNames}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
       alertNotes: newApptForm.alertNotes,
       agreementSigned: false,
       servicePrice: finalPrice,
@@ -1996,7 +2001,8 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <input type="time" value={newApptForm.timeEnd} onChange={e => setNewApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
             </div>
 
-            {/* Selector de servicio con precio automático */}
+            {/* Selector de servicio — solo admin/manager */}
+            {!isGroomer && (
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>Servicio principal</label>
               <select value={newApptForm.serviceId} onChange={e => {
@@ -2004,7 +2010,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 setNewApptForm(f => ({ ...f, serviceId: e.target.value, serviceName: svc?.name || '', servicePrice: svc?.price || 0 }));
               }} style={styles.input}>
                 <option value="">Seleccionar servicio...</option>
-                {['Signature Bath', 'Full Groom', 'Add-on'].map(cat => (
+                {['Signature Bath', 'Full Groom'].map(cat => (
                   <optgroup key={cat} label={cat}>
                     {(servicePrices || []).filter(p => p.category === cat).map(p => (
                       <option key={p.id} value={p.id}>
@@ -2048,6 +2054,54 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 </div>
               )}
             </div>
+            )}
+
+            {/* Add-ons — solo admin/manager */}
+            {!isGroomer && (servicePrices || []).filter(p => p.category === 'Add-on').length > 0 && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>Add-ons (opcional)</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                  {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => {
+                    const selected = (newApptForm.addons || []).includes(addon.id);
+                    return (
+                      <button key={addon.id} type="button"
+                        onClick={() => setNewApptForm(f => ({
+                          ...f,
+                          addons: selected
+                            ? (f.addons || []).filter(id => id !== addon.id)
+                            : [...(f.addons || []), addon.id]
+                        }))}
+                        style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px solid ${selected ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: selected ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: selected ? 700 : 400, color: selected ? '#0f766e' : 'var(--color-text-secondary)', transition: 'all 0.15s' }}>
+                        {selected ? '✅ ' : '+ '}{addon.name} ${addon.price}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Total con add-ons */}
+                {(newApptForm.addons || []).length > 0 && (
+                  <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
+                    <div style={{ fontSize: 12, color: 'var(--color-text-success)', marginBottom: 4 }}>
+                      {(newApptForm.addons || []).map(id => (servicePrices || []).find(p => p.id === id)?.name).filter(Boolean).join(' + ')}
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-success)' }}>
+                        Servicio ${newApptForm.discountPct > 0
+                          ? (newApptForm.servicePrice * (1 - newApptForm.discountPct/100)).toFixed(2)
+                          : newApptForm.servicePrice} + Add-ons ${(newApptForm.addons || []).reduce((sum, id) => sum + ((servicePrices || []).find(p => p.id === id)?.price || 0), 0).toFixed(2)}
+                      </span>
+                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: 'var(--color-text-success)' }}>
+                        💰 ${(
+                          (newApptForm.discountPct > 0
+                            ? newApptForm.servicePrice * (1 - newApptForm.discountPct/100)
+                            : newApptForm.servicePrice) +
+                          (newApptForm.addons || []).reduce((sum, id) => sum + ((servicePrices || []).find(p => p.id === id)?.price || 0), 0)
+                        ).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>Notas (opcional)</label>
@@ -3259,8 +3313,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   const saveEdit = (id) => {
     const e = editVan[id];
     if (!e.name.trim()) { alert('El nombre no puede estar vacío'); return; }
-    if (!/^\d{4}$/.test(e.pin)) { alert('El PIN debe ser de exactamente 4 dígitos'); return; }
-    updateVans(vans.map(v => v.id === id ? { ...v, name: e.name.trim(), groomer: e.groomer.trim(), pin: e.pin, commissionPct: parseFloat(e.commissionPct) || 45 } : v));
+    updateVans(vans.map(v => v.id === id ? { ...v, name: e.name.trim() } : v));
     cancelEdit(id);
   };
   const clearAll = () => {
@@ -4955,6 +5008,264 @@ Si no es un perro, responde: {"error": "No es un perro"}` }
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== DASHBOARD TAB =====
+function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies }) {
+  const [period, setPeriod] = useState('week'); // week | month | year
+  const [selectedCompany, setSelectedCompany] = useState('all');
+
+  const now = new Date();
+  const todayStr = todayISO();
+
+  const getRange = () => {
+    if (period === 'week') {
+      const { start, end } = getWeekRange(todayStr);
+      return { start, end, label: 'Esta semana' };
+    }
+    if (period === 'month') {
+      const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
+      const end = todayStr;
+      return { start, end, label: 'Este mes' };
+    }
+    const start = `${now.getFullYear()}-01-01`;
+    return { start, end: todayStr, label: `${now.getFullYear()}` };
+  };
+
+  const { start, end, label } = getRange();
+
+  const filteredAppts = useMemo(() => {
+    let list = appointments.filter(a => inRange(a.date, start, end));
+    if (selectedCompany !== 'all') {
+      list = list.filter(a => {
+        const van = vans.find(v => v.id === a.vanId);
+        return van?.companyId === selectedCompany;
+      });
+    }
+    return list;
+  }, [appointments, start, end, selectedCompany, vans]);
+
+  const filteredServices = useMemo(() => {
+    let list = services.filter(s => inRange(s.date, start, end));
+    if (selectedCompany !== 'all') {
+      list = list.filter(s => {
+        const van = vans.find(v => v.id === s.vanId);
+        return van?.companyId === selectedCompany;
+      });
+    }
+    return list;
+  }, [services, start, end, selectedCompany, vans]);
+
+  const filteredExpenses = useMemo(() => {
+    let list = expenses.filter(e => inRange(e.date, start, end));
+    if (selectedCompany !== 'all') {
+      list = list.filter(e => {
+        const van = vans.find(v => v.id === e.vanId);
+        return van?.companyId === selectedCompany;
+      });
+    }
+    return list;
+  }, [expenses, start, end, selectedCompany, vans]);
+
+  // KPIs
+  const totalRevenue = filteredServices.reduce((s, i) => s + i.amount, 0);
+  const totalTips = filteredServices.reduce((s, i) => s + (i.tip || 0), 0);
+  const totalExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0);
+  const totalCardFees = filteredServices.reduce((s, i) => s + (i.cardFee || 0), 0);
+  const totalGasFees = filteredServices.length * (settings?.gasFee || 7);
+  const netRevenue = totalRevenue - totalExpenses - totalGasFees;
+  const completedAppts = filteredAppts.filter(a => a.status === 'completed').length;
+  const totalAppts = filteredAppts.length;
+  const totalPets = filteredAppts.reduce((s, a) => s + (a.pets?.length || 0), 0);
+  const completionRate = totalAppts > 0 ? Math.round((completedAppts / totalAppts) * 100) : 0;
+
+  // Por empresa
+  const epwRevenue = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === 'epw').reduce((s,i) => s + i.amount, 0);
+  const atwRevenue = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === 'atw').reduce((s,i) => s + i.amount, 0);
+
+  // Por groomer
+  const groomerStats = useMemo(() => {
+    return groomers.filter(g => g.active !== false).map(g => {
+      const gAppts = filteredAppts.filter(a => a.groomerId === g.id || vans.find(v => v.id === a.vanId && v.companyId === (vans.find(vv => vv.id === a.vanId)?.companyId)));
+      const gApptsByGroomer = filteredAppts.filter(a => a.groomerId === g.id);
+      const gRevenue = gApptsByGroomer.filter(a => a.status === 'completed').reduce((s, a) => s + (a.pets?.reduce((ps, ap) => ps + (ap.amount || 0), 0) || 0), 0);
+      const commission = gRevenue * (g.commissionPct || 45) / 100;
+      return { ...g, appts: gApptsByGroomer.length, completed: gApptsByGroomer.filter(a => a.status === 'completed').length, revenue: gRevenue, commission };
+    }).sort((a, b) => b.revenue - a.revenue);
+  }, [groomers, filteredAppts, vans]);
+
+  // Método de pago breakdown
+  const byMethod = PAYMENT_METHODS.reduce((acc, m) => {
+    const amt = filteredServices.filter(s => s.method === m).reduce((s,i) => s + i.amount, 0);
+    acc[m] = amt;
+    return acc;
+  }, {});
+  const maxMethod = Math.max(...Object.values(byMethod), 1);
+
+  // Días de la semana con más citas
+  const byDay = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((day, i) => {
+    const count = filteredAppts.filter(a => {
+      const d = new Date(a.date + 'T12:00:00').getDay();
+      return ((d + 6) % 7) === i;
+    }).length;
+    return { day, count };
+  });
+  const maxDay = Math.max(...byDay.map(d => d.count), 1);
+
+  const KPI = ({ label, value, sub, color = '#0f766e', big = false }) => (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px 20px', borderTop: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: 'Fraunces, serif', fontSize: big ? 32 : 26, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.02em' }}>{value}</div>
+      {sub && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{sub}</div>}
+    </div>
+  );
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Analytics" title="Dashboard" />
+
+      {/* Controles */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Período */}
+        <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
+          {[['week','Semana'],['month','Mes'],['year','Año']].map(([val, lbl]) => (
+            <button key={val} onClick={() => setPeriod(val)}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: period === val ? 600 : 400, background: period === val ? '#fff' : 'transparent', color: period === val ? '#0f766e' : '#64748b' }}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+
+        {/* Empresa */}
+        <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
+          <button onClick={() => setSelectedCompany('all')}
+            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: selectedCompany === 'all' ? 600 : 400, background: selectedCompany === 'all' ? '#fff' : 'transparent', color: selectedCompany === 'all' ? '#0f766e' : '#64748b' }}>
+            🏢 Todas
+          </button>
+          {DEFAULT_COMPANIES.map(c => (
+            <button key={c.id} onClick={() => setSelectedCompany(c.id)}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: selectedCompany === c.id ? 600 : 400, background: selectedCompany === c.id ? '#fff' : 'transparent', color: selectedCompany === c.id ? '#0f766e' : '#64748b' }}>
+              {c.logoEmoji} {c.name}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{label}</div>
+      </div>
+
+      {/* KPIs principales */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <KPI label="Ingresos brutos" value={fmt(totalRevenue)} sub={`+${fmt(totalTips)} propinas`} color="#0f766e" big />
+        <KPI label="Neto estimado" value={fmt(netRevenue)} sub={`-${fmt(totalExpenses + totalGasFees)} gastos`} color="#7c3aed" />
+        <KPI label="Citas totales" value={totalAppts} sub={`${completedAppts} completadas (${completionRate}%)`} color="#3b82f6" />
+        <KPI label="Mascotas atendidas" value={totalPets} color="#f59e0b" />
+        <KPI label="Fee tarjeta" value={fmt(totalCardFees)} sub="Solo tarjeta crédito" color="#ec4899" />
+        <KPI label="Gastos operativos" value={fmt(totalExpenses + totalGasFees)} sub={`Gas $${totalGasFees.toFixed(0)} + otros $${totalExpenses.toFixed(0)}`} color="#dc2626" />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+        {/* EPW vs ATW */}
+        {selectedCompany === 'all' && (
+          <div style={{ ...styles.card }}>
+            <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>🏢 Por empresa</h3>
+            {DEFAULT_COMPANIES.map(c => {
+              const rev = c.id === 'epw' ? epwRevenue : atwRevenue;
+              const pct = totalRevenue > 0 ? Math.round(rev / totalRevenue * 100) : 0;
+              return (
+                <div key={c.id} style={{ marginBottom: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span style={{ fontSize: 14, fontWeight: 600 }}>{c.logoEmoji} {c.name}</span>
+                    <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f766e' }}>{fmt(rev)}</span>
+                  </div>
+                  <div style={{ height: 8, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: c.id === 'epw' ? '#0f766e' : '#7c3aed', borderRadius: 999, transition: 'width 0.5s' }} />
+                  </div>
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{pct}% del total</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Métodos de pago */}
+        <div style={{ ...styles.card }}>
+          <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>💳 Métodos de pago</h3>
+          {PAYMENT_METHODS.map(m => {
+            const amt = byMethod[m] || 0;
+            const pct = totalRevenue > 0 ? Math.round(amt / totalRevenue * 100) : 0;
+            const ms = METHOD_STYLES[m];
+            return (
+              <div key={m} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: ms.dot, display: 'inline-block' }} />{m}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: 13 }}>{fmt(amt)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({pct}%)</span></span>
+                </div>
+                <div style={{ height: 6, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${(amt / maxMethod) * 100}%`, background: ms.dot, borderRadius: 999 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Por groomer */}
+      <div style={{ ...styles.card, marginBottom: 16 }}>
+        <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>✂️ Por groomer</h3>
+        {groomerStats.filter(g => g.appts > 0).length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 13 }}>Sin datos para este período</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {groomerStats.filter(g => g.appts > 0).map(g => {
+              const van = vans.find(v => v.id === g.vanId);
+              const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+              const maxRevenue = Math.max(...groomerStats.map(gs => gs.revenue), 1);
+              return (
+                <div key={g.id} style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{g.name}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {company?.logoEmoji} {company?.name || ''} · {van?.name || ''} · {g.commissionPct}%
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f766e' }}>{fmt(g.commission)}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>a pagar</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+                    <span>📅 {g.appts} citas</span>
+                    <span>✅ {g.completed} completadas</span>
+                    <span>💰 {fmt(g.revenue)} ventas</span>
+                  </div>
+                  <div style={{ height: 6, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(g.revenue / maxRevenue) * 100}%`, background: '#0f766e', borderRadius: 999 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Días de la semana */}
+      <div style={{ ...styles.card }}>
+        <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>📅 Citas por día de la semana</h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 100 }}>
+          {byDay.map(({ day, count }) => (
+            <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#0f766e' }}>{count > 0 ? count : ''}</div>
+              <div style={{ width: '100%', background: count > 0 ? '#0f766e' : '#f1f5f9', borderRadius: '4px 4px 0 0', height: count > 0 ? `${Math.max((count / maxDay) * 70, 4)}px` : '4px', transition: 'height 0.4s' }} />
+              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{day}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
