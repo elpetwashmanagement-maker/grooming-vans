@@ -1025,7 +1025,7 @@ export default function App() {
             isAdmin={isAdmin || isManager}
             fuelLogs={fuelLogs} setFuelLogs={setFuelLogs}
             expenses={visibleExpenses} addExpense={addExpense} removeExpense={removeExpense}
-            categories={categories}
+            categories={categories} lang={lang}
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
@@ -1643,7 +1643,8 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 }
 
 // ===== REGISTRO TAB =====
-function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin, fuelLogs, setFuelLogs }) {
+function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin, fuelLogs, setFuelLogs, lang }) {
+  const t = useT(lang || 'es');
   const [activeSection, setActiveSection] = useState('servicios');
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
@@ -1777,13 +1778,13 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
           background: activeSection === 'servicios' ? '#fff' : 'transparent',
           color: activeSection === 'servicios' ? '#0f766e' : '#64748b',
           boxShadow: activeSection === 'servicios' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-        }}>💼 Servicios</button>
+        }}>{t('services_section')}</button>
         <button onClick={() => setActiveSection('gastos')} style={{
           flex: 1, padding: '8px 12px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
           background: activeSection === 'gastos' ? '#fff' : 'transparent',
           color: activeSection === 'gastos' ? '#dc2626' : '#64748b',
           boxShadow: activeSection === 'gastos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-        }}>⛽ Gastos del día</button>
+        }}>{t('expenses_section')}</button>
       </div>
 
       {activeSection === 'gastos' ? (
@@ -2101,11 +2102,12 @@ const BLADES = ['#3F','#4F','#5F','#7F','#10','#15','#30','#40','#50'];
 const COMBOS = ['#0 (5/8")','#1 (1/2")','#2 (3/8")','#4 (1/4")','#5 (1/8")','#A (3/4")','#C (7/8")','#E (1")'];
 const SIZES = ['Small (1-20 lbs)','Medium (21-40 lbs)','Large (41-60 lbs)','Big (61-80 lbs)','Extra Large (81-100 lbs)','Giant (100-120 lbs)','Extra Giant (+120 lbs)'];
 const HAIR_TYPES = ['Short Hair','Long Hair'];
-const STATUS_LABELS = { unconfirmed: 'Por confirmar', confirmed: 'Confirmada', in_progress: 'En progreso', completed: 'Completada', cancelled: 'Cancelada' };
+const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirmed: t('status_confirmed'), in_progress: t('status_in_progress'), completed: t('status_completed'), cancelled: t('status_cancelled') });
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
 function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices }) {
   const t = useT(session?.language || 'es');
+  const STATUS_LABELS = getStatusLabels(t);
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showGroomingForm, setShowGroomingForm] = useState(null);
@@ -2405,7 +2407,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 🗺️ Ruta
               </button>
             </div>
-            <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> Nueva cita</button>
+            <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> {t('new_appt')}</button>
           </div>
         }
       />
