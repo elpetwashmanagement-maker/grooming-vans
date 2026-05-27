@@ -2,6 +2,158 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
+// ===== TRADUCCIONES =====
+const TRANSLATIONS = {
+  es: {
+    // Tabs
+    tab_citas: 'Mis Citas',
+    tab_clientes: 'Clientes',
+    tab_razas: 'IA Razas',
+    tab_registro: 'Mi Registro',
+    tab_registro_admin: 'Registro',
+    tab_cierre: 'Mi Cierre',
+    tab_cierre_admin: 'Cierre Diario',
+    tab_gastos: '💼 Gastos',
+    tab_inventario: '📦 Inventario',
+    tab_semana: 'Reporte Semanal',
+    tab_dashboard: 'Dashboard',
+    tab_auditoria: 'Auditoría',
+    tab_config: 'Configuración',
+    // Citas
+    new_appt: '+ Nueva cita',
+    checkin: 'Check in',
+    complete_pay: 'Completar y cobrar',
+    view_invoice: '🧾 Ver Invoice',
+    reopen: '🔓 Reabrir cita',
+    cancel_appt: 'Cancelar',
+    reassign: '🔄 Reasignar',
+    status_unconfirmed: 'Por confirmar',
+    status_confirmed: 'Confirmada',
+    status_in_progress: 'En progreso',
+    status_completed: 'Completada',
+    status_cancelled: 'Cancelada',
+    // Registro
+    services_section: '💼 Servicios',
+    expenses_section: '⛽ Gastos del día',
+    add_service: 'Registrar servicio',
+    add_expense: 'Registrar gasto',
+    // Grooming
+    grooming_record: 'Ficha de grooming',
+    checklist: 'Checklist',
+    // Inventario
+    request_supplies: '📦 Solicitar insumos',
+    my_requests: '📋 Mis solicitudes',
+    send_request: 'Enviar solicitud al administrador',
+    mark_delivered: '✅ Marcar como entregado',
+    pending_requests: 'Solicitudes pendientes',
+    history: 'Historial',
+    articles: '⚙️ Artículos',
+    // Generales
+    save: 'Guardar',
+    cancel: 'Cancelar',
+    delete: 'Eliminar',
+    edit: 'Editar',
+    search: 'Buscar',
+    loading: 'Cargando...',
+    no_data: 'Sin datos',
+    date: 'Fecha',
+    amount: 'Monto',
+    total: 'Total',
+    notes: 'Notas',
+    method: 'Método de pago',
+    van: 'Van',
+    groomer: 'Groomer',
+    company: 'Empresa',
+    client: 'Cliente',
+    pet: 'Mascota',
+    service: 'Servicio',
+    // Cierre
+    daily_close: 'Cierre Diario',
+    weekly_report: 'Reporte Semanal',
+    total_sales: 'Total ventas',
+    to_pay: 'A pagar',
+    company_income: 'Ingreso empresa',
+    // Login
+    enter_pin: 'Ingresa tu PIN',
+    wrong_pin: 'PIN incorrecto',
+  },
+  en: {
+    // Tabs
+    tab_citas: 'My Appointments',
+    tab_clientes: 'Clients',
+    tab_razas: 'AI Breeds',
+    tab_registro: 'My Daily Log',
+    tab_registro_admin: 'Daily Log',
+    tab_cierre: 'My Daily Close',
+    tab_cierre_admin: 'Daily Close',
+    tab_gastos: '💼 Expenses',
+    tab_inventario: '📦 Inventory',
+    tab_semana: 'Weekly Report',
+    tab_dashboard: 'Dashboard',
+    tab_auditoria: 'Audit Log',
+    tab_config: 'Settings',
+    // Citas
+    new_appt: '+ New Appointment',
+    checkin: 'Check in',
+    complete_pay: 'Complete & Collect',
+    view_invoice: '🧾 View Invoice',
+    reopen: '🔓 Reopen',
+    cancel_appt: 'Cancel',
+    reassign: '🔄 Reassign',
+    status_unconfirmed: 'Unconfirmed',
+    status_confirmed: 'Confirmed',
+    status_in_progress: 'In Progress',
+    status_completed: 'Completed',
+    status_cancelled: 'Cancelled',
+    // Registro
+    services_section: '💼 Services',
+    expenses_section: '⛽ Daily Expenses',
+    add_service: 'Log Service',
+    add_expense: 'Log Expense',
+    // Grooming
+    grooming_record: 'Grooming Record',
+    checklist: 'Checklist',
+    // Inventario
+    request_supplies: '📦 Request Supplies',
+    my_requests: '📋 My Requests',
+    send_request: 'Send Request to Admin',
+    mark_delivered: '✅ Mark as Delivered',
+    pending_requests: 'Pending Requests',
+    history: 'History',
+    articles: '⚙️ Items',
+    // Generales
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    edit: 'Edit',
+    search: 'Search',
+    loading: 'Loading...',
+    no_data: 'No data',
+    date: 'Date',
+    amount: 'Amount',
+    total: 'Total',
+    notes: 'Notes',
+    method: 'Payment method',
+    van: 'Van',
+    groomer: 'Groomer',
+    company: 'Company',
+    client: 'Client',
+    pet: 'Pet',
+    service: 'Service',
+    // Cierre
+    daily_close: 'Daily Close',
+    weekly_report: 'Weekly Report',
+    total_sales: 'Total Sales',
+    to_pay: 'To Pay',
+    company_income: 'Company Income',
+    // Login
+    enter_pin: 'Enter your PIN',
+    wrong_pin: 'Wrong PIN',
+  }
+};
+
+const useT = (lang = 'es') => (key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['es'][key] ?? key;
+
 // ===== SUPABASE =====
 const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
@@ -554,6 +706,10 @@ const deleteCompanyExpense = async (id) => {
   await supabase.from('company_expenses').delete().eq('id', id);
 };
 
+const saveUserLanguage = async (userId, lang) => {
+  await supabase.from('users').update({ language: lang }).eq('id', userId);
+};
+
 // ===== INVENTARIO =====
 const loadInventoryItems = async () => {
   const { data, error } = await supabase.from('inventory_items').select('*').eq('active', true).order('sort_order');
@@ -614,6 +770,8 @@ export default function App() {
   const [inventoryRequests, setInventoryRequests] = useState([]);
   const [companyExpenses, setCompanyExpenses] = useState([]);
   const [fuelLogs, setFuelLogs] = useState([]);
+  const lang = session?.language || 'es';
+  const t = useT(lang);
 
   useEffect(() => {
     (async () => {
@@ -830,7 +988,12 @@ export default function App() {
       `}</style>
       <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
-        onLogout={() => setSession(null)} activeCompany={activeCompany} />
+        onLogout={() => setSession(null)}
+        onLanguageChange={async (newLang) => {
+          setSession(s => ({ ...s, language: newLang }));
+          if (session?.id) await saveUserLanguage(session.id, newLang);
+        }}
+        activeCompany={activeCompany} />
       <main style={styles.main}>
         {tab === 'citas' && (
           <CitasTab
@@ -1414,23 +1577,25 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
 }
 
 // ===== HEADER =====
-function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany }) {
+function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange }) {
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
+  const lang = session?.language || 'es';
+  const t = useT(lang);
 
   const tabs = [
-    { id: 'citas', label: 'Mis Citas', icon: Plus, show: true },
-    { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
-    { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
-    { id: 'registro', label: isGroomer ? 'Mi Registro' : 'Registro', icon: FileText, show: true },
-    { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
-    { id: 'gastos-empresa', label: '💼 Gastos', icon: DollarSign, show: isAdmin },
-    { id: 'inventario', label: '📦 Inventario', icon: Plus, show: true },
-    { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
-    { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, show: isAdmin },
-    { id: 'auditoria', label: 'Auditoría', icon: FileText, show: isAdmin },
-    { id: 'config', label: 'Configuración', icon: SettingsIcon, show: canEditConfig },
+    { id: 'citas',         label: t('tab_citas'),                                    icon: Plus,        show: true },
+    { id: 'clientes',      label: t('tab_clientes'),                                 icon: Plus,        show: isAdmin || isManager },
+    { id: 'razas',         label: t('tab_razas'),                                    icon: Sparkles,    show: true },
+    { id: 'registro',      label: isGroomer ? t('tab_registro') : t('tab_registro_admin'), icon: FileText, show: true },
+    { id: 'cierre',        label: isGroomer ? t('tab_cierre') : t('tab_cierre_admin'), icon: FileText,  show: true },
+    { id: 'gastos-empresa',label: t('tab_gastos'),                                   icon: DollarSign,  show: isAdmin },
+    { id: 'inventario',    label: t('tab_inventario'),                               icon: Plus,        show: true },
+    { id: 'semana',        label: t('tab_semana'),                                   icon: TrendingUp,  show: canViewReports },
+    { id: 'dashboard',     label: t('tab_dashboard'),                                icon: TrendingUp,  show: isAdmin },
+    { id: 'auditoria',     label: t('tab_auditoria'),                                icon: FileText,    show: isAdmin },
+    { id: 'config',        label: t('tab_config'),                                   icon: SettingsIcon,show: canEditConfig },
   ].filter(t => t.show);
 
   const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
@@ -1454,6 +1619,11 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
             <span>{roleIcons[session?.role]}</span>
             {session?.userName}
           </div>
+          <button onClick={() => onLanguageChange(lang === 'es' ? 'en' : 'es')}
+            style={{ ...styles.logoutBtn, fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', minWidth: 42 }}
+            title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}>
+            {lang === 'es' ? '🇺🇸' : '🇪🇸'}
+          </button>
           <button onClick={onLogout} style={styles.logoutBtn}><LogOut size={15} /></button>
         </div>
       </div>
@@ -1935,6 +2105,7 @@ const STATUS_LABELS = { unconfirmed: 'Por confirmar', confirmed: 'Confirmada', i
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
 function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices }) {
+  const t = useT(session?.language || 'es');
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showGroomingForm, setShowGroomingForm] = useState(null);
@@ -2400,7 +2571,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                   <select value={newApptForm.vanId}
                     onChange={e => {
                       const van = vans.find(v => v.id === e.target.value);
-                      const groomer = (session?.groomers || []).find(g => g.vanId === e.target.value);
+                      const groomerList = session?.groomers || [];
+                      const groomer = groomerList.find(g => g.vanId === e.target.value) ||
+                                      groomerList.find(g => g.name === van?.groomer);
                       setNewApptForm(f => ({
                         ...f,
                         vanId: e.target.value,
@@ -2410,11 +2583,13 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                     }}
                     style={styles.input}>
                     {vans.map(v => {
-                      const groomer = (session?.groomers || []).find(g => g.vanId === v.id);
+                      const groomerList = session?.groomers || [];
+                      const groomer = groomerList.find(g => g.vanId === v.id) ||
+                                      groomerList.find(g => g.name === v.groomer);
                       const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
                       return (
                         <option key={v.id} value={v.id}>
-                          {v.name}{groomer ? ` — ${groomer.name}` : ''} {company ? `(${company.logoEmoji} ${company.name})` : ''}
+                          {v.name}{groomer ? ` — ${groomer.name}` : v.groomer ? ` — ${v.groomer}` : ''} {company ? `(${company.logoEmoji} ${company.name})` : ''}
                         </option>
                       );
                     })}
@@ -2422,12 +2597,16 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                   {/* Info de empresa y groomer automáticos */}
                   {newApptForm.vanId && (() => {
                     const van = vans.find(v => v.id === newApptForm.vanId);
-                    const groomer = (session?.groomers || []).find(g => g.vanId === newApptForm.vanId);
+                    const groomerList = session?.groomers || [];
+                    const groomer = groomerList.find(g => g.vanId === newApptForm.vanId) ||
+                                    groomerList.find(g => g.name === van?.groomer);
                     const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+                    const groomerName = groomer?.name || van?.groomer || '';
+                    const groomerPct = groomer?.commissionPct || van?.commissionPct || 45;
                     return (
                       <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 6, fontSize: 12, color: '#0f766e', display: 'flex', gap: 12 }}>
-                        <span>{company?.logoEmoji} {company?.name}</span>
-                        {groomer && <span>✂️ {groomer.name} · {groomer.commissionPct}%</span>}
+                        {company && <span>{company.logoEmoji} {company.name}</span>}
+                        {groomerName && <span>✂️ {groomerName} · {groomerPct}%</span>}
                       </div>
                     );
                   })()}
@@ -2848,12 +3027,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       )}
                       {(appt.status === 'confirmed' || appt.status === 'unconfirmed') && (
                         <button onClick={() => handleCheckin(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center', background: 'var(--color-background-success)', color: 'var(--color-text-success)', borderColor: 'var(--color-border-success)' }}>
-                          <Plus size={14} /> Check in
+                          <Plus size={14} /> {t('checkin')}
                         </button>
                       )}
                       {appt.status === 'in_progress' && (
                         <button onClick={() => handleComplete(appt)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
-                          <DollarSign size={14} /> Completar y cobrar
+                          <DollarSign size={14} /> {t('complete_pay')}
                         </button>
                       )}
                       {/* Ver invoice — cita completada */}
@@ -2917,7 +3096,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                             updateApptStatus(appt.id, 'in_progress');
                           }
                         }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#7c3aed', color: '#7c3aed', background: '#faf5ff' }}>
-                          🔓 Reabrir cita
+                          {t('reopen')}
                         </button>
                       )}
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
@@ -2929,7 +3108,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       {appt.status !== 'completed' && appt.status !== 'cancelled' && isAdmin && (
                         <button onClick={() => { setReasignando(appt.id); setReasignForm({ vanId: appt.vanId, groomerId: appt.groomerId || '' }); }}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e' }}>
-                          🔄 Reasignar
+                          {t('reassign')}
                         </button>
                       )}
                       {appt.status === 'cancelled' && isAdmin && (
@@ -2943,7 +3122,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                     {/* Formulario de reasignación */}
                     {reasignando === appt.id && (
                       <div style={{ marginBottom: 14, padding: '12px 14px', background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b' }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 10 }}>🔄 Reasignar cita</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 10 }}>{t('reassign')} cita</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
                           <div>
                             <label style={styles.lbl}>Van</label>
@@ -6391,6 +6570,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
 
 // ===== INVENTARIO TAB =====
 function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryItems, inventoryRequests, setInventoryRequests, groomers }) {
+  const t = useT(session?.language || 'es');
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
   const [activeSection, setActiveSection] = useState(isGroomer ? 'solicitar' : 'solicitudes');
@@ -6455,14 +6635,14 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
       <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: '#f1f5f9', padding: 3, borderRadius: 8, flexWrap: 'wrap' }}>
         {isGroomer ? (
           <>
-            <button onClick={() => setActiveSection('solicitar')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitar' ? 600 : 400, background: activeSection === 'solicitar' ? '#fff' : 'transparent', color: activeSection === 'solicitar' ? '#0f766e' : '#64748b' }}>📦 Solicitar insumos</button>
-            <button onClick={() => setActiveSection('mis-solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'mis-solicitudes' ? 600 : 400, background: activeSection === 'mis-solicitudes' ? '#fff' : 'transparent', color: activeSection === 'mis-solicitudes' ? '#0f766e' : '#64748b' }}>📋 Mis solicitudes</button>
+            <button onClick={() => setActiveSection('solicitar')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitar' ? 600 : 400, background: activeSection === 'solicitar' ? '#fff' : 'transparent', color: activeSection === 'solicitar' ? '#0f766e' : '#64748b' }}>{t('request_supplies')}</button>
+            <button onClick={() => setActiveSection('mis-solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'mis-solicitudes' ? 600 : 400, background: activeSection === 'mis-solicitudes' ? '#fff' : 'transparent', color: activeSection === 'mis-solicitudes' ? '#0f766e' : '#64748b' }}>{t('my_requests')}</button>
           </>
         ) : (
           <>
-            <button onClick={() => setActiveSection('solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitudes' ? 600 : 400, background: activeSection === 'solicitudes' ? '#fff' : 'transparent', color: activeSection === 'solicitudes' ? '#0f766e' : '#64748b' }}>🔔 Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}</button>
-            <button onClick={() => setActiveSection('historial')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'historial' ? 600 : 400, background: activeSection === 'historial' ? '#fff' : 'transparent', color: activeSection === 'historial' ? '#0f766e' : '#64748b' }}>📋 Historial</button>
-            <button onClick={() => setActiveSection('articulos')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'articulos' ? 600 : 400, background: activeSection === 'articulos' ? '#fff' : 'transparent', color: activeSection === 'articulos' ? '#0f766e' : '#64748b' }}>⚙️ Artículos</button>
+            <button onClick={() => setActiveSection('solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitudes' ? 600 : 400, background: activeSection === 'solicitudes' ? '#fff' : 'transparent', color: activeSection === 'solicitudes' ? '#0f766e' : '#64748b' }}>🔔 {t('pending_requests')} {pendingRequests.length > 0 && `(${pendingRequests.length})`}</button>
+            <button onClick={() => setActiveSection('historial')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'historial' ? 600 : 400, background: activeSection === 'historial' ? '#fff' : 'transparent', color: activeSection === 'historial' ? '#0f766e' : '#64748b' }}>📋 {t('history')}</button>
+            <button onClick={() => setActiveSection('articulos')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'articulos' ? 600 : 400, background: activeSection === 'articulos' ? '#fff' : 'transparent', color: activeSection === 'articulos' ? '#0f766e' : '#64748b' }}>{t('articles')}</button>
           </>
         )}
       </div>
@@ -6492,7 +6672,7 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
           </div>
           <button onClick={handleSendRequest} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: 14 }} disabled={saving}>
             {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : '📦'}
-            {saving ? 'Enviando...' : 'Enviar solicitud al administrador'}
+            {saving ? t('loading') : t('send_request')}
           </button>
         </div>
       )}
