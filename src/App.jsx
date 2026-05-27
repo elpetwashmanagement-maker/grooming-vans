@@ -2306,14 +2306,13 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                     {/* Acciones principales */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 14 }}>
                       {/* Botón firma — siempre visible si no ha firmado */}
-                      {!appt.agreementSigned && (
-                        <button onClick={() => setShowSignature(appt)}
-                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
+                      {!appt.agreementSigned ? (
+                        <button onClick={(e) => { e.stopPropagation(); setShowSignature(appt); }}
+                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb', gridColumn: 'span 2' }}>
                           ✍️ Firmar Agreement
                         </button>
-                      )}
-                      {appt.agreementSigned && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600, gridColumn: 'span 2' }}>
                           ✅ Agreement firmado
                         </div>
                       )}
