@@ -2830,7 +2830,17 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <MapPin size={14} /> Google Maps
                         </button>
                       )}
-                      {appt.status !== 'cancelled' && isAdmin && (
+                      {/* Reabrir cita — solo admin, solo completadas */}
+                      {appt.status === 'completed' && isAdmin && (
+                        <button onClick={() => {
+                          if (confirm('¿Reabrir esta cita?\n\nVuelve a "En progreso" para que puedas corregir el servicio y cobrar de nuevo.\n\nEsto quedará registrado en auditoría.')) {
+                            updateApptStatus(appt.id, 'in_progress');
+                          }
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#7c3aed', color: '#7c3aed', background: '#faf5ff' }}>
+                          🔓 Reabrir cita
+                        </button>
+                      )}
+                      {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
                         <button onClick={() => { if (confirm('¿Cancelar esta cita?')) updateApptStatus(appt.id, 'cancelled'); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
                           <X size={14} /> Cancelar
