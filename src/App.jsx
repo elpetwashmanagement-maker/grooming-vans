@@ -5881,7 +5881,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
               <div key={name} style={{ marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                   <span style={{ fontSize: 13, fontWeight: i === 0 ? 700 : 400 }}>{i === 0 ? '⭐ ' : ''}{name}</span>
-                  <span style={{ fontWeight: 600, color: '#0f766e' }}>{count} vez{count !== 1 ? 'es' : ''}</span>
+                  <span style={{ fontWeight: 600, color: '#0f766e' }}>{count !== 1 ? count + ' veces' : '1 vez'}</span>
                 </div>
                 <Bar value={count} max={topServices[0]?.[1] || 1} color={i === 0 ? '#0f766e' : '#94a3b8'} height={6} />
               </div>
