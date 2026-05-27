@@ -497,6 +497,33 @@ const saveInvoice = async (invoice) => {
   return !error;
 };
 
+// ===== FUEL LOGS =====
+const loadFuelLogs = async () => {
+  const { data, error } = await supabase.from('fuel_logs').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(f => ({
+    id: f.id, vanId: f.van_id, date: f.date,
+    odometer: parseFloat(f.odometer) || 0, amount: parseFloat(f.amount) || 0,
+    method: f.method || 'cash', station: f.station || '',
+    receiptUrl: f.receipt_url || null, createdBy: f.created_by || '',
+  }));
+};
+
+const saveFuelLog = async (log) => {
+  const { error } = await supabase.from('fuel_logs').insert({
+    id: log.id, van_id: log.vanId, date: log.date,
+    odometer: log.odometer, amount: log.amount,
+    method: log.method || 'cash', station: log.station || '',
+    receipt_url: log.receiptUrl || null, created_by: log.createdBy || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+const deleteFuelLog = async (id) => {
+  await supabase.from('fuel_logs').delete().eq('id', id);
+};
+
 // ===== GASTOS EMPRESA =====
 const loadCompanyExpenses = async () => {
   const { data, error } = await supabase.from('company_expenses').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
@@ -584,20 +611,21 @@ export default function App() {
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventoryRequests, setInventoryRequests] = useState([]);
   const [companyExpenses, setCompanyExpenses] = useState([]);
+  const [fuelLogs, setFuelLogs] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp, fuel] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
         loadServicePrices(), loadGroomers(), loadCompanies(),
-        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses()
+        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses(), loadFuelLogs()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
       setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
       setCompanies(cos); setInventoryItems(invItems); setInventoryRequests(invReqs);
-      setCompanyExpenses(compExp);
+      setCompanyExpenses(compExp); setFuelLogs(fuel);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -830,6 +858,7 @@ export default function App() {
             updateService={updateService} removeService={removeService}
             fixedVanId={isGroomer ? session.vanId : null} settings={settings}
             isAdmin={isAdmin || isManager}
+            fuelLogs={fuelLogs} setFuelLogs={setFuelLogs}
             expenses={visibleExpenses} addExpense={addExpense} removeExpense={removeExpense}
             categories={categories}
           />
@@ -1440,7 +1469,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 }
 
 // ===== REGISTRO TAB =====
-function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin }) {
+function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin, fuelLogs, setFuelLogs }) {
   const [activeSection, setActiveSection] = useState('servicios');
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
@@ -1559,6 +1588,12 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
           color: activeSection === 'gastos' ? '#dc2626' : '#64748b',
           boxShadow: activeSection === 'gastos' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
         }}>⛽ Gastos del día</button>
+        <button onClick={() => setActiveSection('gasolina')} style={{
+          flex: 1, padding: '8px 12px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          background: activeSection === 'gasolina' ? '#fff' : 'transparent',
+          color: activeSection === 'gasolina' ? '#0284c7' : '#64748b',
+          boxShadow: activeSection === 'gasolina' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+        }}>⛽ Gasolina</button>
       </div>
 
       {activeSection === 'gastos' ? (
@@ -1838,11 +1873,147 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
           </div>
         </div>
       )}
+
+      {/* ===== SECCIÓN GASOLINA ===== */}
+      {activeSection === 'gasolina' && (() => {
+        const vanFuelLogs = (fuelLogs || []).filter(f => f.vanId === vanId).sort((a,b) => b.date.localeCompare(a.date));
+        const [fuelForm, setFuelForm] = React.useState({ odometer: '', amount: '', method: 'cash', station: '', date: todayISO() });
+        const [fuelReceipt, setFuelReceipt] = React.useState(null);
+        const [fuelPreview, setFuelPreview] = React.useState(null);
+        const [savingFuel, setSavingFuel] = React.useState(false);
+
+        const handleSaveFuel = async () => {
+          if (!fuelForm.odometer || !fuelForm.amount) { alert('Ingresa odómetro y monto'); return; }
+          setSavingFuel(true);
+          const log = {
+            id: uid(), vanId, date: fuelForm.date,
+            odometer: parseFloat(fuelForm.odometer) || 0,
+            amount: parseFloat(fuelForm.amount) || 0,
+            method: fuelForm.method, station: fuelForm.station.trim(),
+            createdBy: '',
+          };
+          if (fuelReceipt) {
+            const ext = fuelReceipt.name.split('.').pop();
+            const path = `fuel-${log.id}.${ext}`;
+            const { error } = await supabase.storage.from('receipts').upload(path, fuelReceipt, { upsert: true });
+            if (!error) {
+              const { data } = supabase.storage.from('receipts').getPublicUrl(path);
+              log.receiptUrl = data.publicUrl;
+            }
+          }
+          const ok = await saveFuelLog(log);
+          if (ok) {
+            setFuelLogs(prev => [log, ...prev]);
+            setFuelForm({ odometer: '', amount: '', method: 'cash', station: '', date: todayISO() });
+            setFuelReceipt(null); setFuelPreview(null);
+          }
+          setSavingFuel(false);
+        };
+
+        return (
+          <div>
+            <div style={styles.card}>
+              <h3 style={styles.cardH3}>⛽ Registrar carga de gasolina</h3>
+              <div style={styles.formGrid}>
+                <div>
+                  <label style={styles.lbl}>Fecha *</label>
+                  <input type="date" value={fuelForm.date} onChange={e => setFuelForm(f => ({...f, date: e.target.value}))} style={styles.input} />
+                </div>
+                <div>
+                  <label style={styles.lbl}>Odómetro (millas) *</label>
+                  <input type="number" step="1" value={fuelForm.odometer}
+                    onChange={e => setFuelForm(f => ({...f, odometer: e.target.value}))}
+                    style={styles.input} placeholder="45,230" />
+                </div>
+                <div>
+                  <label style={styles.lbl}>Monto pagado *</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
+                    <input type="number" step="0.01" value={fuelForm.amount}
+                      onChange={e => setFuelForm(f => ({...f, amount: e.target.value}))}
+                      style={{ ...styles.input, paddingLeft: 24 }} placeholder="0.00" />
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.lbl}>Método de pago</label>
+                  <select value={fuelForm.method} onChange={e => setFuelForm(f => ({...f, method: e.target.value}))} style={styles.input}>
+                    <option value="cash">💵 Cash</option>
+                    <option value="tarjeta-empresa">💳 Tarjeta empresa</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={styles.lbl}>Estación (opcional)</label>
+                  <input value={fuelForm.station} onChange={e => setFuelForm(f => ({...f, station: e.target.value}))} style={styles.input} placeholder="Ej: Shell Brickell" />
+                </div>
+                <div>
+                  <label style={styles.lbl}>📷 Foto recibo (opcional)</label>
+                  <input type="file" accept="image/*" capture="environment"
+                    onChange={e => { const file = e.target.files[0]; if (!file) return; setFuelReceipt(file); setFuelPreview(URL.createObjectURL(file)); }}
+                    style={{ ...styles.input, padding: '7px 12px', fontSize: 13 }} />
+                </div>
+              </div>
+              {fuelPreview && (
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <img src={fuelPreview} alt="Recibo" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+                  <button onClick={() => { setFuelReceipt(null); setFuelPreview(null); }} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>Quitar foto</button>
+                </div>
+              )}
+              <div style={{ marginTop: 14 }}>
+                <button onClick={handleSaveFuel} style={styles.btnPrimary} disabled={savingFuel}>
+                  {savingFuel ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : '⛽'}
+                  {savingFuel ? 'Guardando...' : 'Registrar carga'}
+                </button>
+              </div>
+            </div>
+
+            {/* Historial */}
+            <div style={{ marginTop: 20 }}>
+              <SectionTitle eyebrow={vans.find(v => v.id === vanId)?.name} title="Historial de cargas" />
+              {vanFuelLogs.length === 0 ? (
+                <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin cargas registradas aún</p></div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {vanFuelLogs.map((log, idx) => {
+                    const prev = vanFuelLogs[idx + 1];
+                    const miles = prev ? (log.odometer - prev.odometer) : null;
+                    return (
+                      <div key={log.id} style={{ ...styles.card, padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                              <span style={{ fontSize: 14, fontWeight: 700 }}>📍 {log.odometer.toLocaleString()} mi</span>
+                              {miles !== null && miles > 0 && (
+                                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>
+                                  +{miles.toLocaleString()} mi desde última carga
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#64748b' }}>
+                              {formatDateNice(log.date)} · {log.method === 'cash' ? '💵 Cash' : '💳 Tarjeta empresa'}
+                              {log.station && ` · ${log.station}`}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                            {log.receiptUrl && (
+                              <img src={log.receiptUrl} alt="Recibo" onClick={() => window.open(log.receiptUrl, '_blank')}
+                                style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e2e8f0' }} />
+                            )}
+                            <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0284c7' }}>{fmt(log.amount)}</span>
+                            {isAdmin && <button onClick={async () => { if (!confirm('¿Eliminar?')) return; await deleteFuelLog(log.id); setFuelLogs(prev => prev.filter(f => f.id !== log.id)); }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={13} /></button>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
-
-// ===== CIERRE DIARIO =====
 // ===== CITAS TAB =====
 const BLADES = ['#3F','#4F','#5F','#7F','#10','#15','#30','#40','#50'];
 const COMBOS = ['#0 (5/8")','#1 (1/2")','#2 (3/8")','#4 (1/4")','#5 (1/8")','#A (3/4")','#C (7/8")','#E (1")'];
