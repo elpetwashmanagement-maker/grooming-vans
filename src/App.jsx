@@ -1632,7 +1632,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 // ===== REGISTRO TAB =====
 function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin, fuelLogs, setFuelLogs, lang }) {
   const t = useT('en');
-  const [activeSection, setActiveSection] = useState('servicios');
+  const [activeSection, setActiveSection] = useState(isAdmin ? 'servicios' : 'gastos');
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
   const [form, setForm] = useState({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' });
@@ -1760,12 +1760,14 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
 
       {/* Selector de sección */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, background: '#f1f5f9', padding: 4, borderRadius: 10 }}>
-        <button onClick={() => setActiveSection('servicios')} style={{
-          flex: 1, padding: '8px 12px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-          background: activeSection === 'servicios' ? '#fff' : 'transparent',
-          color: activeSection === 'servicios' ? '#0f766e' : '#64748b',
-          boxShadow: activeSection === 'servicios' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-        }}>{t('services_section')}</button>
+        {isAdmin && (
+          <button onClick={() => setActiveSection('servicios')} style={{
+            flex: 1, padding: '8px 12px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            background: activeSection === 'servicios' ? '#fff' : 'transparent',
+            color: activeSection === 'servicios' ? '#0f766e' : '#64748b',
+            boxShadow: activeSection === 'servicios' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+          }}>{t('services_section')}</button>
+        )}
         <button onClick={() => setActiveSection('gastos')} style={{
           flex: 1, padding: '8px 12px', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer',
           background: activeSection === 'gastos' ? '#fff' : 'transparent',
