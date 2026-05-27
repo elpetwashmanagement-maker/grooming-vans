@@ -2944,20 +2944,29 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                             )}
 
                             {/* Vista admin — editable */}
-                            {isAdmin && (
+                            {isAdmin && appt.status !== 'completed' && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                 {/* Selector servicio principal */}
-                                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div>
+                                  <label style={{ ...styles.lbl, fontSize: 10 }}>Servicio principal</label>
                                   <select defaultValue={ap.service}
                                     onChange={async e => {
-                                      const svc = (servicePrices || []).find(p => `${p.name} ${p.size} ${p.hair_type}`.trim() === e.target.value || p.name === e.target.value);
-                                      const newService = e.target.value;
-                                      const newAmount = svc?.price || ap.amount;
-                                      await supabase.from('appointment_pets').update({ service: newService, amount: newAmount }).eq('id', ap.id);
+                                      const svc = (servicePrices || []).find(p =>
+                                        `${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}` === e.target.value
+                                      );
+                                      // Calcular precio base + add-ons actuales
+                                      const addonsInService = (ap.service || '').split(' + ').slice(1);
+                                      const addonsTotal = addonsInService.reduce((sum, aName) => {
+                                        const a = (servicePrices || []).find(p => p.category === 'Add-on' && p.name === aName);
+                                        return sum + (a?.price || 0);
+                                      }, 0);
+                                      const newBase = svc?.price || 0;
+                                      const newService = svc ? `${e.target.value}${addonsInService.length ? ' + ' + addonsInService.join(' + ') : ''}` : e.target.value;
+                                      await supabase.from('appointment_pets').update({ service: newService, amount: newBase + addonsTotal }).eq('id', ap.id);
                                       await refreshAppointments();
                                     }}
-                                    style={{ ...styles.input, fontSize: 12, flex: 1, minWidth: 180 }}>
-                                    <option value={ap.service || ''}>{ap.service || 'Sin servicio'}</option>
+                                    style={{ ...styles.input, fontSize: 13 }}>
+                                    <option value={ap.service?.split(' + ')[0] || ''}>{ap.service?.split(' + ')[0] || 'Sin servicio'}</option>
                                     {['Signature Bath','Full Groom'].map(cat => (
                                       <optgroup key={cat} label={cat}>
                                         {(servicePrices || []).filter(p => p.category === cat).map(p => (
@@ -2968,26 +2977,126 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                                       </optgroup>
                                     ))}
                                   </select>
-                                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)', flexShrink: 0 }}>💰 ${ap.amount || 0}</span>
                                 </div>
 
-                                {/* Add-ons */}
-                                <div>
-                                  <label style={{ ...styles.lbl, fontSize: 10, marginBottom: 4 }}>+ Agregar Add-on</label>
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                                    {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => (
-                                      <button key={addon.id} type="button"
-                                        onClick={async () => {
-                                          const newAmt = parseFloat(((ap.amount || 0) + addon.price).toFixed(2));
-                                          const newService = ap.service ? `${ap.service} + ${addon.name}` : addon.name;
-                                          await supabase.from('appointment_pets').update({ amount: newAmt, service: newService }).eq('id', ap.id);
-                                          await refreshAppointments();
-                                        }}
-                                        style={{ padding: '5px 12px', background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, cursor: 'pointer', fontSize: 12, color: '#0f766e', fontWeight: 500 }}>
-                                        + {addon.name} +${addon.price}
-                                      </button>
-                                    ))}
+                                {/* Add-ons toggle */}
+                                {(servicePrices || []).filter(p => p.category === 'Add-on').length > 0 && (
+                                  <div>
+                                    <label style={{ ...styles.lbl, fontSize: 10 }}>Add-ons</label>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                                      {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => {
+                                        const serviceParts = (ap.service || '').split(' + ');
+                                        const isSelected = serviceParts.slice(1).includes(addon.name);
+                                        return (
+                                          <button key={addon.id} type="button"
+                                            onClick={async () => {
+                                              const parts = (ap.service || '').split(' + ');
+                                              const baseService = parts[0];
+                                              const currentAddons = parts.slice(1);
+                                              let newAddons, newAmount;
+
+                                              const basePrice = (() => {
+                                                const svc = (servicePrices || []).find(p =>
+                                                  p.category !== 'Add-on' &&
+                                                  `${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}` === baseService
+                                                );
+                                                return svc?.price || (ap.amount - currentAddons.reduce((s, n) => {
+                                                  const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
+                                                  return s + (a?.price || 0);
+                                                }, 0));
+                                              })();
+
+                                              if (isSelected) {
+                                                // Quitar add-on
+                                                newAddons = currentAddons.filter(n => n !== addon.name);
+                                                newAmount = basePrice + newAddons.reduce((s, n) => {
+                                                  const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
+                                                  return s + (a?.price || 0);
+                                                }, 0);
+                                              } else {
+                                                // Agregar add-on
+                                                newAddons = [...currentAddons, addon.name];
+                                                newAmount = parseFloat((basePrice + newAddons.reduce((s, n) => {
+                                                  const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
+                                                  return s + (a?.price || 0);
+                                                }, 0)).toFixed(2));
+                                              }
+
+                                              const newService = newAddons.length > 0
+                                                ? `${baseService} + ${newAddons.join(' + ')}`
+                                                : baseService;
+                                              await supabase.from('appointment_pets').update({ service: newService, amount: newAmount }).eq('id', ap.id);
+                                              await refreshAppointments();
+                                            }}
+                                            style={{ padding: '6px 12px', background: isSelected ? '#f0fdfa' : 'var(--color-background-secondary)', border: `1.5px solid ${isSelected ? '#0f766e' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : 'var(--color-text-secondary)' }}>
+                                            {isSelected ? '✅ ' : '+ '}{addon.name} ${addon.price}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
                                   </div>
+                                )}
+
+                                {/* Desglose en columna */}
+                                <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #f1f5f9' }}>
+                                  {(() => {
+                                    const parts = (ap.service || '').split(' + ');
+                                    const baseService = parts[0];
+                                    const addons = parts.slice(1);
+                                    const baseSvc = (servicePrices || []).find(p =>
+                                      p.category !== 'Add-on' &&
+                                      `${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}` === baseService
+                                    );
+                                    const basePrice = baseSvc?.price || 0;
+                                    const addonsTotal = addons.reduce((s, n) => {
+                                      const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
+                                      return s + (a?.price || 0);
+                                    }, 0);
+                                    return (
+                                      <>
+                                        {baseService && (
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                                            <span>✂️ {baseService}</span>
+                                            <span style={{ fontWeight: 600 }}>${basePrice.toFixed(2)}</span>
+                                          </div>
+                                        )}
+                                        {addons.map((name, i) => {
+                                          const a = (servicePrices || []).find(p => p.name === name && p.category === 'Add-on');
+                                          return (
+                                            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 3 }}>
+                                              <span>+ {name}</span>
+                                              <span>${(a?.price || 0).toFixed(2)}</span>
+                                            </div>
+                                          );
+                                        })}
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: '#0f766e', paddingTop: 6, borderTop: '1px solid #e2e8f0', marginTop: 4 }}>
+                                          <span>TOTAL</span>
+                                          <span>${(ap.amount || 0).toFixed(2)}</span>
+                                        </div>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Solo lectura — cita completada */}
+                            {isAdmin && appt.status === 'completed' && (
+                              <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px' }}>
+                                {(ap.service || '').split(' + ').map((name, i) => {
+                                  const isBase = i === 0;
+                                  const svc = isBase
+                                    ? (servicePrices || []).find(p => p.category !== 'Add-on' && `${p.name}${p.size ? ' · ' + p.size.split('(')[0].trim() : ''}${p.hair_type ? ' · ' + p.hair_type : ''}` === name)
+                                    : (servicePrices || []).find(p => p.name === name && p.category === 'Add-on');
+                                  return (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: isBase ? 13 : 12, color: isBase ? '#0f172a' : '#64748b', marginBottom: 3 }}>
+                                      <span>{isBase ? '✂️ ' : '+ '}{name}</span>
+                                      <span style={{ fontWeight: isBase ? 600 : 400 }}>${(svc?.price || 0).toFixed(2)}</span>
+                                    </div>
+                                  );
+                                })}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: '#0f766e', paddingTop: 6, borderTop: '1px solid #e2e8f0', marginTop: 4 }}>
+                                  <span>TOTAL</span><span>${(ap.amount || 0).toFixed(2)}</span>
                                 </div>
                               </div>
                             )}
@@ -3066,19 +3175,44 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <button onClick={() => setShowCobroForm(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
             </div>
 
-            {/* Resumen mascotas */}
+            {/* Resumen mascotas con desglose */}
             <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px', marginBottom: 18, border: '1px solid #e2e8f0' }}>
               {(showCobroForm.pets || []).length > 0 ? (
                 (showCobroForm.pets || []).map((ap, i) => {
-                  // Buscar nombre real de la mascota
                   const petName = ap.pet?.name || ap.petName || 'Mascota';
+                  const parts = (ap.service || '').split(' + ');
+                  const baseService = parts[0];
+                  const addons = parts.slice(1);
                   return (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '1px solid #e2e8f0' : 'none', fontSize: 15 }}>
-                      <span style={{ color: '#1e293b', fontWeight: 500 }}>
-                        🐾 {petName}
-                        {ap.service ? <span style={{ color: '#64748b', fontWeight: 400 }}> — {ap.service}</span> : ''}
-                      </span>
-                      <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 16 }}>${ap.amount || 0}</span>
+                    <div key={i} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>🐾 {petName}</div>
+                      {baseService && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 3 }}>
+                          <span style={{ color: '#1e293b' }}>✂️ {baseService}</span>
+                          <span style={{ fontWeight: 600, color: '#0f766e' }}>
+                            ${(() => {
+                              const addonsTotal = addons.reduce((s, n) => {
+                                const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
+                                return s + (a?.price || 0);
+                              }, 0);
+                              return Math.max(0, (ap.amount || 0) - addonsTotal).toFixed(2);
+                            })()}
+                          </span>
+                        </div>
+                      )}
+                      {addons.map((name, j) => {
+                        const addon = (servicePrices || []).find(p => p.name === name && p.category === 'Add-on');
+                        return (
+                          <div key={j} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 2, paddingLeft: 12 }}>
+                            <span>+ {name}</span>
+                            <span>${(addon?.price || 0).toFixed(2)}</span>
+                          </div>
+                        );
+                      })}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, color: '#0f766e', marginTop: 6 }}>
+                        <span>Subtotal</span>
+                        <span>${(ap.amount || 0).toFixed(2)}</span>
+                      </div>
                     </div>
                   );
                 })
@@ -3086,7 +3220,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 <div style={{ fontSize: 15, color: '#64748b' }}>Sin mascotas registradas</div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 6, borderTop: '2px solid #e2e8f0', fontSize: 18, fontWeight: 800 }}>
-                <span style={{ color: '#0f172a' }}>TOTAL</span>
+                <span style={{ color: '#0f172a' }}>TOTAL SERVICIOS</span>
                 <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 22 }}>
                   ${(showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0).toFixed(2)}
                 </span>
