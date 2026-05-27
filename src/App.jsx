@@ -2154,7 +2154,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     } else if (filterVanId !== 'todos') {
       list = list.filter(a => a.vanId === filterVanId);
     }
-    return list.sort((a,b) => a.timeStart.localeCompare(b.timeStart));
+    return list.sort((a,b) => (a.timeStart || '').localeCompare(b.timeStart || ''));
   }, [appointments, date, isGroomer, myVanId, filterVanId, vans]);
 
   const filteredClients = useMemo(() => {
