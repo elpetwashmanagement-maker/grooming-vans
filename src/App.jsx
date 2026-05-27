@@ -213,13 +213,15 @@ const loadAppointments = async () => {
     vanId: a.van_id, clientId: a.client_id, status: a.status || 'unconfirmed',
     notes: a.notes || '', alertNotes: a.alert_notes || '',
     agreementSigned: a.agreement_signed || false,
+    groomerId: a.groomer_id || null,
+    companyId: a.company_id || 'epw',
     client: a.clients ? { id: a.clients.id, name: a.clients.name, phone: a.clients.phone, address: a.clients.address } : null,
     pets: (a.appointment_pets || []).map(ap => ({
       id: ap.id, petId: ap.pet_id, service: ap.service || '', amount: parseFloat(ap.amount) || 0,
       tip: parseFloat(ap.tip) || 0, cardFee: parseFloat(ap.card_fee) || 0,
       method: ap.method || 'Efectivo', status: ap.status || 'pending',
       checkinTime: ap.checkin_time || '', checkoutTime: ap.checkout_time || '',
-      pet: ap.pets ? { id: ap.pets.id, name: ap.pets.name, breed: ap.pets.breed, size: ap.pets.size, lastBlade: ap.pets.last_blade, lastCombo: ap.pets.last_combo } : null,
+      pet: ap.pets ? { id: ap.pets.id, name: ap.pets.name, breed: ap.pets.breed, size: ap.pets.size, lastBlade: ap.pets.last_blade, lastCombo: ap.pets.last_combo, allergies: ap.pets.allergies, behavior_notes: ap.pets.behavior_notes } : null,
     })),
     createdAt: new Date(a.created_at).getTime(),
   }));
@@ -230,6 +232,8 @@ const saveAppointment = async (appt) => {
     van_id: appt.vanId, client_id: appt.clientId, status: appt.status || 'unconfirmed',
     notes: appt.notes || '', alert_notes: appt.alertNotes || '',
     agreement_signed: appt.agreementSigned || false,
+    groomer_id: appt.groomerId || null,
+    company_id: appt.companyId || 'epw',
   });
   if (error) console.error(error);
   return !error;
@@ -645,7 +649,7 @@ export default function App() {
         {tab === 'citas' && (
           <CitasTab
             appointments={appointments} vans={visibleVans} clients={clients} pets={pets}
-            session={session} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
+            session={{ ...session, groomers }} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={addAppointment} addClient={addClient} addPet={addPet}
             refreshAppointments={refreshAppointments} deleteAppt={deleteAppt}
@@ -674,7 +678,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'semana' && canViewReports && <SemanaTab vans={vans} services={services} expenses={expenses} settings={settings} />}
+        {tab === 'semana' && canViewReports && <SemanaTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -1366,7 +1370,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     tailTool: '', tailNotes: '',
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
-  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
+  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -1525,10 +1529,13 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     const finalPrice = newApptForm.servicePrice > 0 && newApptForm.discountPct > 0
       ? parseFloat((newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2))
       : newApptForm.servicePrice;
+    const van = vans.find(v => v.id === newApptForm.vanId);
     const appt = {
       id: uid(), date, timeStart: newApptForm.timeStart, timeEnd: newApptForm.timeEnd,
       vanId: newApptForm.vanId, clientId: newApptForm.clientId,
-      status: 'unconfirmed', 
+      groomerId: newApptForm.groomerId || null,
+      companyId: newApptForm.companyId || van?.companyId || 'epw',
+      status: 'unconfirmed',
       notes: `${newApptForm.serviceName ? `Servicio: ${newApptForm.serviceName}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
       alertNotes: newApptForm.alertNotes,
       agreementSigned: false,
@@ -1545,7 +1552,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     for (const ap of appt.pets) await saveAppointmentPet({ ...ap, appointmentId: appt.id });
     setSaving(false);
     setShowNewAppt(false);
-    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
+    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
     setClientSearch('');
   };
 
@@ -1731,12 +1738,49 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             </div>
 
             {!isGroomer && (
-              <div>
-                <label style={styles.lbl}>Van</label>
-                <select value={newApptForm.vanId} onChange={e => setNewApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
-                  {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer}</option>)}
-                </select>
-              </div>
+              <>
+                {/* Selector de empresa */}
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={styles.lbl}>Empresa</label>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    {DEFAULT_COMPANIES.map(c => (
+                      <button key={c.id} type="button"
+                        onClick={() => setNewApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || f.vanId, groomerId: '' }))}
+                        style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `2px solid ${newApptForm.companyId === c.id ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: newApptForm.companyId === c.id ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: newApptForm.companyId === c.id ? 700 : 400, color: newApptForm.companyId === c.id ? '#0f766e' : 'var(--color-text-secondary)' }}>
+                        {c.logoEmoji} {c.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Selector de van filtrado por empresa */}
+                <div>
+                  <label style={styles.lbl}>Van</label>
+                  <select value={newApptForm.vanId}
+                    onChange={e => {
+                      const van = vans.find(v => v.id === e.target.value);
+                      setNewApptForm(f => ({...f, vanId: e.target.value, companyId: van?.companyId || f.companyId}));
+                    }}
+                    style={styles.input}>
+                    {vans.filter(v => !newApptForm.companyId || v.companyId === newApptForm.companyId).map(v => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Selector de groomer */}
+                <div>
+                  <label style={styles.lbl}>Groomer del día</label>
+                  <select value={newApptForm.groomerId}
+                    onChange={e => setNewApptForm(f => ({...f, groomerId: e.target.value}))}
+                    style={styles.input}>
+                    <option value="">— Seleccionar groomer —</option>
+                    {(session?.groomers || []).filter(g => g.active !== false).map(g => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
             <div>
               <label style={styles.lbl}>Hora inicio</label>
@@ -2586,10 +2630,47 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 }
 
 // ===== REPORTE SEMANAL =====
-function SemanaTab({ vans, services, expenses, settings }) {
+function SemanaTab({ vans, services, expenses, settings, appointments, groomers }) {
   const [refDate, setRefDate] = useState(todayISO());
+  const [reportMode, setReportMode] = useState('groomer'); // 'groomer' o 'van'
   const { start, end } = getWeekRange(refDate);
 
+  // Reporte por GROOMER + EMPRESA (nuevo)
+  const groomerReport = useMemo(() => {
+    const weekAppts = (appointments || []).filter(a => inRange(a.date, start, end) && a.status === 'completed');
+    const weekExpenses = expenses.filter(e => inRange(e.date, start, end));
+
+    // Agrupar por groomer
+    const groomerMap = {};
+    for (const appt of weekAppts) {
+      const groomerId = appt.groomerId || appt.vanId; // fallback a van si no hay groomer
+      const companyId = appt.companyId || vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
+      const key = `${groomerId}__${companyId}`;
+      if (!groomerMap[key]) {
+        const groomer = (groomers || []).find(g => g.id === groomerId) ||
+          vans.find(v => v.id === groomerId); // fallback
+        groomerMap[key] = {
+          groomerId, companyId,
+          groomerName: groomer?.name || groomer?.groomer || 'Sin asignar',
+          commissionPct: groomer?.commissionPct || settings.commissionPct || 45,
+          citas: 0, sales: 0, tips: 0, pets: 0,
+        };
+      }
+      groomerMap[key].citas++;
+      groomerMap[key].pets += appt.pets?.length || 0;
+      groomerMap[key].sales += appt.pets?.reduce((sum, ap) => sum + (ap.amount || 0), 0) || 0;
+    }
+
+    return Object.values(groomerMap).map(r => {
+      const gasFees = r.citas * (settings.gasFee || 7);
+      const commission = r.sales * (r.commissionPct / 100);
+      const totalPay = commission - gasFees;
+      const company = DEFAULT_COMPANIES.find(c => c.id === r.companyId) || DEFAULT_COMPANIES[0];
+      return { ...r, gasFees, commission, totalPay, company };
+    }).sort((a, b) => a.groomerName.localeCompare(b.groomerName));
+  }, [appointments, expenses, start, end, groomers, vans, settings]);
+
+  // Reporte por van (clásico)
   const report = useMemo(() => {
     const weekServices = services.filter(s => inRange(s.date, start, end));
     const weekExpenses = expenses.filter(e => inRange(e.date, start, end));
@@ -2651,19 +2732,100 @@ function SemanaTab({ vans, services, expenses, settings }) {
             <input type="date" value={refDate} onChange={e => setRefDate(e.target.value)} style={styles.input} />
             <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Lunes a domingo</p>
           </div>
+          {/* Toggle vista */}
+          <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
+            <button onClick={() => setReportMode('groomer')}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: reportMode === 'groomer' ? 600 : 400, background: reportMode === 'groomer' ? '#fff' : 'transparent', color: reportMode === 'groomer' ? '#0f766e' : '#64748b' }}>
+              ✂️ Por Groomer
+            </button>
+            <button onClick={() => setReportMode('van')}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: reportMode === 'van' ? 600 : 400, background: reportMode === 'van' ? '#fff' : 'transparent', color: reportMode === 'van' ? '#0f766e' : '#64748b' }}>
+              🚐 Por Van
+            </button>
+          </div>
           <button onClick={exportCSV} style={styles.btnPrimary}><Download size={15} /> Exportar CSV</button>
         </div>
       </div>
-      <div style={styles.kpiGrid}>
-        <KpiCard label="Servicios" value={totals.count} />
-        <KpiCard label="Ventas totales" value={fmt(totals.sales)} highlight />
-        <KpiCard label="Fees tarjeta" value={fmt(totals.cardFees)} />
-        <KpiCard label="Gastos totales" value={fmt(totals.expTotal + totals.gasFees)} />
-        <KpiCard label="Total a pagar" value={fmt(totals.totalPay)} highlight accent />
-      </div>
 
-      <div style={{ marginTop: 24 }}>
-        <SectionTitle eyebrow="Pago a Groomers" title="Desglose por van" />
+      {/* ===== REPORTE POR GROOMER ===== */}
+      {reportMode === 'groomer' && (
+        <div style={{ marginTop: 20 }}>
+          <SectionTitle eyebrow="Pago a Groomers" title="Por groomer y empresa" />
+          {groomerReport.length === 0 ? (
+            <div style={styles.empty}>
+              <p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 18 }}>Sin citas completadas esta semana</p>
+              <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 13 }}>Las citas deben estar en estado "Completada" para aparecer aquí</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* Agrupar por groomer */}
+              {[...new Set(groomerReport.map(r => r.groomerName))].map(groomerName => {
+                const rows = groomerReport.filter(r => r.groomerName === groomerName);
+                const totalSales = rows.reduce((sum, r) => sum + r.sales, 0);
+                const totalPay = rows.reduce((sum, r) => sum + r.totalPay, 0);
+                return (
+                  <div key={groomerName} style={{ ...styles.card }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                      <div>
+                        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 600 }}>✂️ {groomerName}</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                          {rows.reduce((sum, r) => sum + r.citas, 0)} citas · {rows.reduce((sum, r) => sum + r.pets, 0)} mascotas
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>Total a pagar</div>
+                        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 700, color: '#0f766e' }}>{fmt(totalPay)}</div>
+                      </div>
+                    </div>
+
+                    {/* Por empresa */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {rows.map(r => (
+                        <div key={`${r.groomerId}-${r.companyId}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #f1f5f9' }}>
+                          <div>
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{r.company.logoEmoji} {r.company.name}</div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                              {r.citas} citas · {r.pets} mascotas · {r.commissionPct}% comisión
+                            </div>
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              Ventas {fmt(r.sales)} · Comisión {fmt(r.commission)} · Gas -{fmt(r.gasFees)}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: 11, color: '#94a3b8' }}>A pagar</div>
+                            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: '#0f766e' }}>{fmt(r.totalPay)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {rows.length > 1 && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
+                        <span>Total combinado</span>
+                        <span style={{ color: '#0f766e' }}>{fmt(totalPay)}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== REPORTE POR VAN (clásico) ===== */}
+      {reportMode === 'van' && (
+        <>
+          <div style={styles.kpiGrid}>
+            <KpiCard label="Servicios" value={totals.count} />
+            <KpiCard label="Ventas totales" value={fmt(totals.sales)} highlight />
+            <KpiCard label="Fees tarjeta" value={fmt(totals.cardFees)} />
+            <KpiCard label="Gastos totales" value={fmt(totals.expTotal + totals.gasFees)} />
+            <KpiCard label="Total a pagar" value={fmt(totals.totalPay)} highlight accent />
+          </div>
+
+          <div style={{ marginTop: 24 }}>
+            <SectionTitle eyebrow="Pago a Groomers" title="Desglose por van" />
         <div style={styles.card}>
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
@@ -2712,7 +2874,9 @@ function SemanaTab({ vans, services, expenses, settings }) {
             </table>
           </div>
         </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -3881,10 +4045,10 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={styles.lbl}>Empresa</label>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {(settings?.companies || [{ id: 'epw', name: 'El Pet Wash', logoEmoji: '🐾' }, { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕' }]).map(c => (
+                    {(settings?.companies || DEFAULT_COMPANIES).map(c => (
                       <button key={c.id} type="button"
-                        onClick={() => setApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || '' }))}
-                        style={{ flex: 1, padding: '8px 12px', borderRadius: 10, border: `1.5px solid ${apptForm.companyId === c.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: apptForm.companyId === c.id ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: apptForm.companyId === c.id ? 700 : 400, color: apptForm.companyId === c.id ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
+                        onClick={() => setApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || vans[0]?.id || '' }))}
+                        style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${apptForm.companyId === c.id ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: apptForm.companyId === c.id ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: apptForm.companyId === c.id ? 700 : 400, color: apptForm.companyId === c.id ? '#0f766e' : 'var(--color-text-secondary)' }}>
                         {c.logoEmoji} {c.name}
                       </button>
                     ))}
