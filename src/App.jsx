@@ -3824,9 +3824,13 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
       const expTotal = vanExpenses.reduce((sum, e) => sum + e.amount, 0);
       const commission = sales * (vanCommission / 100);
       const tipShare = tips * (settings.tipsToGroomer / 100);
-      const totalPay = commission + tipShare - expTotal; // Gas fee lo paga el cliente, no se descuenta al groomer
+      const totalPay = commission + tipShare;
+      // Ingreso empresa = % que queda + fees
+      const companyPct = 100 - vanCommission;
+      const companyShare = sales * (companyPct / 100);
+      const companyTotal = companyShare + gasFees + cardFees;
       const byMethod = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = items.filter(i => i.method === m).reduce((sum, i) => sum + i.amount, 0); return acc; }, {});
-      return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, byMethod, vanCommission };
+      return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, companyShare, companyTotal, companyPct, byMethod, vanCommission };
     });
   }, [vans, services, expenses, start, end, settings]);
 
@@ -3835,7 +3839,8 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
     gasFees: acc.gasFees + r.gasFees, expTotal: acc.expTotal + r.expTotal,
     commission: acc.commission + r.commission, tipShare: acc.tipShare + r.tipShare,
     totalPay: acc.totalPay + r.totalPay, count: acc.count + r.count,
-  }), { sales: 0, tips: 0, cardFees: 0, gasFees: 0, expTotal: 0, commission: 0, tipShare: 0, totalPay: 0, count: 0 });
+    companyShare: acc.companyShare + r.companyShare, companyTotal: acc.companyTotal + r.companyTotal,
+  }), { sales: 0, tips: 0, cardFees: 0, gasFees: 0, expTotal: 0, commission: 0, tipShare: 0, totalPay: 0, count: 0, companyShare: 0, companyTotal: 0 });
 
   const exportCSV = () => {
     const rows = [
@@ -3958,13 +3963,15 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
           <div style={styles.kpiGrid}>
             <KpiCard label="Servicios" value={totals.count} />
             <KpiCard label="Ventas totales" value={fmt(totals.sales)} highlight />
-            <KpiCard label="Fees tarjeta" value={fmt(totals.cardFees)} />
-            <KpiCard label="Gastos totales" value={fmt(totals.expTotal + totals.gasFees)} />
-            <KpiCard label="Total a pagar" value={fmt(totals.totalPay)} highlight accent />
+            <KpiCard label="A pagar groomers" value={fmt(totals.totalPay)} highlight accent />
+            <KpiCard label="Ingreso empresa (55%)" value={fmt(totals.companyShare)} />
+            <KpiCard label="+ Fee gasolina" value={fmt(totals.gasFees)} />
+            <KpiCard label="+ Fee tarjeta" value={fmt(totals.cardFees)} />
+            <KpiCard label="TOTAL EMPRESA" value={fmt(totals.companyTotal)} highlight />
           </div>
 
           <div style={{ marginTop: 24 }}>
-            <SectionTitle eyebrow="Pago a Groomers" title="Desglose por van" />
+            <SectionTitle eyebrow="Pago a Groomers + Ingreso Empresa" title="Desglose por van" />
         <div style={styles.card}>
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
@@ -3973,41 +3980,47 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                   <th style={styles.th}>Van</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Serv.</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Ventas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Propinas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Comisión %</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>+ Propinas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Gas (empresa)</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>- Gastos</th>
-                  <th style={{ ...styles.th, textAlign: 'right', color: '#0f766e' }}>A PAGAR</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Comisión groomer</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#0f766e' }}>A PAGAR groomer</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#7c3aed' }}>Ingreso empresa</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#0284c7' }}>+ Fee gas</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#ec4899' }}>+ Fee tarjeta</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#7c3aed' }}>TOTAL EMPRESA</th>
                 </tr>
               </thead>
               <tbody>
                 {report.map(r => (
                   <tr key={r.van.id} className="row-hover" style={styles.tr}>
-                    <td style={styles.td}><strong>{r.van.name}</strong>{r.van.groomer && <div style={{ fontSize: 12, color: '#94a3b8' }}>{r.van.groomer}</div>}</td>
+                    <td style={styles.td}>
+                      <strong>{r.van.name}</strong>
+                      {r.van.groomer && <div style={{ fontSize: 12, color: '#94a3b8' }}>{r.van.groomer}</div>}
+                    </td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{r.count}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>{fmt(r.sales)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: '#64748b' }}>{fmt(r.tips)}</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>
-                      <div>{fmt(r.commission)}</div>
+                      <div style={{ fontWeight: 600 }}>{fmt(r.commission)}</div>
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.vanCommission}%</div>
                     </td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: '#64748b' }}>{fmt(r.tipShare)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 15 }}>{fmt(r.totalPay)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right' }}>
+                      <div style={{ fontWeight: 600, color: '#7c3aed' }}>{fmt(r.companyShare)}</div>
+                      <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.companyPct}%</div>
+                    </td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#0284c7' }}>{fmt(r.gasFees)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: '#dc2626' }}>{r.expTotal > 0 ? `-${fmt(r.expTotal)}` : '—'}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 16 }}>{fmt(r.totalPay)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', color: '#ec4899' }}>{r.cardFees > 0 ? fmt(r.cardFees) : '—'}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: '#7c3aed', fontFamily: 'Fraunces, serif', fontSize: 15 }}>{fmt(r.companyTotal)}</td>
                   </tr>
                 ))}
                 <tr style={{ background: '#f8fafc', borderTop: '2px solid #0f172a' }}>
                   <td style={{ ...styles.td, fontWeight: 700 }}>TOTAL</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{totals.count}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.sales)}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.tips)}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.commission)}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.tipShare)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 16 }}>{fmt(totals.totalPay)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#7c3aed' }}>{fmt(totals.companyShare)}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>{fmt(totals.gasFees)}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{totals.expTotal > 0 ? `-${fmt(totals.expTotal)}` : '—'}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 17 }}>{fmt(totals.totalPay)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#ec4899' }}>{totals.cardFees > 0 ? fmt(totals.cardFees) : '—'}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: '#7c3aed', fontFamily: 'Fraunces, serif', fontSize: 17 }}>{fmt(totals.companyTotal)}</td>
                 </tr>
               </tbody>
             </table>
