@@ -5388,12 +5388,25 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
 
   const handleAddItem = async () => {
     if (!newItemName.trim()) { alert('Ingresa el nombre del artículo'); return; }
-    const item = { id: `item-${uid().slice(0,8)}`, name: newItemName.trim(), category: newItemCategory, unit: newItemUnit, active: true, sort_order: inventoryItems.length + 1 };
+    const item = {
+      id: `item-${uid().slice(0,8)}`,
+      name: newItemName.trim(),
+      category: newItemCategory || 'General',
+      unit: newItemUnit || 'unidad',
+      active: true,
+      sort_order: inventoryItems.length + 1,
+    };
     const { error } = await supabase.from('inventory_items').insert(item);
-    if (!error) {
-      setInventoryItems(prev => [...prev, item]);
-      setNewItemName('');
+    if (error) {
+      console.error('Error agregando artículo:', error);
+      alert(`Error: ${error.message}`);
+      return;
     }
+    setInventoryItems(prev => [...prev, item]);
+    setNewItemName('');
+    setNewItemCategory('General');
+    setNewItemUnit('unidad');
+    alert(`✅ "${item.name}" agregado correctamente`);
   };
 
   const categories = [...new Set(inventoryItems.map(i => i.category))];
