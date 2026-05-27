@@ -2313,8 +2313,23 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   };
 
   const handleCreateAppt = async () => {
-    if (!newApptForm.clientId) { alert('Selecciona un cliente'); return; }
-    if (!newApptForm.timeStart) { alert('Ingresa la hora de inicio'); return; }
+    if (!newApptForm.clientId) { alert('Select a client'); return; }
+    if (!newApptForm.timeStart) { alert('Enter start time'); return; }
+
+    // Validar conflicto de horario
+    const conflict = appointments.filter(a =>
+      a.vanId === newApptForm.vanId &&
+      a.date === date &&
+      a.status !== 'cancelled' &&
+      a.timeStart && a.timeEnd &&
+      newApptForm.timeStart < a.timeEnd &&
+      newApptForm.timeEnd > a.timeStart
+    );
+    if (conflict.length > 0) {
+      const van = vans.find(v => v.id === newApptForm.vanId);
+      alert(`⚠️ Conflict! ${van?.name} already has an appointment from ${conflict[0].timeStart} to ${conflict[0].timeEnd}. Please choose a different time.`);
+      return;
+    }
     setSaving(true);
     const discountedPrice = newApptForm.servicePrice > 0 && newApptForm.discountPct > 0
       ? parseFloat((newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2))
@@ -2604,13 +2619,46 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 </div>
               </>
             )}
-            <div>
-              <label style={styles.lbl}>Hora inicio</label>
-              <input type="time" value={newApptForm.timeStart} onChange={e => setNewApptForm(f => ({...f, timeStart: e.target.value}))} style={styles.input} />
-            </div>
-            <div>
-              <label style={styles.lbl}>Hora fin (estimada)</label>
-              <input type="time" value={newApptForm.timeEnd} onChange={e => setNewApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Start Time *</label>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <input type="time" value={newApptForm.timeStart}
+                  onChange={e => {
+                    const start = e.target.value;
+                    const numPets = newApptForm.petIds.length || 1;
+                    const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                    const [h, m] = start.split(':').map(Number);
+                    const endH = h + duration;
+                    const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                    setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime, duration}));
+                  }}
+                  style={{ ...styles.input, width: 160 }} />
+
+                {/* Duración automática */}
+                <div style={{ padding: '9px 14px', background: '#f0fdfa', borderRadius: 8, fontSize: 13, color: '#0f766e', fontWeight: 600, border: '1px solid #ccfbf1' }}>
+                  ⏱ {newApptForm.petIds.length <= 1 ? '2' : newApptForm.petIds.length === 2 ? '3' : '4'} hrs
+                  → End: {newApptForm.timeEnd || '—'}
+                </div>
+              </div>
+
+              {/* Conflicto de horario */}
+              {newApptForm.timeStart && newApptForm.vanId && (() => {
+                const conflict = appointments.filter(a =>
+                  a.vanId === newApptForm.vanId &&
+                  a.date === date &&
+                  a.status !== 'cancelled' &&
+                  a.timeStart && a.timeEnd &&
+                  newApptForm.timeStart < a.timeEnd &&
+                  newApptForm.timeEnd > a.timeStart
+                );
+                if (conflict.length === 0) return null;
+                const van = vans.find(v => v.id === newApptForm.vanId);
+                return (
+                  <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, fontSize: 12, color: '#dc2626', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    ⚠️ {van?.name} already has an appointment from {conflict[0].timeStart} to {conflict[0].timeEnd}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Selector de servicio — solo admin/manager */}
@@ -2734,7 +2782,15 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                   const selected = newApptForm.petIds.includes(p.id);
                   return (
                     <button key={p.id} type="button"
-                      onClick={() => setNewApptForm(f => ({ ...f, petIds: selected ? f.petIds.filter(id => id !== p.id) : [...f.petIds, p.id] }))}
+                      onClick={() => setNewApptForm(f => {
+                        const newPetIds = selected ? f.petIds.filter(id => id !== p.id) : [...f.petIds, p.id];
+                        const numPets = newPetIds.length || 1;
+                        const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                        const [h, m] = (f.timeStart || '09:00').split(':').map(Number);
+                        const endH = h + duration;
+                        const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                        return { ...f, petIds: newPetIds, timeEnd: endTime, duration };
+                      })}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: selected ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: `1.5px solid ${selected ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
                       {selected ? '✅ ' : '🐾 '}{p.name} {p.breed ? `(${p.breed})` : ''}
                     </button>
