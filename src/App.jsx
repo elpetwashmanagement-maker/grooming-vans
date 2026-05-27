@@ -385,19 +385,21 @@ const clearAllServices = async () => { await supabase.from('services').delete().
 
 const loadSettings = async () => {
   const { data, error } = await supabase.from('settings').select('*').eq('id', 1).single();
-  if (error) return { commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00 };
+  if (error) return { commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00, taxRate: 7.0 };
   return {
     commissionPct: parseFloat(data.commission_pct) || 45,
     tipsToGroomer: parseFloat(data.tips_to_groomer) || 100,
     adminPin: data.admin_pin || DEFAULT_ADMIN_PIN,
     cardFeePct: parseFloat(data.card_fee_pct) || 5.5,
     gasFee: parseFloat(data.gas_fee) || 7.00,
+    taxRate: parseFloat(data.tax_rate) || 7.0,
   };
 };
 const saveSettings = async (s) => {
   await supabase.from('settings').upsert({
     id: 1, commission_pct: s.commissionPct, tips_to_groomer: s.tipsToGroomer,
     admin_pin: s.adminPin, card_fee_pct: s.cardFeePct, gas_fee: s.gasFee,
+    tax_rate: s.taxRate || 7.0,
   });
 };
 
@@ -598,7 +600,7 @@ export default function App() {
   const [services, setServices] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
-  const [settings, setSettings] = useState({ commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00 });
+  const [settings, setSettings] = useState({ commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00, taxRate: 7.0 });
   const [session, setSession] = useState(null);
   const [users, setUsers] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -880,6 +882,7 @@ export default function App() {
             vans={vans} session={session} companies={companies}
             companyExpenses={companyExpenses}
             setCompanyExpenses={setCompanyExpenses}
+            taxRate={settings.taxRate ?? 7.0}
           />
         )}
         {tab === 'inventario' && (
@@ -4572,6 +4575,16 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             </div>
             <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Solo se suma cuando pagan con tarjeta</p>
           </div>
+          <div>
+            <label style={styles.lbl}>🧾 Tax rate (Florida)</label>
+            <div style={{ position: 'relative' }}>
+              <input type="number" min="0" max="20" step="0.1" value={settings.taxRate ?? 7.0}
+                onChange={e => updateSettings({ ...settings, taxRate: parseFloat(e.target.value) || 0 })}
+                style={{ ...styles.input, paddingRight: 32 }} />
+              <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
+            </div>
+            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Aplica a compras de la empresa (gastos)</p>
+          </div>
         </div>
 
         {/* Fees por empresa */}
@@ -6408,10 +6421,10 @@ const COMPANY_EXPENSE_CATEGORIES = [
   { id: 'Otros',         icon: '💼' },
 ];
 
-function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompanyExpenses }) {
+function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompanyExpenses, taxRate }) {
   const [form, setForm] = useState({
     companyId: 'epw', category: 'Mantenimiento', description: '',
-    amount: '', method: 'cash', vanId: '', date: todayISO(),
+    amount: '', tax: '', method: 'cash', vanId: '', date: todayISO(),
   });
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
@@ -6441,9 +6454,14 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
   const handleSubmit = async () => {
     if (!form.amount || !form.category) { alert('Ingresa categoría y monto'); return; }
     setSaving(true);
+    const baseAmount = parseFloat(form.amount) || 0;
+    const taxAmount = parseFloat(form.tax) || 0;
+    const totalAmount = baseAmount + taxAmount;
+    const taxDesc = taxAmount > 0 ? ` (base $${baseAmount.toFixed(2)} + tax $${taxAmount.toFixed(2)})` : '';
     const expense = {
       id: uid(), companyId: form.companyId, category: form.category,
-      description: form.description.trim(), amount: parseFloat(form.amount) || 0,
+      description: (form.description.trim() || '') + taxDesc,
+      amount: totalAmount,
       method: form.method, vanId: form.vanId || null,
       date: form.date, createdBy: session?.userName || '',
     };
@@ -6459,7 +6477,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
     const ok = await saveCompanyExpense(expense);
     if (ok) {
       setCompanyExpenses(prev => [expense, ...prev]);
-      setForm({ companyId: 'epw', category: 'Mantenimiento', description: '', amount: '', method: 'cash', vanId: '', date: todayISO() });
+      setForm({ companyId: 'epw', category: 'Mantenimiento', description: '', amount: '', tax: '', method: 'cash', vanId: '', date: todayISO() });
       setReceiptFile(null); setReceiptPreview(null);
     }
     setSaving(false);
@@ -6504,8 +6522,26 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
             <label style={styles.lbl}>Monto *</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
-              <input type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({...f, amount: e.target.value}))} style={{ ...styles.input, paddingLeft: 24 }} placeholder="0.00" />
+              <input type="number" step="0.01" value={form.amount}
+                onChange={e => {
+                  const amt = e.target.value;
+                  const taxAmt = parseFloat(amt) > 0 ? parseFloat((parseFloat(amt) * (taxRate || 7) / 100).toFixed(2)) : '';
+                  setForm(f => ({...f, amount: amt, tax: taxAmt}));
+                }}
+                style={{ ...styles.input, paddingLeft: 24 }} placeholder="0.00" />
             </div>
+          </div>
+          <div>
+            <label style={styles.lbl}>🧾 Tax ({taxRate || 7}%) — auto</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
+              <input type="number" step="0.01" value={form.tax}
+                onChange={e => setForm(f => ({...f, tax: e.target.value}))}
+                style={{ ...styles.input, paddingLeft: 24, background: '#f0fdfa' }} placeholder="0.00" />
+            </div>
+            <p style={{ fontSize: 11, color: '#94a3b8', margin: '4px 0 0' }}>
+              Total con tax: <strong>${((parseFloat(form.amount)||0) + (parseFloat(form.tax)||0)).toFixed(2)}</strong>
+            </p>
           </div>
           <div>
             <label style={styles.lbl}>Descripción</label>
