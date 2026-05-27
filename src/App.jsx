@@ -30,6 +30,38 @@ const DEFAULT_COMPANIES = [
   { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕', gasFee: 7, cardFeePct: 5.5, active: true, sortOrder: 2 },
 ];
 
+const AGREEMENTS = {
+  epw: `GROOMING SERVICE AGREEMENT — El Pet Wash LLC
+
+General Grooming Risks: Extra care will be taken when performing any grooming procedures, however, owner must understand possible reactions such as stress, skin irritation, possible nicks to the skin, or a toe-nail quicked may occur. Additionally, problems occasionally arise after the grooming visit such as bleeding of nicks, clipper irritation, eyes irritation, mental or physical stress. Grooming can also expose a hidden medical problem or aggravate a current one. Owner agrees not to hold El Pet Wash LLC for any injuries, which might result from this grooming process.
+
+Health and Behavior of Pet: I agree and understand that El Pet Wash LLC has relied upon my representation that my pet is in good health, has not injured or shown threatening behavior to any persons or animals, is current on all required vaccinations and is free of parasites. El Pet Wash LLC reserves the right to refuse service, or to stop a groom in progress, if your pet may pose a threat to themselves, other pets or staff, whether it be an aggression problem, health problem, or parasite problem.
+
+Owner Responsibility: The owner agrees to be solely responsible and liable for any and all acts of behavior of their pet. This may include, but is not limited to, injury or death to pet, injury or death to another pet(s), or injury or death to a staff member or any other member of the public. Medical treatment expenses required by a staff member, a member of the public or for another pet will be the sole responsibility of the pet owner.
+
+Matted Hair on Pets: Owner is aware that we don't charge additional fees if the hair on pet is in a matted condition, but if in fact the hair is knotted the groomer will have to shave the hair down.
+
+Additional Services: I agree and understand that De-matting, De-shedding, Flea and Tick Treatments, Medicated Shampoo, Special Cuts, Special Needs for aging or Health problems, Aggressive or bad behaviors or any additional services will cause extra charges.
+
+Credit Card Payment and Processing Fee: The Client may choose to make payments via credit card. If this payment method is selected, an additional processing fee of 5% of the total transaction amount will be applied to cover administrative and banking charges. This fee will be disclosed to the Client prior to processing the payment and will be included in the total amount due. This fee is non-refundable, even in the event of cancellations, returns, or partial refunds, unless otherwise required by law.
+
+Driver fee will be applied even if we can't do the service because of aggressive or bad behaviors.`,
+
+  atw: `GROOMING SERVICE AGREEMENT — All Tails Wag Grooming LLC
+
+General Grooming Risks: Extra care will be taken when performing any grooming procedures, however, owner must understand possible reactions such as stress, skin irritation, possible nicks to the skin, or a toe-nail quicked may occur. Additionally, problems occasionally arise after the grooming visit such as bleeding of nicks, clipper irritation, eyes irritation, mental or physical stress. Grooming can also expose a hidden medical problem or aggravate a current one. Owner agrees not to hold All Tails Wag Grooming LLC for any injuries, which might result from this grooming process.
+
+Health and Behavior of Pet: I agree and understand that All Tails Wag Grooming LLC has relied upon my representation that my pet is in good health, has not injured or shown threatening behavior to any persons or animals, is current on all required vaccinations and is free of parasites. All Tails Wag Grooming LLC reserves the right to refuse service, or to stop a groom in progress, if your pet may pose a threat to themselves, other pets or staff, whether it be an aggression problem, health problem, or parasite problem.
+
+Owner Responsibility: The owner agrees to be solely responsible and liable for any and all acts of behavior of their pet. This may include, but is not limited to, injury or death to pet, injury or death to another pet(s), or injury or death to a staff member or any other member of the public. Medical treatment expenses required by a staff member, a member of the public or for another pet will be the sole responsibility of the pet owner.
+
+Matted Hair on Pets: Owner is aware that we don't charge additional fees if the hair on pet is in a matted condition, but if in fact the hair is knotted the groomer will have to shave the hair down.
+
+Additional Services: I agree and understand that De-matting, De-shedding, Flea and Tick Treatments, Medicated Shampoo, Special Cuts, Special Needs for aging or Health problems, Aggressive or bad behaviors or any additional services will cause extra charges.
+
+Driver fee will be applied even if we can't do the service because of aggressive or bad behaviors.`,
+};
+
 // ===== ESPECIES =====
 const SPECIES = [
   { id: 'dog',    label: 'Perro',   icon: '🐕', hasSize: true,  hasHair: true  },
@@ -691,6 +723,142 @@ export default function App() {
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
       <footer style={styles.footer}><Sparkles size={12} /> El Pet Wash · Cierre Diario</footer>
+    </div>
+  );
+}
+
+// ===== SIGNATURE MODAL =====
+function SignatureModal({ appt, companyId, onSave, onClose }) {
+  const canvasRef = React.useRef(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasSigned, setHasSigned] = useState(false);
+  const [lastPos, setLastPos] = useState(null);
+  const company = DEFAULT_COMPANIES.find(c => c.id === (companyId || 'epw')) || DEFAULT_COMPANIES[0];
+  const agreementText = AGREEMENTS[companyId || 'epw'] || AGREEMENTS.epw;
+
+  const getPos = (e, canvas) => {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const startDraw = (e) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const pos = getPos(e, canvas);
+    setIsDrawing(true);
+    setLastPos(pos);
+    setHasSigned(true);
+  };
+
+  const draw = (e) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const pos = getPos(e, canvas);
+    ctx.beginPath();
+    ctx.moveTo(lastPos.x, lastPos.y);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    setLastPos(pos);
+  };
+
+  const endDraw = () => setIsDrawing(false);
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasSigned(false);
+  };
+
+  const handleSave = () => {
+    if (!hasSigned) { alert('Por favor firma antes de continuar'); return; }
+    const canvas = canvasRef.current;
+    const signatureData = canvas.toDataURL('image/png');
+    onSave(signatureData);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+      <div style={{ background: '#fff', borderRadius: 20, padding: 24, maxWidth: 560, width: '100%', maxHeight: '95vh', overflowY: 'auto' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Service Agreement</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>
+              {company.logoEmoji} {company.name}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b' }}>✕</button>
+        </div>
+
+        {/* Info cita */}
+        <div style={{ padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, marginBottom: 16, fontSize: 13 }}>
+          <strong>{appt.client?.name}</strong>
+          {appt.pets?.length > 0 && <span style={{ color: '#64748b' }}> · {appt.pets.map(ap => ap.pet?.name).filter(Boolean).join(', ')}</span>}
+        </div>
+
+        {/* Texto del agreement */}
+        <div style={{ padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 20, maxHeight: 220, overflowY: 'auto' }}>
+          <pre style={{ fontSize: 11, color: '#475569', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'Manrope, sans-serif', margin: 0 }}>
+            {agreementText}
+          </pre>
+        </div>
+
+        {/* Canvas de firma */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Firma del cliente</label>
+            {hasSigned && (
+              <button onClick={clearCanvas} style={{ fontSize: 12, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
+                ✕ Borrar firma
+              </button>
+            )}
+          </div>
+          <div style={{ border: '2px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fafaf7', position: 'relative' }}>
+            <canvas
+              ref={canvasRef}
+              width={510}
+              height={150}
+              style={{ display: 'block', width: '100%', height: 150, cursor: 'crosshair', touchAction: 'none' }}
+              onMouseDown={startDraw}
+              onMouseMove={draw}
+              onMouseUp={endDraw}
+              onMouseLeave={endDraw}
+              onTouchStart={startDraw}
+              onTouchMove={draw}
+              onTouchEnd={endDraw}
+            />
+            {!hasSigned && (
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                <span style={{ fontSize: 13, color: '#cbd5e1', fontStyle: 'italic' }}>Firma aquí con el dedo o mouse</span>
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 6, textAlign: 'center' }}>
+            Al firmar, el cliente acepta todos los términos del acuerdo de servicio
+          </div>
+        </div>
+
+        {/* Botones */}
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 12, border: '2px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#475569' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSave}
+            style={{ flex: 2, padding: '13px', borderRadius: 12, border: 'none', background: hasSigned ? '#0f766e' : '#94a3b8', cursor: hasSigned ? 'pointer' : 'not-allowed', fontSize: 15, fontWeight: 700, color: '#fff' }}>
+            ✓ Confirmar y guardar firma
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1381,6 +1549,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [viewMode, setViewMode] = useState('lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
   const [filterVanId, setFilterVanId] = useState('todos');
+  const [showSignature, setShowSignature] = useState(null); // appt
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
@@ -1425,6 +1594,16 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const handleCheckin = async (apptId) => {
     await updateApptStatus(apptId, 'in_progress');
     await refreshAppointments();
+  };
+
+  const handleSaveSignature = async (appt, signatureData) => {
+    await supabase.from('appointments').update({
+      agreement_signed: true,
+      notes: (appt.notes || '') + ` [Firmado: ${new Date().toLocaleString('es-ES')}]`
+    }).eq('id', appt.id);
+    await refreshAppointments();
+    setShowSignature(null);
+    alert('✅ Agreement firmado y guardado');
   };
 
   const handleComplete = (appt) => {
@@ -2126,6 +2305,18 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
                     {/* Acciones principales */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 14 }}>
+                      {/* Botón firma — siempre visible si no ha firmado */}
+                      {!appt.agreementSigned && (
+                        <button onClick={() => setShowSignature(appt)}
+                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb' }}>
+                          ✍️ Firmar Agreement
+                        </button>
+                      )}
+                      {appt.agreementSigned && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                          ✅ Agreement firmado
+                        </div>
+                      )}
                       {appt.status === 'unconfirmed' && (
                         <button onClick={() => updateApptStatus(appt.id, 'confirmed')} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
                           <Check size={14} /> Confirmar
@@ -2323,6 +2514,16 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
           })}
         </div>
       ))}
+
+      {/* Modal de firma */}
+      {showSignature && (
+        <SignatureModal
+          appt={showSignature}
+          companyId={vans.find(v => v.id === showSignature.vanId)?.companyId || 'epw'}
+          onSave={(sig) => handleSaveSignature(showSignature, sig)}
+          onClose={() => setShowSignature(null)}
+        />
+      )}
 
       {/* Modal de cobro */}
       {showCobroForm && (
