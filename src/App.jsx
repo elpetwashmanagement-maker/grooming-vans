@@ -444,6 +444,59 @@ const loadCategories = async () => {
 const saveCategory = async (name) => { await supabase.from('expense_categories').upsert({ name }); };
 const deleteCategoryDB = async (name) => { await supabase.from('expense_categories').delete().eq('name', name); };
 
+// ===== INVOICES =====
+const getNextInvoiceNumber = async (companyId) => {
+  const year = new Date().getFullYear();
+  const prefix = companyId === 'epw' ? 'EPW' : 'ATW';
+  const seqId = `${companyId}-${year}`;
+
+  // Obtener o crear secuencia
+  const { data: existing } = await supabase
+    .from('invoice_sequences')
+    .select('*')
+    .eq('company_id', companyId)
+    .eq('year', year)
+    .single();
+
+  let nextNum = 1;
+  if (existing) {
+    nextNum = (existing.last_number || 0) + 1;
+    await supabase.from('invoice_sequences')
+      .update({ last_number: nextNum })
+      .eq('company_id', companyId).eq('year', year);
+  } else {
+    await supabase.from('invoice_sequences')
+      .insert({ id: seqId, company_id: companyId, year, last_number: 1 });
+  }
+
+  return `${prefix}-${year}-${String(nextNum).padStart(4, '0')}`;
+};
+
+const saveInvoice = async (invoice) => {
+  const { error } = await supabase.from('invoices').upsert({
+    id: invoice.id,
+    invoice_number: invoice.invoiceNumber,
+    company_id: invoice.companyId,
+    appointment_id: invoice.appointmentId || null,
+    client_id: invoice.clientId || null,
+    client_name: invoice.clientName,
+    client_address: invoice.clientAddress || '',
+    groomer_name: invoice.groomerName || '',
+    van_name: invoice.vanName || '',
+    date: invoice.date,
+    services: JSON.stringify(invoice.services || []),
+    subtotal: invoice.subtotal,
+    gas_fee: invoice.gasFee,
+    card_fee: invoice.cardFee,
+    tip: invoice.tip,
+    total: invoice.total,
+    method: invoice.method,
+    status: 'paid',
+  });
+  if (error) console.error('Invoice save error:', error);
+  return !error;
+};
+
 // ===== INVENTARIO =====
 const loadInventoryItems = async () => {
   const { data, error } = await supabase.from('inventory_items').select('*').eq('active', true).order('sort_order');
@@ -774,6 +827,190 @@ export default function App() {
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
       <footer style={styles.footer}><Sparkles size={12} /> El Pet Wash · Cierre Diario</footer>
+    </div>
+  );
+}
+
+// ===== INVOICE MODAL =====
+function InvoiceModal({ invoice, onClose }) {
+  const company = DEFAULT_COMPANIES.find(c => c.id === invoice.companyId) || DEFAULT_COMPANIES[0];
+  const invoiceRef = React.useRef(null);
+
+  const thankYouMsg = invoice.companyId === 'epw'
+    ? 'Thank you for choosing El Pet Wash!'
+    : 'Thank you for choosing All Tails Wag!';
+
+  const formattedDate = new Date(invoice.date + 'T12:00:00').toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  const handleWhatsApp = () => {
+    const msg = `🐾 *${company.name}*\nInvoice: ${invoice.invoiceNumber}\nDate: ${formattedDate}\nClient: ${invoice.clientName}\n\n${(invoice.services || []).map(s => `• ${s.petName} — ${s.service}: $${s.amount}`).join('\n')}\n\nSubtotal: $${invoice.subtotal?.toFixed(2)}\nGas fee: $${invoice.gasFee?.toFixed(2)}${invoice.cardFee > 0 ? `\nCard fee: $${invoice.cardFee?.toFixed(2)}` : ''}${invoice.tip > 0 ? `\nTip: $${invoice.tip?.toFixed(2)}` : ''}\n*TOTAL: $${invoice.total?.toFixed(2)}*\nPaid with: ${invoice.method}\n\n${thankYouMsg}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+  };
+
+  const handleDownloadPDF = () => {
+    const content = invoiceRef.current;
+    if (!content) return;
+    // Crear versión imprimible
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice ${invoice.invoiceNumber}</title>
+          <style>
+            body { font-family: 'Georgia', serif; max-width: 600px; margin: 40px auto; color: #0f172a; }
+            .header { text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 20px; margin-bottom: 24px; }
+            .logo { font-size: 48px; margin-bottom: 8px; }
+            .company { font-size: 24px; font-weight: 700; }
+            .invoice-num { font-size: 14px; color: #64748b; margin-top: 4px; }
+            .info-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; }
+            .section { margin: 20px 0; }
+            .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; font-weight: 700; margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; }
+            .service-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .service-name { color: #0f172a; }
+            .service-addon { color: #64748b; padding-left: 16px; }
+            .service-amount { font-weight: 600; }
+            .total-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; color: #64748b; }
+            .grand-total { display: flex; justify-content: space-between; padding: 12px 0; font-size: 20px; font-weight: 700; border-top: 2px solid #0f172a; margin-top: 8px; }
+            .footer { text-align: center; margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #64748b; }
+            @media print { body { margin: 20px; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="logo">${company.logoEmoji}</div>
+            <div class="company">${company.name} LLC</div>
+            <div class="invoice-num">Invoice ${invoice.invoiceNumber}</div>
+          </div>
+
+          <div class="section">
+            <div class="info-row"><span><b>Date:</b> ${formattedDate}</span></div>
+            <div class="info-row"><span><b>Client:</b> ${invoice.clientName}</span></div>
+            ${invoice.clientAddress ? `<div class="info-row"><span><b>Address:</b> ${invoice.clientAddress}</span></div>` : ''}
+            <div class="info-row"><span><b>Groomer:</b> ${invoice.groomerName}</span></div>
+            <div class="info-row"><span><b>Payment:</b> ${invoice.method}</span></div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Services</div>
+            ${(invoice.services || []).map(s => `
+              <div class="service-row">
+                <span class="service-name">🐾 ${s.petName}${s.service ? ` — ${s.service}` : ''}</span>
+                <span class="service-amount">$${(s.amount || 0).toFixed(2)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Summary</div>
+            <div class="total-row"><span>Subtotal</span><span>$${invoice.subtotal?.toFixed(2)}</span></div>
+            <div class="total-row"><span>Gas fee</span><span>$${invoice.gasFee?.toFixed(2)}</span></div>
+            ${invoice.cardFee > 0 ? `<div class="total-row"><span>Credit card fee (${invoice.companyId === 'epw' ? '5.5' : '5.5'}%)</span><span>$${invoice.cardFee?.toFixed(2)}</span></div>` : ''}
+            ${invoice.tip > 0 ? `<div class="total-row"><span>Tip</span><span>$${invoice.tip?.toFixed(2)}</span></div>` : ''}
+            <div class="grand-total"><span>TOTAL</span><span>$${invoice.total?.toFixed(2)}</span></div>
+          </div>
+
+          <div class="footer">
+            <p><b>${thankYouMsg}</b></p>
+            <p>Miami, FL · ${company.name} LLC</p>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 500);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, overflowY: 'auto' }}>
+      <div ref={invoiceRef} style={{ background: '#fff', borderRadius: 20, padding: 0, maxWidth: 500, width: '100%', overflow: 'hidden', boxShadow: '0 25px 80px rgba(0,0,0,0.4)' }}>
+
+        {/* Header empresa */}
+        <div style={{ background: invoice.companyId === 'epw' ? '#0f766e' : '#7c3aed', padding: '24px 28px', color: '#fff', textAlign: 'center' }}>
+          <div style={{ fontSize: 42, marginBottom: 6 }}>{company.logoEmoji}</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700 }}>{company.name} LLC</div>
+          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>Invoice #{invoice.invoiceNumber}</div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>Miami, FL</div>
+        </div>
+
+        <div style={{ padding: '20px 28px' }}>
+          {/* Info cita */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 16, fontSize: 13 }}>
+            <div style={{ color: '#64748b' }}>Fecha</div>
+            <div style={{ fontWeight: 500 }}>{formattedDate}</div>
+            <div style={{ color: '#64748b' }}>Cliente</div>
+            <div style={{ fontWeight: 500 }}>{invoice.clientName}</div>
+            {invoice.clientAddress && <>
+              <div style={{ color: '#64748b' }}>Dirección</div>
+              <div style={{ fontSize: 12 }}>{invoice.clientAddress}</div>
+            </>}
+            <div style={{ color: '#64748b' }}>Groomer</div>
+            <div style={{ fontWeight: 500 }}>{invoice.groomerName}</div>
+            <div style={{ color: '#64748b' }}>Método</div>
+            <div><MethodChip method={invoice.method} /></div>
+          </div>
+
+          {/* Servicios desglosados */}
+          <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Servicios</div>
+            {(invoice.services || []).map((s, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f8fafc' }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500 }}>🐾 {s.petName}</div>
+                  {s.service && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{s.service}</div>}
+                </div>
+                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 16, fontWeight: 600, color: '#0f172a' }}>${(s.amount || 0).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Totales */}
+          <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 6 }}>
+              <span>Subtotal</span><span>${invoice.subtotal?.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 6 }}>
+              <span>Fee gasolina</span><span>${invoice.gasFee?.toFixed(2)}</span>
+            </div>
+            {invoice.cardFee > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#7c3aed', marginBottom: 6 }}>
+                <span>Fee tarjeta (5.5%)</span><span>${invoice.cardFee?.toFixed(2)}</span>
+              </div>
+            )}
+            {invoice.tip > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 6 }}>
+                <span>Propina</span><span>${invoice.tip?.toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: '#0f172a', paddingTop: 10, borderTop: '2px solid #e2e8f0', marginTop: 6 }}>
+              <span>TOTAL</span><span>${invoice.total?.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Mensaje */}
+          <div style={{ textAlign: 'center', fontSize: 13, color: '#64748b', fontStyle: 'italic', marginBottom: 20 }}>
+            {thankYouMsg}
+          </div>
+
+          {/* Botones de acción */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+            <button onClick={handleDownloadPDF}
+              style={{ ...styles.btnSecondary, justifyContent: 'center', padding: '12px' }}>
+              📄 Descargar PDF
+            </button>
+            <button onClick={handleWhatsApp}
+              style={{ padding: '12px', borderRadius: 8, border: 'none', background: '#25d366', cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              💬 WhatsApp
+            </button>
+          </div>
+          <button onClick={onClose}
+            style={{ ...styles.btnSecondary, width: '100%', justifyContent: 'center', padding: '11px' }}>
+            ✕ Cerrar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1605,6 +1842,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [showSignature, setShowSignature] = useState(null); // appt
   const [reasignando, setReasignando] = useState(null); // appt id
   const [reasignForm, setReasignForm] = useState({ vanId: '', groomerId: '' });
+  const [showInvoice, setShowInvoice] = useState(null);
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
@@ -1674,25 +1912,60 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     const cardFeePct = settings?.cardFeePct || 5.5;
     const gasFee = settings?.gasFee || 7;
     const method = cobroForm.method;
+    const van = vans.find(v => v.id === appt.vanId);
+    const companyId = van?.companyId || appt.companyId || 'epw';
+
+    // Calcular totales
+    const subtotal = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
+    const cardFee = method === 'Tarjeta crédito' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : 0;
+    const total = subtotal + gasFee + cardFee + tip;
 
     // Registrar cada mascota como servicio en el cierre diario
     for (const ap of (appt.pets || [])) {
       const amount = ap.amount || appt.servicePrice || 0;
-      const cardFee = method === 'Tarjeta crédito' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
+      const apCardFee = method === 'Tarjeta crédito' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
       await supabase.from('services').insert({
         id: uid(), date: appt.date, van_id: appt.vanId,
         client: appt.client?.name || '', pet: ap.pet?.name || '',
         service: ap.service || appt.serviceName || '',
-        method, amount, tip, card_fee: cardFee,
+        method, amount, tip, card_fee: apCardFee,
       });
     }
+
+    // Generar invoice
+    const invoiceNumber = await getNextInvoiceNumber(companyId);
+    const invoice = {
+      id: uid(),
+      invoiceNumber,
+      companyId,
+      appointmentId: appt.id,
+      clientId: appt.clientId,
+      clientName: appt.client?.name || '',
+      clientAddress: appt.client?.address || '',
+      groomerName: session?.userName || van?.groomer || '',
+      vanName: van?.name || '',
+      date: appt.date,
+      services: (appt.pets || []).map(ap => ({
+        petName: ap.pet?.name || 'Mascota',
+        service: ap.service || '',
+        amount: ap.amount || 0,
+      })),
+      subtotal,
+      gasFee,
+      cardFee,
+      tip,
+      total,
+      method,
+    };
+    await saveInvoice(invoice);
 
     await updateApptStatus(appt.id, 'completed');
     await refreshAppointments();
     setSaving(false);
     setShowCobroForm(null);
     setSelectedAppt(null);
-    alert('✅ Cobro registrado en el Cierre Diario');
+    // Mostrar invoice
+    setShowInvoice(invoice);
   };
 
   const handleSaveGrooming = async (apptId, petId) => {
@@ -2713,6 +2986,14 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
           })}
         </div>
       ))}
+
+      {/* Modal de invoice */}
+      {showInvoice && (
+        <InvoiceModal
+          invoice={showInvoice}
+          onClose={() => setShowInvoice(null)}
+        />
+      )}
 
       {/* Modal de firma */}
       {showSignature && (
