@@ -3663,11 +3663,17 @@ function GasolinaSection({ vanId, vans, fuelLogs, setFuelLogs, isAdmin }) {
 }
 
 function CierreTab({ vans, services, expenses, isAdmin, settings }) {
-  const [date, setDate] = useState(todayISO());
+  const [dateStart, setDateStart] = useState(todayISO());
+  const [dateEnd, setDateEnd] = useState(todayISO());
+  const [rangeMode, setRangeMode] = useState(false);
+
+  const start = dateStart;
+  const end = rangeMode ? dateEnd : dateStart;
+
   const breakdown = useMemo(() => {
     return vans.map(van => {
-      const items = services.filter(s => s.date === date && s.vanId === van.id);
-      const vanExpenses = expenses.filter(e => e.date === date && e.vanId === van.id);
+      const items = services.filter(s => inRange(s.date, start, end) && s.vanId === van.id);
+      const vanExpenses = expenses.filter(e => inRange(e.date, start, end) && e.vanId === van.id);
       const byMethod = PAYMENT_METHODS.reduce((acc, m) => {
         const list = items.filter(i => i.method === m);
         acc[m] = { count: list.length, amount: list.reduce((sum, i) => sum + i.amount, 0), tips: list.reduce((sum, i) => sum + (i.tip || 0), 0) };
@@ -3678,29 +3684,63 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
       const cardFees = items.reduce((sum, i) => sum + (i.cardFee || 0), 0);
       const gasFees = items.length * (settings?.gasFee || 7);
       const expTotal = vanExpenses.reduce((sum, e) => sum + e.amount, 0);
-      return { van, items, byMethod, total, tips, cardFees, gasFees, expTotal, count: items.length, expenses: vanExpenses };
+      const vanCommission = van.commissionPct || settings?.commissionPct || 45;
+      const commission = total * (vanCommission / 100);
+      const companyShare = total * ((100 - vanCommission) / 100);
+      const companyTotal = companyShare + gasFees + cardFees;
+      return { van, items, byMethod, total, tips, cardFees, gasFees, expTotal, count: items.length, expenses: vanExpenses, commission, companyShare, companyTotal, vanCommission };
     });
-  }, [vans, services, expenses, date, settings]);
+  }, [vans, services, expenses, start, end, settings]);
 
   const grandTotal = breakdown.reduce((sum, b) => sum + b.total, 0);
   const grandTips = breakdown.reduce((sum, b) => sum + b.tips, 0);
   const grandCount = breakdown.reduce((sum, b) => sum + b.count, 0);
   const grandCardFees = breakdown.reduce((sum, b) => sum + b.cardFees, 0);
+  const grandGasFees = breakdown.reduce((sum, b) => sum + b.gasFees, 0);
+  const grandCommission = breakdown.reduce((sum, b) => sum + b.commission, 0);
+  const grandCompanyShare = breakdown.reduce((sum, b) => sum + b.companyShare, 0);
+  const grandCompanyTotal = breakdown.reduce((sum, b) => sum + b.companyTotal, 0);
   const grandByMethod = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = breakdown.reduce((sum, b) => sum + b.byMethod[m].amount, 0); return acc; }, {});
+
+  const title = rangeMode
+    ? `${formatDateNice(start)} — ${formatDateNice(end)}`
+    : formatDateNice(start);
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Cierre Diario" title={formatDateNice(date)} />
+      <SectionTitle eyebrow="Cierre Diario" title={title} />
+
+      {/* Selector de fechas */}
       <div style={styles.card}>
-        <label style={styles.lbl}>Fecha del cierre</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ ...styles.input, maxWidth: 240 }} />
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <label style={styles.lbl}>{rangeMode ? 'Fecha inicio' : 'Fecha'}</label>
+            <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 180 }} />
+          </div>
+          {rangeMode && (
+            <div>
+              <label style={styles.lbl}>Fecha fin</label>
+              <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 180 }} />
+            </div>
+          )}
+          <button onClick={() => setRangeMode(!rangeMode)}
+            style={{ ...styles.btnSecondary, padding: '9px 14px', fontSize: 13, borderColor: rangeMode ? '#0f766e' : '#e2e8f0', color: rangeMode ? '#0f766e' : '#64748b' }}>
+            {rangeMode ? '📅 Ver un día' : '📅 Ver rango'}
+          </button>
+        </div>
       </div>
+
+      {/* KPIs principales */}
       <div style={styles.kpiGrid}>
         <KpiCard label="Servicios" value={grandCount} />
-        <KpiCard label="Total ventas" value={fmt(grandTotal)} highlight />
+        <KpiCard label="Ventas totales" value={fmt(grandTotal)} highlight />
         {grandTips > 0 && <KpiCard label="Propinas" value={fmt(grandTips)} />}
-        {grandCardFees > 0 && <KpiCard label="Fees tarjeta" value={fmt(grandCardFees)} />}
+        {grandCardFees > 0 && <KpiCard label="Fee tarjeta" value={fmt(grandCardFees)} />}
+        <KpiCard label="Fee gasolina" value={fmt(grandGasFees)} />
+        <KpiCard label="A pagar groomers" value={fmt(grandCommission)} />
+        <KpiCard label="Ingreso empresa" value={fmt(grandCompanyTotal)} highlight accent />
       </div>
+
       {grandTotal > 0 && (
         <div style={{ ...styles.card, marginTop: 16 }}>
           <h3 style={styles.cardH3}>Por método de pago</h3>
@@ -3714,6 +3754,7 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
           </div>
         </div>
       )}
+
       {isAdmin && (
         <div style={{ marginTop: 28 }}>
           <SectionTitle eyebrow="Por Van" title="Desglose individual" />
@@ -3750,13 +3791,20 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
                         );
                       })}
                     </div>
-                    {(b.tips > 0 || b.cardFees > 0 || b.expTotal > 0) && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
-                        {b.tips > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Propinas</span><span style={{ color: '#0f766e', fontWeight: 600 }}>{fmt(b.tips)}</span></div>}
-                        {b.cardFees > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Fees tarjeta</span><span style={{ color: '#7c3aed', fontWeight: 600 }}>{fmt(b.cardFees)}</span></div>}
-                        {b.expTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Gastos</span><span style={{ color: '#dc2626', fontWeight: 600 }}>-{fmt(b.expTotal)}</span></div>}
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
+                      {b.tips > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Propinas</span><span style={{ color: '#0f766e', fontWeight: 600 }}>{fmt(b.tips)}</span></div>}
+                      {b.cardFees > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Fee tarjeta</span><span style={{ color: '#7c3aed', fontWeight: 600 }}>{fmt(b.cardFees)}</span></div>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Fee gasolina</span><span style={{ color: '#0284c7', fontWeight: 600 }}>{fmt(b.gasFees)}</span></div>
+                      {b.expTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Gastos del día</span><span style={{ color: '#dc2626', fontWeight: 600 }}>-{fmt(b.expTotal)}</span></div>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', marginTop: 4, borderTop: '1px solid #f1f5f9' }}>
+                        <span style={{ color: '#0f766e', fontWeight: 600 }}>A pagar groomer ({b.vanCommission}%)</span>
+                        <span style={{ color: '#0f766e', fontWeight: 700 }}>{fmt(b.commission)}</span>
                       </div>
-                    )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
+                        <span style={{ color: '#7c3aed', fontWeight: 600 }}>Ingreso empresa</span>
+                        <span style={{ color: '#7c3aed', fontWeight: 700 }}>{fmt(b.companyTotal)}</span>
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
