@@ -2934,7 +2934,50 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <div style={{ flex: 1 }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                                  <span style={{ fontSize: 13, fontWeight: 600 }}>{appt.timeStart}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}</span>
+                                  {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <input type="time" defaultValue={appt.timeStart}
+                                        onBlur={async e => {
+                                          const newStart = e.target.value;
+                                          if (!newStart || newStart === appt.timeStart) return;
+                                          const numPets = appt.pets?.length || 1;
+                                          const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                                          const [h, m] = newStart.split(':').map(Number);
+                                          const endH = h + duration;
+                                          const newEnd = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                                          // Verificar conflicto
+                                          const conflict = appointments.filter(a =>
+                                            a.id !== appt.id &&
+                                            a.vanId === appt.vanId &&
+                                            a.date === appt.date &&
+                                            a.status !== 'cancelled' &&
+                                            a.timeStart && a.timeEnd &&
+                                            newStart < a.timeEnd &&
+                                            newEnd > a.timeStart
+                                          );
+                                          if (conflict.length > 0) {
+                                            alert(`⚠️ Conflict! ${appt.vanId} already has an appointment from ${conflict[0].timeStart} to ${conflict[0].timeEnd}`);
+                                            e.target.value = appt.timeStart;
+                                            return;
+                                          }
+                                          await supabase.from('appointments').update({ time_start: newStart, time_end: newEnd }).eq('id', appt.id);
+                                          appt.timeStart = newStart;
+                                          appt.timeEnd = newEnd;
+                                        }}
+                                        style={{ ...styles.input, width: 120, padding: '4px 8px', fontSize: 13 }} />
+                                      <span style={{ fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                                        → {(() => {
+                                          const numPets = appt.pets?.length || 1;
+                                          const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                                          const [h, m] = (appt.timeStart || '09:00').split(':').map(Number);
+                                          const endH = h + duration;
+                                          return `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')} (${duration}h)`;
+                                        })()}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 13, fontWeight: 600 }}>{appt.timeStart}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}</span>
+                                  )}
                                   <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[appt.status]}</span>
                                 </div>
                                 <div style={{ fontSize: 14, fontWeight: 500 }}>{appt.client?.name || 'Sin cliente'}</div>
