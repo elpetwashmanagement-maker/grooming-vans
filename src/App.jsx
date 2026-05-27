@@ -6,73 +6,73 @@ import { createClient } from '@supabase/supabase-js';
 const TRANSLATIONS = {
   es: {
     // Tabs
-    tab_citas: 'Mis Citas',
-    tab_clientes: 'Clientes',
-    tab_razas: 'IA Razas',
-    tab_registro: 'Mi Registro',
-    tab_registro_admin: 'Registro',
-    tab_cierre: 'Mi Cierre',
-    tab_cierre_admin: 'Cierre Diario',
-    tab_gastos: '💼 Gastos',
-    tab_inventario: '📦 Inventario',
-    tab_semana: 'Reporte Semanal',
+    tab_citas: 'My Appointments',
+    tab_clientes: 'Clients',
+    tab_razas: 'AI Breeds',
+    tab_registro: 'My Daily Log',
+    tab_registro_admin: 'Daily Log',
+    tab_cierre: 'My Daily Close',
+    tab_cierre_admin: 'Daily Close',
+    tab_gastos: '💼 Expenses',
+    tab_inventario: '📦 Inventory',
+    tab_semana: 'Weekly Report',
     tab_dashboard: 'Dashboard',
-    tab_auditoria: 'Auditoría',
-    tab_config: 'Configuración',
+    tab_auditoria: 'Audit Log',
+    tab_config: 'Settings',
     // Citas
-    new_appt: '+ Nueva cita',
-    checkin: 'Check in',
-    complete_pay: 'Completar y cobrar',
+    new_appt: '+ New Appointment',
+    checkin: 'Check In',
+    complete_pay: 'Complete & Collect',
     view_invoice: '🧾 Ver Invoice',
-    reopen: '🔓 Reabrir cita',
+    reopen: '🔓 Reopen',
     cancel_appt: 'Cancelar',
-    reassign: '🔄 Reasignar',
-    status_unconfirmed: 'Por confirmar',
-    status_confirmed: 'Confirmada',
-    status_in_progress: 'En progreso',
-    status_completed: 'Completada',
-    status_cancelled: 'Cancelada',
-    // Registro
-    services_section: '💼 Servicios',
-    expenses_section: '⛽ Gastos del día',
-    add_service: 'Registrar servicio',
-    add_expense: 'Registrar gasto',
+    reassign: '🔄 Reassign',
+    status_unconfirmed: 'Unconfirmed',
+    status_confirmed: 'Confirmed',
+    status_in_progress: 'In Progress',
+    status_completed: 'Completed',
+    status_cancelled: 'Cancelled',
+    // Daily Log
+    services_section: '💼 Services',
+    expenses_section: '⛽ Daily Expenses',
+    add_service: 'Log Service',
+    add_expense: 'Log Expense',
     // Grooming
     grooming_record: 'Ficha de grooming',
     checklist: 'Checklist',
     // Inventario
-    request_supplies: '📦 Solicitar insumos',
-    my_requests: '📋 Mis solicitudes',
-    send_request: 'Enviar solicitud al administrador',
-    mark_delivered: '✅ Marcar como entregado',
-    pending_requests: 'Solicitudes pendientes',
+    request_supplies: '📦 Request Supplies',
+    my_requests: '📋 My Requests',
+    send_request: 'Send Request to Admin',
+    mark_delivered: '✅ Mark as Delivered',
+    pending_requests: 'Pending Requests',
     history: 'Historial',
     articles: '⚙️ Artículos',
     // Generales
-    save: 'Guardar',
+    save: 'Save',
     cancel: 'Cancelar',
     delete: 'Eliminar',
-    edit: 'Editar',
-    search: 'Buscar',
-    loading: 'Cargando...',
+    edit: 'Edit',
+    search: 'Search',
+    loading: 'Loading...',
     no_data: 'Sin datos',
-    date: 'Fecha',
-    amount: 'Monto',
+    date: 'Date',
+    amount: 'Amount',
     total: 'Total',
     notes: 'Notas',
     method: 'Método de pago',
     van: 'Van',
     groomer: 'Groomer',
-    company: 'Empresa',
+    company: 'Company',
     client: 'Cliente',
     pet: 'Mascota',
     service: 'Servicio',
     // Cierre
-    daily_close: 'Cierre Diario',
-    weekly_report: 'Reporte Semanal',
-    total_sales: 'Total ventas',
+    daily_close: 'Daily Close',
+    weekly_report: 'Weekly Report',
+    total_sales: 'Total Sales',
     to_pay: 'A pagar',
-    company_income: 'Ingreso empresa',
+    company_income: 'Company Income',
     // Login
     enter_pin: 'Ingresa tu PIN',
     wrong_pin: 'PIN incorrecto',
@@ -94,7 +94,7 @@ const TRANSLATIONS = {
     tab_config: 'Settings',
     // Citas
     new_appt: '+ New Appointment',
-    checkin: 'Check in',
+    checkin: 'Check In',
     complete_pay: 'Complete & Collect',
     view_invoice: '🧾 View Invoice',
     reopen: '🔓 Reopen',
@@ -105,7 +105,7 @@ const TRANSLATIONS = {
     status_in_progress: 'In Progress',
     status_completed: 'Completed',
     status_cancelled: 'Cancelled',
-    // Registro
+    // Daily Log
     services_section: '💼 Services',
     expenses_section: '⛽ Daily Expenses',
     add_service: 'Log Service',
@@ -252,7 +252,7 @@ const DOG_BREEDS = [
   'Whippet','Yorkshire Terrier','Goldendoodle','Labradoodle','Cockapoo',
   'Maltipoo','Morkie','Pomsky','Schnoodle','Sheepadoodle','Teddy Bear',
   'Bernedoodle','Aussiedoodle','Cavapoo','Belgian Malinois','Doberman',
-  'Abyssinian','Persian','Siamese','Mixed Breed','Mestizo',
+  'Abyssinian','Persian','Siamese','Mixed Breed','Monthtizo',
 ];
 
 // ===== PRECIO AUTOMÁTICO POR PESO =====
@@ -585,7 +585,7 @@ const saveExpense = async (expense) => {
   });
 };
 const deleteExpense = async (id) => {
-  // Borrar foto del storage también
+  // Delete foto del storage también
   try { await supabase.storage.from('receipts').remove([`${id}.jpg`, `${id}.jpeg`, `${id}.png`, `${id}.webp`]); } catch(e) {}
   await supabase.from('expenses').delete().eq('id', id);
 };
@@ -706,10 +706,6 @@ const deleteCompanyExpense = async (id) => {
   await supabase.from('company_expenses').delete().eq('id', id);
 };
 
-const saveUserLanguage = async (userId, lang) => {
-  await supabase.from('users').update({ language: lang }).eq('id', userId);
-};
-
 // ===== INVENTARIO =====
 const loadInventoryItems = async () => {
   const { data, error } = await supabase.from('inventory_items').select('*').eq('active', true).order('sort_order');
@@ -770,7 +766,7 @@ export default function App() {
   const [inventoryRequests, setInventoryRequests] = useState([]);
   const [companyExpenses, setCompanyExpenses] = useState([]);
   const [fuelLogs, setFuelLogs] = useState([]);
-  const lang = session?.language || 'es';
+  const lang = 'en';
   const t = useT(lang);
 
   useEffect(() => {
@@ -892,7 +888,7 @@ export default function App() {
     setAppointments(appts);
   };
 
-  // Clientes
+  // Clients
   const addClient = async (client) => {
     const ok = await saveClient(client);
     if (ok) setClients(prev => [...prev, client].sort((a,b) => a.name.localeCompare(b.name)));
@@ -908,15 +904,15 @@ export default function App() {
     const clientAppts = appointments.filter(a => a.clientId === id);
     const clientPetsList = pets.filter(p => p.client_id === id);
 
-    const msg = `⚠️ ¿Borrar a ${client?.name}?\n\nEsto eliminará permanentemente:\n• ${clientPetsList.length} mascota(s)\n• ${clientAppts.length} cita(s)\n• Todas las fichas de grooming\n\nNo se puede deshacer.`;
+    const msg = `⚠️ ¿Delete a ${client?.name}?\n\nEsto eliminará permanentemente:\n• ${clientPetsList.length} mascota(s)\n• ${clientAppts.length} cita(s)\n• Todas las fichas de grooming\n\nNo se puede deshacer.`;
     if (!confirm(msg)) return;
 
-    // Borrar estado local
+    // Delete estado local
     setClients(prev => prev.filter(c => c.id !== id));
     setPets(prev => prev.filter(p => p.client_id !== id));
     setAppointments(prev => prev.filter(a => a.clientId !== id));
 
-    // Borrar en Supabase en cascada
+    // Delete en Supabase en cascada
     for (const appt of clientAppts) {
       await supabase.from('grooming_records').delete().eq('appointment_id', appt.id);
       await supabase.from('appointment_pets').delete().eq('appointment_id', appt.id);
@@ -942,7 +938,7 @@ export default function App() {
     return (
       <div style={styles.loadingScreen}>
         <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#0f766e' }} />
-        <p style={{ marginTop: 12, color: '#475569', fontFamily: 'Manrope, sans-serif' }}>Cargando...</p>
+        <p style={{ marginTop: 12, color: '#475569', fontFamily: 'Manrope, sans-serif' }}>Loading...</p>
       </div>
     );
   }
@@ -957,7 +953,7 @@ export default function App() {
   const canEditConfig = session.permissions?.can_edit_config || isAdmin;
   const canViewAllSchedule = session.permissions?.can_view_all_schedule || isAdmin;
 
-  // Empresa activa
+  // Company activa
   const activeCompanyId = session.companyId || 'epw';
   const activeCompany = companies.find(c => c.id === activeCompanyId) || DEFAULT_COMPANIES[0];
 
@@ -989,10 +985,6 @@ export default function App() {
       <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
         onLogout={() => setSession(null)}
-        onLanguageChange={async (newLang) => {
-          setSession(s => ({ ...s, language: newLang }));
-          if (session?.id) await saveUserLanguage(session.id, newLang);
-        }}
         activeCompany={activeCompany} />
       <main style={styles.main}>
         {tab === 'citas' && (
@@ -1006,7 +998,7 @@ export default function App() {
           />
         )}
         {tab === 'clientes' && (
-          <ClientesTab
+          <ClientsTab
             clients={clients} pets={pets} appointments={appointments}
             session={session} isAdmin={isAdmin || session?.role === 'manager'}
             addClient={addClient} updateClient={updateClient} removeClient={removeClient}
@@ -1029,7 +1021,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'semana' && canViewReports && <SemanaTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
+        {tab === 'semana' && canViewReports && <WeekTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
@@ -1041,7 +1033,7 @@ export default function App() {
           />
         )}
         {tab === 'gastos-empresa' && isAdmin && (
-          <GastosEmpresaTab
+          <ExpensesCompanyTab
             vans={vans} session={session} companies={companies}
             companyExpenses={companyExpenses}
             setCompanyExpenses={setCompanyExpenses}
@@ -1058,7 +1050,7 @@ export default function App() {
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
-      <footer style={styles.footer}><Sparkles size={12} /> El Pet Wash · Cierre Diario</footer>
+      <footer style={styles.footer}><Sparkles size={12} /> El Pet Wash · Daily Close</footer>
     </div>
   );
 }
@@ -1170,7 +1162,7 @@ function InvoiceModal({ invoice, onClose }) {
         <div style={{ padding: '20px 28px' }}>
           {/* Info cita */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginBottom: 16, fontSize: 13 }}>
-            <div style={{ color: '#64748b' }}>Fecha</div>
+            <div style={{ color: '#64748b' }}>Date</div>
             <div style={{ fontWeight: 500 }}>{formattedDate}</div>
             <div style={{ color: '#64748b' }}>Cliente</div>
             <div style={{ fontWeight: 500 }}>{invoice.clientName}</div>
@@ -1184,9 +1176,9 @@ function InvoiceModal({ invoice, onClose }) {
             <div><MethodChip method={invoice.method} /></div>
           </div>
 
-          {/* Servicios desglosados */}
+          {/* Services desglosados */}
           <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: 14, marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Servicios</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Services</div>
             {(invoice.services || []).map((s, i) => (
               <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f8fafc' }}>
                 <div>
@@ -1339,7 +1331,7 @@ function SignatureModal({ appt, companyId, onSave, onClose }) {
             <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Firma del cliente</label>
             {hasSigned && (
               <button onClick={clearCanvas} style={{ fontSize: 12, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}>
-                ✕ Borrar firma
+                ✕ Delete firma
               </button>
             )}
           </div>
@@ -1539,7 +1531,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
             {loadingUsers && (
               <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
                 <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#0f766e', display: 'block', margin: '0 auto 12px' }} />
-                Cargando usuarios...
+                Loading usuarios...
               </div>
             )}
           </div>
@@ -1581,7 +1573,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
-  const lang = session?.language || 'es';
+  const lang = 'en';
   const t = useT(lang);
 
   const tabs = [
@@ -1619,11 +1611,6 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
             <span>{roleIcons[session?.role]}</span>
             {session?.userName}
           </div>
-          <button onClick={() => onLanguageChange(lang === 'es' ? 'en' : 'es')}
-            style={{ ...styles.logoutBtn, fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', minWidth: 42 }}
-            title={lang === 'es' ? 'Switch to English' : 'Cambiar a Español'}>
-            {lang === 'es' ? '🇺🇸' : '🇪🇸'}
-          </button>
           <button onClick={onLogout} style={styles.logoutBtn}><LogOut size={15} /></button>
         </div>
       </div>
@@ -1644,7 +1631,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 
 // ===== REGISTRO TAB =====
 function RegistroTab({ vans, services, addService, updateService, removeService, fixedVanId, settings, expenses, addExpense, removeExpense, categories, isAdmin, fuelLogs, setFuelLogs, lang }) {
-  const t = useT(lang || 'es');
+  const t = useT('en');
   const [activeSection, setActiveSection] = useState('servicios');
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
@@ -1769,7 +1756,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Registro del día" title={formatDateNice(todayISO())} />
+      <SectionTitle eyebrow="Daily Log del día" title={formatDateNice(todayISO())} />
 
       {/* Selector de sección */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, background: '#f1f5f9', padding: 4, borderRadius: 10 }}>
@@ -1790,10 +1777,10 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
       {activeSection === 'gastos' ? (
         <div>
           <div style={styles.card}>
-            <h3 style={styles.cardH3}>Registrar gasto</h3>
+            <h3 style={styles.cardH3}>Log Expense</h3>
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
               <div style={{ flex: 1, minWidth: 180 }}>
-                <label style={styles.lbl}>Fecha</label>
+                <label style={styles.lbl}>Date</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={styles.input} />
               </div>
               {!fixedVanId && (
@@ -1813,7 +1800,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                 </select>
               </div>
               <div>
-                <label style={styles.lbl}>Monto *</label>
+                <label style={styles.lbl}>Amount *</label>
                 <input type="number" step="0.01" value={expenseForm.amount} onChange={e => setExpenseForm({ ...expenseForm, amount: e.target.value })} style={styles.input} placeholder="0.00" />
               </div>
               <div>
@@ -1875,7 +1862,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
             <div style={styles.formActions}>
               <button onClick={handleAddExpense} style={styles.btnDanger} disabled={uploadingReceipt}>
                 {uploadingReceipt ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
-                {uploadingReceipt ? 'Subiendo...' : 'Registrar gasto'}
+                {uploadingReceipt ? 'Subiendo...' : 'Log Expense'}
               </button>
             </div>
           </div>
@@ -1895,7 +1882,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
             />
             {dayExpenses.length === 0 ? (
               <div style={styles.empty}>
-                <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin gastos registrados</p>
+                <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No expenses registrados</p>
                 <p style={{ marginTop: 6, fontSize: 13, color: '#94a3b8' }}>Agrega gasolina, materiales u otros gastos del día</p>
               </div>
             ) : (
@@ -1933,7 +1920,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
           <div style={styles.card}>
             <div style={styles.selectorRow}>
               <div style={{ flex: 1, minWidth: 180 }}>
-                <label style={styles.lbl}>Fecha</label>
+                <label style={styles.lbl}>Date</label>
                 <input type="date" value={date} onChange={e => setDate(e.target.value)} style={styles.input} />
               </div>
               {!fixedVanId && (
@@ -1961,7 +1948,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                   style={styles.input} placeholder="Nombre del cliente" autoComplete="off" />
                 {showSuggestions && clientSuggestions.length > 0 && (
                   <div style={styles.suggestionsBox}>
-                    <div style={styles.suggestionsHeader}>Clientes encontrados · toca para autocompletar</div>
+                    <div style={styles.suggestionsHeader}>Clients encontrados · toca para autocompletar</div>
                     {clientSuggestions.map((c, i) => (
                       <button key={i} onMouseDown={e => { e.preventDefault(); selectClient(c); }} className="suggestion-hover" style={styles.suggestionItem}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -2000,7 +1987,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                 </select>
               </div>
               <div>
-                <label style={styles.lbl}>Monto del servicio *</label>
+                <label style={styles.lbl}>Amount del servicio *</label>
                 <input type="number" step="0.01" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} style={styles.input} placeholder="0.00" />
               </div>
               <div>
@@ -2030,7 +2017,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                 </button>
               )}
               <button onClick={handleSubmit} style={styles.btnPrimary}>
-                {editingId ? <><Check size={15} /> Guardar cambios</> : <><Plus size={15} /> Agregar servicio</>}
+                {editingId ? <><Check size={15} /> Save cambios</> : <><Plus size={15} /> Agregar servicio</>}
               </button>
             </div>
           </div>
@@ -2041,15 +2028,15 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
               title={`${dayServices.length} servicio${dayServices.length === 1 ? '' : 's'} registrado${dayServices.length === 1 ? '' : 's'}`}
               right={
                 <div style={styles.miniStats}>
-                  <div><span style={styles.miniLbl}>Ventas</span><span style={styles.miniVal}>{fmt(dayTotal)}</span></div>
-                  {dayTips > 0 && <div><span style={styles.miniLbl}>Propinas</span><span style={styles.miniVal}>{fmt(dayTips)}</span></div>}
-                  {dayExpTotal > 0 && <div><span style={styles.miniLbl}>Gastos</span><span style={{ ...styles.miniVal, color: '#dc2626' }}>{fmt(dayExpTotal)}</span></div>}
+                  <div><span style={styles.miniLbl}>Sales</span><span style={styles.miniVal}>{fmt(dayTotal)}</span></div>
+                  {dayTips > 0 && <div><span style={styles.miniLbl}>Tips</span><span style={styles.miniVal}>{fmt(dayTips)}</span></div>}
+                  {dayExpTotal > 0 && <div><span style={styles.miniLbl}>Expenses</span><span style={{ ...styles.miniVal, color: '#dc2626' }}>{fmt(dayExpTotal)}</span></div>}
                 </div>
               }
             />
             {dayServices.length === 0 ? (
               <div style={styles.empty}>
-                <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin servicios todavía</p>
+                <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No services todavía</p>
                 <p style={{ marginTop: 6, fontSize: 13, color: '#94a3b8' }}>Agrega el primer servicio del día arriba</p>
               </div>
             ) : (
@@ -2062,7 +2049,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
                         <th style={styles.th}>Mascota</th>
                         <th style={styles.th}>Servicio</th>
                         <th style={styles.th}>Pago</th>
-                        <th style={{ ...styles.th, textAlign: 'right' }}>Monto</th>
+                        <th style={{ ...styles.th, textAlign: 'right' }}>Amount</th>
                         <th style={{ ...styles.th, textAlign: 'right' }}>Propina</th>
                         <th style={{ ...styles.th, textAlign: 'right' }}>Fee</th>
                         <th style={styles.th}></th>
@@ -2106,7 +2093,7 @@ const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirme
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
 function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices }) {
-  const t = useT(session?.language || 'es');
+  const t = useT('en');
   const STATUS_LABELS = getStatusLabels(t);
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
@@ -2299,7 +2286,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     };
     await saveGroomingRecord(record);
 
-    // Guardar resumen completo de herramientas en el perfil de la mascota
+    // Save resumen completo de herramientas en el perfil de la mascota
     if (petId) {
       const updateData = { last_combo: toolSummary };
       if (mainBlade) updateData.last_blade = mainBlade;
@@ -2417,7 +2404,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
           {/* Filtro por empresa */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Empresa:</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Company:</span>
             <button onClick={() => setFilterVanId('todos')}
               style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'todos' ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'todos' ? 'var(--color-background-info)' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'todos' ? 700 : 400, color: filterVanId === 'todos' ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
               🏢 Todas ({appointments.filter(a => a.date === date).length})
@@ -2530,17 +2517,17 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       {showNewAppt && (
         <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>Nueva cita — {formatDateNice(date)}</h3>
+            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>New Appointment — {formatDateNice(date)}</h3>
             <button onClick={() => setShowNewAppt(false)} style={styles.iconBtn}><X size={16} /></button>
           </div>
 
-          {/* Buscar cliente */}
+          {/* Search cliente */}
           <div style={styles.formGrid}>
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>Cliente *</label>
               <div style={{ position: 'relative' }}>
                 <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: ''})); }}
-                  style={styles.input} placeholder="Buscar cliente por nombre..." />
+                  style={styles.input} placeholder="Search cliente por nombre..." />
                 {clientSearch && filteredClients.length > 0 && !newApptForm.clientId && (
                   <div style={styles.suggestionsBox}>
                     {filteredClients.map(c => (
@@ -2779,7 +2766,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                   setNewApptForm(f => ({ ...f, petIds: [...f.petIds, pet.id] }));
                   setAddingPet(false);
                   setNewPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
-                }} style={styles.btnPrimary}><Check size={14} /> Guardar mascota</button>
+                }} style={styles.btnPrimary}><Check size={14} /> Save mascota</button>
                 <button onClick={() => setAddingPet(false)} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
               </div>
             </div>
@@ -3040,7 +3027,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       {/* Ver invoice — cita completada */}
                       {appt.status === 'completed' && (
                         <button onClick={async () => {
-                          // Buscar invoice guardada
+                          // Search invoice guardada
                           const { data } = await supabase.from('invoices')
                             .select('*').eq('appointment_id', appt.id).single();
                           if (data) {
@@ -3091,10 +3078,10 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <MapPin size={14} /> Google Maps
                         </button>
                       )}
-                      {/* Reabrir cita — solo admin, solo completadas */}
+                      {/* Reopen — solo admin, solo completadas */}
                       {appt.status === 'completed' && isAdmin && (
                         <button onClick={() => {
-                          if (confirm('¿Reabrir esta cita?\n\nVuelve a "En progreso" para que puedas corregir el servicio y cobrar de nuevo.\n\nEsto quedará registrado en auditoría.')) {
+                          if (confirm('¿Reabrir esta cita?\n\nVuelve a "In Progress" para que puedas corregir el servicio y cobrar de nuevo.\n\nEsto quedará registrado en auditoría.')) {
                             updateApptStatus(appt.id, 'in_progress');
                           }
                         }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#7c3aed', color: '#7c3aed', background: '#faf5ff' }}>
@@ -3114,9 +3101,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                       {appt.status === 'cancelled' && isAdmin && (
-                        <button onClick={() => { if (confirm('¿Borrar esta cita permanentemente? No se puede deshacer.')) deleteAppt(appt.id); }}
+                        <button onClick={() => { if (confirm('¿Delete esta cita permanentemente? No se puede deshacer.')) deleteAppt(appt.id); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center', background: 'var(--color-background-danger)' }}>
-                          <Trash2 size={14} /> Borrar
+                          <Trash2 size={14} /> Delete
                         </button>
                       )}
                     </div>
@@ -3686,7 +3673,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <button onClick={() => setShowGroomingForm(null)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
               <button onClick={() => handleSaveGrooming(showGroomingForm.appointmentId || selectedAppt, showGroomingForm.petId)} style={styles.btnPrimary} disabled={saving}>
                 {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-                {saving ? 'Guardando...' : 'Guardar ficha'}
+                {saving ? 'Guardando...' : 'Save ficha'}
               </button>
             </div>
           </div>
@@ -3743,7 +3730,7 @@ function GasolinaSection({ vanId, vans, fuelLogs, setFuelLogs, isAdmin }) {
         <h3 style={styles.cardH3}>⛽ Registrar carga de gasolina</h3>
         <div style={styles.formGrid}>
           <div>
-            <label style={styles.lbl}>Fecha *</label>
+            <label style={styles.lbl}>Date *</label>
             <input type="date" value={fuelForm.date} onChange={e => setFuelForm(f => ({...f, date: e.target.value}))} style={styles.input} />
           </div>
           <div>
@@ -3751,7 +3738,7 @@ function GasolinaSection({ vanId, vans, fuelLogs, setFuelLogs, isAdmin }) {
             <input type="number" step="1" value={fuelForm.odometer} onChange={e => setFuelForm(f => ({...f, odometer: e.target.value}))} style={styles.input} placeholder="45,230" />
           </div>
           <div>
-            <label style={styles.lbl}>Monto pagado *</label>
+            <label style={styles.lbl}>Amount pagado *</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
               <input type="number" step="0.01" value={fuelForm.amount} onChange={e => setFuelForm(f => ({...f, amount: e.target.value}))} style={{ ...styles.input, paddingLeft: 24 }} placeholder="0.00" />
@@ -3889,18 +3876,18 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Cierre Diario" title={title} />
+      <SectionTitle eyebrow="Daily Close" title={title} />
 
       {/* Selector de fechas */}
       <div style={styles.card}>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
-            <label style={styles.lbl}>{rangeMode ? 'Fecha inicio' : 'Fecha'}</label>
+            <label style={styles.lbl}>{rangeMode ? 'Date inicio' : 'Date'}</label>
             <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 180 }} />
           </div>
           {rangeMode && (
             <div>
-              <label style={styles.lbl}>Fecha fin</label>
+              <label style={styles.lbl}>Date fin</label>
               <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 180 }} />
             </div>
           )}
@@ -3913,13 +3900,13 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 
       {/* KPIs principales */}
       <div style={styles.kpiGrid}>
-        <KpiCard label="Servicios" value={grandCount} />
-        <KpiCard label="Ventas totales" value={fmt(grandTotal)} highlight />
-        {grandTips > 0 && <KpiCard label="Propinas" value={fmt(grandTips)} />}
+        <KpiCard label="Services" value={grandCount} />
+        <KpiCard label="Sales totales" value={fmt(grandTotal)} highlight />
+        {grandTips > 0 && <KpiCard label="Tips" value={fmt(grandTips)} />}
         {grandCardFees > 0 && <KpiCard label="Fee tarjeta" value={fmt(grandCardFees)} />}
         <KpiCard label="Fee gasolina" value={fmt(grandGasFees)} />
-        <KpiCard label="A pagar groomers" value={fmt(grandCommission)} />
-        <KpiCard label="Ingreso empresa" value={fmt(grandCompanyTotal)} highlight accent />
+        <KpiCard label="To Pay Groomers" value={fmt(grandCommission)} />
+        <KpiCard label="Company Income" value={fmt(grandCompanyTotal)} highlight accent />
       </div>
 
       {grandTotal > 0 && (
@@ -3938,7 +3925,7 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 
       {isAdmin && (
         <div style={{ marginTop: 28 }}>
-          <SectionTitle eyebrow="Por Van" title="Desglose individual" />
+          <SectionTitle eyebrow="By Van" title="Desglose individual" />
           <div style={styles.vanGrid}>
             {breakdown.map(b => (
               <div key={b.van.id} style={styles.vanCard}>
@@ -3953,7 +3940,7 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
                   </div>
                 </div>
                 {b.total === 0 ? (
-                  <div style={{ padding: '20px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>Sin servicios</div>
+                  <div style={{ padding: '20px 0', textAlign: 'center', color: '#94a3b8', fontSize: 13 }}>No services</div>
                 ) : (
                   <>
                     <div style={styles.vanMethods}>
@@ -3973,16 +3960,16 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
                       })}
                     </div>
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
-                      {b.tips > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Propinas</span><span style={{ color: '#0f766e', fontWeight: 600 }}>{fmt(b.tips)}</span></div>}
+                      {b.tips > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Tips</span><span style={{ color: '#0f766e', fontWeight: 600 }}>{fmt(b.tips)}</span></div>}
                       {b.cardFees > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Fee tarjeta</span><span style={{ color: '#7c3aed', fontWeight: 600 }}>{fmt(b.cardFees)}</span></div>}
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Fee gasolina</span><span style={{ color: '#0284c7', fontWeight: 600 }}>{fmt(b.gasFees)}</span></div>
-                      {b.expTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Gastos del día</span><span style={{ color: '#dc2626', fontWeight: 600 }}>-{fmt(b.expTotal)}</span></div>}
+                      {b.expTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', padding: '3px 0' }}><span>Expenses del día</span><span style={{ color: '#dc2626', fontWeight: 600 }}>-{fmt(b.expTotal)}</span></div>}
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0', marginTop: 4, borderTop: '1px solid #f1f5f9' }}>
-                        <span style={{ color: '#0f766e', fontWeight: 600 }}>A pagar groomer ({b.vanCommission}%)</span>
+                        <span style={{ color: '#0f766e', fontWeight: 600 }}>To Pay Groomer ({b.vanCommission}%)</span>
                         <span style={{ color: '#0f766e', fontWeight: 700 }}>{fmt(b.commission)}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '3px 0' }}>
-                        <span style={{ color: '#7c3aed', fontWeight: 600 }}>Ingreso empresa</span>
+                        <span style={{ color: '#7c3aed', fontWeight: 600 }}>Company Income</span>
                         <span style={{ color: '#7c3aed', fontWeight: 700 }}>{fmt(b.companyTotal)}</span>
                       </div>
                     </div>
@@ -3998,7 +3985,7 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 }
 
 // ===== REPORTE SEMANAL =====
-function SemanaTab({ vans, services, expenses, settings, appointments, groomers }) {
+function WeekTab({ vans, services, expenses, settings, appointments, groomers }) {
   const [refDate, setRefDate] = useState(todayISO());
   const [reportMode, setReportMode] = useState('groomer'); // 'groomer' o 'van'
   const { start, end } = getWeekRange(refDate);
@@ -4054,7 +4041,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
       const commission = sales * (vanCommission / 100);
       const tipShare = tips * (settings.tipsToGroomer / 100);
       const totalPay = commission + tipShare;
-      // Ingreso empresa = % que queda + fees
+      // Company Income = % que queda + fees
       const companyPct = 100 - vanCommission;
       const companyShare = sales * (companyPct / 100);
       const companyTotal = companyShare + gasFees + cardFees;
@@ -4073,11 +4060,11 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
 
   const exportCSV = () => {
     const rows = [
-      ['Reporte Semanal El Pet Wash'],
-      [`Semana: ${start} a ${end}`],
-      [`Comisión: ${settings.commissionPct}% · Propinas: ${settings.tipsToGroomer}% · Fee gasolina: $${settings.gasFee} · Fee tarjeta: ${settings.cardFeePct}%`],
+      ['Weekly Report El Pet Wash'],
+      [`Week: ${start} a ${end}`],
+      [`Commission: ${settings.commissionPct}% · Tips: ${settings.tipsToGroomer}% · Fee gasolina: $${settings.gasFee} · Fee tarjeta: ${settings.cardFeePct}%`],
       [],
-      ['Van','Groomer','Servicios','Ventas','Efectivo','Zelle','Tarjeta','Cheque','Propinas','Fee Tarjeta','Fee Gasolina','Gastos','Comisión','+ Propinas','- Gasolina','- Gastos','A PAGAR'],
+      ['Van','Groomer','Services','Sales','Efectivo','Zelle','Tarjeta','Cheque','Tips','Fee Tarjeta','Fee Gasolina','Expenses','Commission','+ Tips','- Gasolina','- Expenses','A PAGAR'],
     ];
     report.forEach(r => rows.push([
       r.van.name, r.van.groomer||'', r.count, r.sales.toFixed(2),
@@ -4097,7 +4084,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Reporte Semanal" title={`${formatDateNice(start)} — ${formatDateNice(end)}`} />
+      <SectionTitle eyebrow="Weekly Report" title={`${formatDateNice(start)} — ${formatDateNice(end)}`} />
       <div style={styles.card}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
@@ -4109,11 +4096,11 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
           <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
             <button onClick={() => setReportMode('groomer')}
               style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: reportMode === 'groomer' ? 600 : 400, background: reportMode === 'groomer' ? '#fff' : 'transparent', color: reportMode === 'groomer' ? '#0f766e' : '#64748b' }}>
-              ✂️ Por Groomer
+              ✂️ By Groomer
             </button>
             <button onClick={() => setReportMode('van')}
               style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: reportMode === 'van' ? 600 : 400, background: reportMode === 'van' ? '#fff' : 'transparent', color: reportMode === 'van' ? '#0f766e' : '#64748b' }}>
-              🚐 Por Van
+              🚐 By Van
             </button>
           </div>
           <button onClick={exportCSV} style={styles.btnPrimary}><Download size={15} /> Exportar CSV</button>
@@ -4127,7 +4114,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
           {groomerReport.length === 0 ? (
             <div style={styles.empty}>
               <p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 18 }}>Sin citas completadas esta semana</p>
-              <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 13 }}>Las citas deben estar en estado "Completada" para aparecer aquí</p>
+              <p style={{ margin: '8px 0 0', color: '#94a3b8', fontSize: 13 }}>Las citas deben estar en estado "Completed" para aparecer aquí</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -4161,7 +4148,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                               {r.citas} citas · {r.pets} mascotas · {r.commissionPct}% comisión
                             </div>
                             <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                              Ventas {fmt(r.sales)} · Comisión {fmt(r.commission)} · Gas -{fmt(r.gasFees)}
+                              Sales {fmt(r.sales)} · Commission {fmt(r.commission)} · Gas -{fmt(r.gasFees)}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
@@ -4190,17 +4177,17 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
       {reportMode === 'van' && (
         <>
           <div style={styles.kpiGrid}>
-            <KpiCard label="Servicios" value={totals.count} />
-            <KpiCard label="Ventas totales" value={fmt(totals.sales)} highlight />
-            <KpiCard label="A pagar groomers" value={fmt(totals.totalPay)} highlight accent />
-            <KpiCard label="Ingreso empresa (55%)" value={fmt(totals.companyShare)} />
+            <KpiCard label="Services" value={totals.count} />
+            <KpiCard label="Sales totales" value={fmt(totals.sales)} highlight />
+            <KpiCard label="To Pay Groomers" value={fmt(totals.totalPay)} highlight accent />
+            <KpiCard label="Company Income (55%)" value={fmt(totals.companyShare)} />
             <KpiCard label="+ Fee gasolina" value={fmt(totals.gasFees)} />
             <KpiCard label="+ Fee tarjeta" value={fmt(totals.cardFees)} />
             <KpiCard label="TOTAL EMPRESA" value={fmt(totals.companyTotal)} highlight />
           </div>
 
           <div style={{ marginTop: 24 }}>
-            <SectionTitle eyebrow="Pago a Groomers + Ingreso Empresa" title="Desglose por van" />
+            <SectionTitle eyebrow="Pago a Groomers + Ingreso Company" title="Desglose por van" />
         <div style={styles.card}>
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
@@ -4208,10 +4195,10 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                 <tr>
                   <th style={styles.th}>Van</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Serv.</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Ventas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>Comisión groomer</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Sales</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Commission groomer</th>
                   <th style={{ ...styles.th, textAlign: 'right', color: '#0f766e' }}>A PAGAR groomer</th>
-                  <th style={{ ...styles.th, textAlign: 'right', color: '#7c3aed' }}>Ingreso empresa</th>
+                  <th style={{ ...styles.th, textAlign: 'right', color: '#7c3aed' }}>Company Income</th>
                   <th style={{ ...styles.th, textAlign: 'right', color: '#0284c7' }}>+ Fee gas</th>
                   <th style={{ ...styles.th, textAlign: 'right', color: '#ec4899' }}>+ Fee tarjeta</th>
                   <th style={{ ...styles.th, textAlign: 'right', color: '#7c3aed' }}>TOTAL EMPRESA</th>
@@ -4316,7 +4303,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     { key: 'can_view_all_schedule', label: 'Ver agenda de todas las vans' },
     { key: 'can_view_finances', label: 'Ver finanzas y comisiones' },
     { key: 'can_view_reports', label: 'Ver reportes semanales' },
-    { key: 'can_edit_config', label: 'Editar configuración' },
+    { key: 'can_edit_config', label: 'Edit configuración' },
   ];
 
   const roleDefaults = {
@@ -4371,7 +4358,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     cancelEdit(id);
   };
   const clearAll = () => {
-    if (confirm('¿Borrar TODOS los servicios? No se puede deshacer.')) {
+    if (confirm('¿Delete TODOS los servicios? No se puede deshacer.')) {
       if (confirm('Confirma: ¿borrar todo el historial?')) clearServices();
     }
   };
@@ -4384,7 +4371,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Configuración" title="Ajustes generales" />
+      <SectionTitle eyebrow="Settings" title="Ajustes generales" />
 
       {/* ===== LISTA DE SERVICIOS Y PRECIOS ===== */}
       <div style={styles.card}>
@@ -4494,7 +4481,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       {/* ===== EMPRESAS: VAN + GROOMER JUNTOS ===== */}
       <div style={{ ...styles.card, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Empresas — Vans y Groomers</h3>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companys — Vans y Groomers</h3>
           <button onClick={() => {
             const newG = { id: `groomer-${uid().slice(0,6)}`, name: '', pin: '', commissionPct: 45, vanId: null, active: true, language: 'es', companyId: 'epw' };
             addGroomer(newG);
@@ -4625,7 +4612,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       <div style={{ ...styles.card, marginTop: 16, borderColor: '#fecaca' }}>
         <h3 style={{ ...styles.cardH3, color: '#991b1b' }}>Zona peligrosa</h3>
         <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>Hay {services.length} servicio{services.length === 1 ? '' : 's'} registrado{services.length === 1 ? '' : 's'} en total.</p>
-        <button onClick={clearAll} style={styles.btnDanger}><Trash2 size={15} /> Borrar todo el historial</button>
+        <button onClick={clearAll} style={styles.btnDanger}><Trash2 size={15} /> Delete todo el historial</button>
       </div>
     </div>
   );
@@ -4722,7 +4709,7 @@ function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir 
 }
 
 // ===== CLIENTES TAB =====
-function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments }) {
+function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
@@ -4910,7 +4897,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
       const pet = { id: petId, clientId, client_id: clientId, name: pf.name.trim(), breed: pf.breed, species: pf.species || 'dog', size: pf.size, hairType: pf.hairType, hair_type: pf.hairType, age: pf.age, color: pf.color, weight: pf.weight, allergies: pf.allergies, medicalNotes: pf.medicalNotes, medical_notes: pf.medicalNotes, behaviorNotes: pf.behaviorNotes, behavior_notes: pf.behaviorNotes };
       await addPet(pet);
 
-      // Guardar ficha de grooming si tiene datos
+      // Save ficha de grooming si tiene datos
       const hasGrooming = pf.headTool || pf.bodyTool || pf.groomingNotes;
       if (hasGrooming) {
         const mainBlade = pf.bodyTool || pf.headTool || '';
@@ -4954,7 +4941,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Base de datos" title="Clientes y mascotas"
+      <SectionTitle eyebrow="Base de datos" title="Clients y mascotas"
         right={
           <button onClick={() => { setShowNewForm(!showNewForm); setClientForm(emptyClient); setPetForms([emptyPet()]); }} style={styles.btnPrimary}>
             <Plus size={15} /> Nuevo cliente
@@ -5146,13 +5133,13 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 3 — Cita</div>
             <div style={styles.formGrid}>
               <div>
-                <label style={styles.lbl}>Fecha *</label>
+                <label style={styles.lbl}>Date *</label>
                 <input type="date" value={apptDate} onChange={e => setApptDate(e.target.value)} style={styles.input} />
               </div>
               {/* Selector de empresa — solo admin/manager */}
               {isAdmin && (
                 <div style={{ gridColumn: 'span 2' }}>
-                  <label style={styles.lbl}>Empresa</label>
+                  <label style={styles.lbl}>Company</label>
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                     {(settings?.companies || DEFAULT_COMPANIES).map(c => (
                       <button key={c.id} type="button"
@@ -5226,7 +5213,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
       <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 1.5fr' : '1fr', gap: 20 }}>
         <div>
           <div style={{ position: 'relative', marginBottom: 12 }}>
-            <input value={search} onChange={e => setSearch(e.target.value)} style={styles.input} placeholder="Buscar cliente..." />
+            <input value={search} onChange={e => setSearch(e.target.value)} style={styles.input} placeholder="Search cliente..." />
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{filteredClients.length} cliente{filteredClients.length !== 1 ? 's' : ''}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 500, overflowY: 'auto' }}>
@@ -5263,7 +5250,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
             {showEditClient && editingClient?.id === selectedClient.id ? (
               <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Editar cliente</h3>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Edit cliente</h3>
                   <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.iconBtn}><X size={16} /></button>
                 </div>
                 <div style={styles.formGrid}>
@@ -5277,7 +5264,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
                   <button onClick={handleSaveEditClient} style={styles.btnPrimary} disabled={saving}>
                     {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
-                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                    {saving ? 'Guardando...' : 'Save cambios'}
                   </button>
                 </div>
               </div>
@@ -5287,7 +5274,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
             {showEditPet && editingPet && (
               <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Editar mascota — {editingPet.name}</h3>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Edit mascota — {editingPet.name}</h3>
                   <button onClick={() => { setShowEditPet(false); setEditingPet(null); }} style={styles.iconBtn}><X size={16} /></button>
                 </div>
                 <div style={styles.formGrid}>
@@ -5310,7 +5297,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   <button onClick={() => { setShowEditPet(false); setEditingPet(null); }} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
                   <button onClick={handleSaveEditPet} style={styles.btnPrimary} disabled={saving}>
                     {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={14} />}
-                    {saving ? 'Guardando...' : 'Guardar cambios'}
+                    {saving ? 'Guardando...' : 'Save cambios'}
                   </button>
                 </div>
               </div>
@@ -5323,7 +5310,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>{selectedClient.address}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  {isAdmin && <button onClick={() => startEditClient(selectedClient)} style={{ ...styles.btnSecondary, padding: '5px 10px', fontSize: 12 }}><Edit2 size={13} /> Editar</button>}
+                  {isAdmin && <button onClick={() => startEditClient(selectedClient)} style={{ ...styles.btnSecondary, padding: '5px 10px', fontSize: 12 }}><Edit2 size={13} /> Edit</button>}
                   <button onClick={() => setSelectedClient(null)} style={styles.iconBtn}><X size={15} /></button>
                 </div>
               </div>
@@ -5364,7 +5351,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                           {p.last_blade && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 3 }}>✂️ Último corte: Blade {p.last_blade}{p.last_combo ? ` · Combo ${p.last_combo}` : ''}</div>}
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          {isAdmin && <button onClick={() => startEditPet(p)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}><Edit2 size={12} /> Editar</button>}
+                          {isAdmin && <button onClick={() => startEditPet(p)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}><Edit2 size={12} /> Edit</button>}
                           <button onClick={() => loadPetHistory(p.id)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>📋 Fichas</button>
                         </div>
                       </div>
@@ -5416,10 +5403,10 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                       <div key={a.id} style={{ padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
                         {isEditingAppt ? (
                           <div>
-                            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>✏️ Editar cita</div>
+                            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>✏️ Edit cita</div>
                             <div style={styles.formGrid}>
                               <div>
-                                <label style={styles.lbl}>Fecha</label>
+                                <label style={styles.lbl}>Date</label>
                                 <input type="date" value={editApptForm.date} onChange={e => setEditApptForm(f => ({...f, date: e.target.value}))} style={styles.input} />
                               </div>
                               <div>
@@ -5445,10 +5432,10 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                                 <input value={editApptForm.alertNotes} onChange={e => setEditApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo..." />
                               </div>
                             </div>
-                            {/* Editar servicio por mascota */}
+                            {/* Edit servicio por mascota */}
                             {a.pets?.length > 0 && (
                               <div style={{ marginTop: 10 }}>
-                                <label style={styles.lbl}>Servicios y add-ons por mascota</label>
+                                <label style={styles.lbl}>Services y add-ons por mascota</label>
                                 {a.pets.map((ap, idx) => (
                                   <div key={ap.id} style={{ marginTop: 8, padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
                                     <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>🐾 {ap.pet?.name || 'Mascota'}</div>
@@ -5520,7 +5507,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                                 setSaving(false);
                               }} style={styles.btnPrimary} disabled={saving}>
                                 {saving ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={13} />}
-                                Guardar cambios
+                                Save cambios
                               </button>
                             </div>
                           </div>
@@ -5549,7 +5536,7 @@ function ClientesTab({ clients, pets, appointments, session, isAdmin, addClient,
                                 setEditingAppt(a);
                                 setEditApptForm({ date: a.date, timeStart: a.timeStart, timeEnd: a.timeEnd || '', vanId: a.vanId, notes: a.notes || '', alertNotes: a.alertNotes || '' });
                               }} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11, flexShrink: 0 }}>
-                                <Edit2 size={12} /> Editar
+                                <Edit2 size={12} /> Edit
                               </button>
                             )}
                           </div>
@@ -5888,7 +5875,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
     return { ...g, appts: gAppts.length, completed: gAppts.filter(a => a.status === 'completed').length, revenue: gRevenue, commission, van, company };
   }).sort((a, b) => b.revenue - a.revenue), [groomers, filteredAppts, vans]);
 
-  // Gastos por van y categoría
+  // Expenses por van y categoría
   const expensesByVan = useMemo(() => vans.map(v => {
     const vanExp = filteredExpenses.filter(e => e.vanId === v.id);
     const byCategory = {};
@@ -5902,14 +5889,14 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
   }));
   const maxDay = Math.max(...byDay.map(d => d.count), 1);
 
-  // Clientes nuevos vs recurrentes
+  // Clients nuevos vs recurrentes
   const uniqueClients = [...new Set(filteredAppts.map(a => a.clientId).filter(Boolean))];
   const allPrevAppts = appointments.filter(a => a.date < start);
   const prevClientIds = new Set(allPrevAppts.map(a => a.clientId).filter(Boolean));
   const newClients = uniqueClients.filter(id => !prevClientIds.has(id)).length;
   const returningClients = uniqueClients.length - newClients;
 
-  // Servicios más populares
+  // Services más populares
   const serviceCount = {};
   filteredAppts.forEach(a => (a.pets || []).forEach(ap => {
     const base = (ap.service || '').split(' + ')[0];
@@ -5952,7 +5939,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
           <div style={{ flex: 1, minWidth: 200 }}>
             <label style={styles.lbl}>Período</label>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
-              {[['week','Semana'],['month','Mes'],['year','Año'],['custom','Custom']].map(([val, lbl]) => (
+              {[['week','Week'],['month','Month'],['year','Year'],['custom','Custom']].map(([val, lbl]) => (
                 <button key={val} onClick={() => setPeriod(val)}
                   style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: period === val ? 600 : 400, background: period === val ? '#fff' : 'transparent', color: period === val ? '#0f766e' : '#64748b' }}>
                   {lbl}
@@ -5961,7 +5948,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
             </div>
           </div>
 
-          {/* Fechas custom */}
+          {/* Dates custom */}
           {period === 'custom' && (
             <>
               <div>
@@ -5975,9 +5962,9 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
             </>
           )}
 
-          {/* Empresa */}
+          {/* Company */}
           <div>
-            <label style={styles.lbl}>Empresa</label>
+            <label style={styles.lbl}>Company</label>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
               {[['all','🏢 Todas'], ['epw','🐾 EPW'], ['atw','🐕 ATW']].map(([val, lbl]) => (
                 <button key={val} onClick={() => setSelectedCompany(val)}
@@ -6011,7 +5998,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
             <KPI label="Citas" value={totalAppts} sub={`${completedAppts} completadas (${completionRate}%)`} color="#3b82f6" />
             <KPI label="Mascotas" value={totalPets} color="#f59e0b" />
             <KPI label="Fee tarjeta" value={fmt(totalCardFees)} color="#ec4899" />
-            <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub="Ingreso empresa" color="#0284c7" />
+            <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub="Company Income" color="#0284c7" />
           </div>
 
           {/* EPW vs ATW */}
@@ -6054,9 +6041,9 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
       {section === 'sales' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-            <KPI label="Ventas brutas" value={fmt(totalRevenue)} color="#0f766e" />
-            <KPI label="Propinas" value={fmt(totalTips)} color="#f59e0b" />
-            <KPI label="Fee tarjeta" value={fmt(totalCardFees)} sub="Ingreso empresa" color="#ec4899" />
+            <KPI label="Sales brutas" value={fmt(totalRevenue)} color="#0f766e" />
+            <KPI label="Tips" value={fmt(totalTips)} color="#f59e0b" />
+            <KPI label="Fee tarjeta" value={fmt(totalCardFees)} sub="Company Income" color="#ec4899" />
             <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub={`${filteredServices.length} servicios × $${settings?.gasFee || 7}`} color="#0284c7" />
             <KPI label="Total ingresos empresa" value={fmt(totalRevenue + totalCardFees + totalGasFees)} color="#0f172a" />
           </div>
@@ -6096,8 +6083,8 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
                       <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: '#0f766e' }}>{fmt(rev)}</span>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12, color: '#64748b' }}>
-                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{svcCount}</div>Servicios</div>
-                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{fmt(tips)}</div>Propinas</div>
+                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{svcCount}</div>Services</div>
+                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{fmt(tips)}</div>Tips</div>
                       <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{pct(rev, totalRevenue)}%</div>Del total</div>
                     </div>
                   </div>
@@ -6112,15 +6099,15 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
       {section === 'clients' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-            <KPI label="Clientes únicos" value={uniqueClients.length} color="#0f766e" />
-            <KPI label="Clientes nuevos" value={newClients} sub="Primera visita" color="#3b82f6" />
-            <KPI label="Clientes recurrentes" value={returningClients} sub="Ya han venido" color="#f59e0b" />
+            <KPI label="Clients únicos" value={uniqueClients.length} color="#0f766e" />
+            <KPI label="Clients nuevos" value={newClients} sub="Primera visita" color="#3b82f6" />
+            <KPI label="Clients recurrentes" value={returningClients} sub="Ya han venido" color="#f59e0b" />
             <KPI label="Mascotas atendidas" value={totalPets} color="#ec4899" />
           </div>
 
-          {/* Servicios más populares */}
+          {/* Services más populares */}
           <div style={styles.card}>
-            <h3 style={styles.cardH3}>🌟 Servicios más populares</h3>
+            <h3 style={styles.cardH3}>🌟 Services más populares</h3>
             {topServices.length === 0 ? (
               <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin datos para este período</div>
             ) : topServices.map(([name, count], i) => (
@@ -6189,11 +6176,11 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
                   </div>
                   <div style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#0f766e' }}>{g.completed}</div>
-                    <div style={{ color: '#94a3b8' }}>Completadas</div>
+                    <div style={{ color: '#94a3b8' }}>Completeds</div>
                   </div>
                   <div style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
                     <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{fmt(g.revenue)}</div>
-                    <div style={{ color: '#94a3b8' }}>Ventas</div>
+                    <div style={{ color: '#94a3b8' }}>Sales</div>
                   </div>
                 </div>
                 <Bar value={g.revenue} max={maxRev} color='#0f766e' height={6} />
@@ -6208,16 +6195,16 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
             <KPI label="Total citas" value={totalAppts} color="#3b82f6" />
-            <KPI label="Completadas" value={completedAppts} sub={`${completionRate}%`} color="#0f766e" />
-            <KPI label="Canceladas" value={cancelledAppts} sub={`${pct(cancelledAppts, totalAppts)}%`} color="#dc2626" />
+            <KPI label="Completeds" value={completedAppts} sub={`${completionRate}%`} color="#0f766e" />
+            <KPI label="Cancelleds" value={cancelledAppts} sub={`${pct(cancelledAppts, totalAppts)}%`} color="#dc2626" />
             <KPI label="Total gastos" value={fmt(totalExpenses)} color="#f59e0b" />
           </div>
 
-          {/* Gastos por van y categoría */}
+          {/* Expenses por van y categoría */}
           <div style={styles.card}>
-            <h3 style={styles.cardH3}>⛽ Gastos por van</h3>
+            <h3 style={styles.cardH3}>⛽ Expenses por van</h3>
             {expensesByVan.length === 0 ? (
-              <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin gastos para este período</div>
+              <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>No expenses para este período</div>
             ) : expensesByVan.map(({ van, total, byCategory }) => (
               <div key={van.id} style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -6264,7 +6251,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
 
           {[
             { label: 'Ingresos', current: totalRevenue, prior: priorRevenue, fmt: true },
-            { label: 'Servicios', current: filteredServices.length, prior: priorServices.length, fmt: false },
+            { label: 'Services', current: filteredServices.length, prior: priorServices.length, fmt: false },
             { label: 'Citas', current: totalAppts, prior: appointments.filter(a => inRange(a.date, prior.start, prior.end)).length, fmt: false },
           ].map(item => {
             const diff = item.current - item.prior;
@@ -6318,7 +6305,7 @@ const COMPANY_EXPENSE_CATEGORIES = [
   { id: 'Otros',         icon: '💼' },
 ];
 
-function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompanyExpenses, taxRate }) {
+function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setCompanyExpenses, taxRate }) {
   const [form, setForm] = useState({
     companyId: 'epw', category: 'Mantenimiento', description: '',
     amount: '', tax: '', method: 'cash', vanId: '', date: todayISO(),
@@ -6382,12 +6369,12 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Administración" title="💼 Gastos de Empresa" />
+      <SectionTitle eyebrow="Administración" title="💼 Expenses de Company" />
 
       <div style={styles.card}>
-        <h3 style={styles.cardH3}>Registrar gasto</h3>
+        <h3 style={styles.cardH3}>Log Expense</h3>
         <div style={{ marginBottom: 14 }}>
-          <label style={styles.lbl}>Empresa</label>
+          <label style={styles.lbl}>Company</label>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
             {DEFAULT_COMPANIES.map(c => (
               <button key={c.id} type="button" onClick={() => setForm(f => ({...f, companyId: c.id, vanId: ''}))}
@@ -6412,11 +6399,11 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
 
         <div style={styles.formGrid}>
           <div>
-            <label style={styles.lbl}>Fecha *</label>
+            <label style={styles.lbl}>Date *</label>
             <input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} style={styles.input} />
           </div>
           <div>
-            <label style={styles.lbl}>Monto *</label>
+            <label style={styles.lbl}>Amount *</label>
             <div style={{ position: 'relative' }}>
               <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
               <input type="number" step="0.01" value={form.amount}
@@ -6479,7 +6466,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
         <div style={{ marginTop: 16 }}>
           <button onClick={handleSubmit} style={styles.btnPrimary} disabled={saving}>
             {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
-            {saving ? 'Guardando...' : 'Registrar gasto'}
+            {saving ? 'Guardando...' : 'Log Expense'}
           </button>
         </div>
       </div>
@@ -6490,7 +6477,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
           <div><label style={styles.lbl}>Desde</label><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
           <div><label style={styles.lbl}>Hasta</label><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
           <div>
-            <label style={styles.lbl}>Empresa</label>
+            <label style={styles.lbl}>Company</label>
             <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} style={styles.input}>
               <option value="all">Todas</option>
               {DEFAULT_COMPANIES.map(c => <option key={c.id} value={c.id}>{c.logoEmoji} {c.name}</option>)}
@@ -6527,7 +6514,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
       {/* Lista */}
       <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {filtered.length === 0 ? (
-          <div style={styles.empty}><p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin gastos para este período</p></div>
+          <div style={styles.empty}><p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No expenses para este período</p></div>
         ) : filtered.map(e => {
           const catInfo = COMPANY_EXPENSE_CATEGORIES.find(c => c.id === e.category);
           const company = DEFAULT_COMPANIES.find(c => c.id === e.companyId);
@@ -6542,7 +6529,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
                     <span style={{ fontWeight: 600, fontSize: 14 }}>{e.category}</span>
                     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>{company?.logoEmoji} {company?.name}</span>
                     {van && <span style={{ fontSize: 11, color: '#64748b' }}>🚐 {van.name}</span>}
-                    {!e.vanId && <span style={{ fontSize: 11, color: '#94a3b8' }}>🏢 Empresa</span>}
+                    {!e.vanId && <span style={{ fontSize: 11, color: '#94a3b8' }}>🏢 Company</span>}
                   </div>
                   {e.description && <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>{e.description}</div>}
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDateNice(e.date)} · {methodLabels[e.method] || e.method}</div>
@@ -6572,7 +6559,7 @@ function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompan
 
 // ===== INVENTARIO TAB =====
 function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryItems, inventoryRequests, setInventoryRequests, groomers }) {
-  const t = useT(session?.language || 'es');
+  const t = useT('en');
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
   const [activeSection, setActiveSection] = useState(isGroomer ? 'solicitar' : 'solicitudes');
@@ -6626,7 +6613,7 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Insumos" title="📦 Inventario"
+      <SectionTitle eyebrow="Insumos" title="📦 Inventory"
         right={pendingRequests.length > 0 && isAdmin ? (
           <div style={{ padding: '6px 14px', background: '#fef3c7', borderRadius: 999, fontSize: 13, fontWeight: 700, color: '#92400e', border: '1px solid #fcd34d' }}>
             🔔 {pendingRequests.length} pendiente{pendingRequests.length !== 1 ? 's' : ''}
@@ -6721,7 +6708,7 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
                     </div>
                   ))}
                   {req.notes && <div style={{ fontSize: 12, color: '#64748b', margin: '8px 0' }}>📝 {req.notes}</div>}
-                  <button onClick={() => handleMarkDelivered(req.id)} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: 8 }}>✅ Marcar como entregado</button>
+                  <button onClick={() => handleMarkDelivered(req.id)} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: 8 }}>✅ Mark as Delivered</button>
                 </div>
               );
             })}
@@ -6821,10 +6808,10 @@ function AuditoriaTab() {
       <SectionTitle eyebrow="Seguridad" title="Historial de actividad" />
       <div style={styles.card}>
         <p style={{ fontSize: 13, color: '#64748b', margin: '0 0 16px' }}>
-          Registro de todas las acciones del sistema — quién hizo qué y cuándo.
+          Daily Log de todas las acciones del sistema — quién hizo qué y cuándo.
         </p>
         {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Cargando historial...</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Loading historial...</div>
         ) : logs.length === 0 ? (
           <div style={styles.empty}>
             <p style={{ margin: 0, color: '#64748b' }}>Sin actividad registrada todavía</p>
@@ -6834,7 +6821,7 @@ function AuditoriaTab() {
             <table style={styles.table}>
               <thead>
                 <tr>
-                  <th style={styles.th}>Fecha y hora</th>
+                  <th style={styles.th}>Date y hora</th>
                   <th style={styles.th}>Usuario</th>
                   <th style={styles.th}>Rol</th>
                   <th style={styles.th}>Acción</th>
