@@ -5551,60 +5551,61 @@ Si no es un perro, responde: {"error": "No es un perro"}` }
 
 // ===== DASHBOARD TAB =====
 function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies }) {
-  const [period, setPeriod] = useState('week'); // week | month | year
+  const [section, setSection] = useState('overview');
+  const [period, setPeriod] = useState('week');
+  const [customStart, setCustomStart] = useState('');
+  const [customEnd, setCustomEnd] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('all');
 
   const now = new Date();
   const todayStr = todayISO();
 
   const getRange = () => {
+    if (period === 'custom' && customStart && customEnd) {
+      return { start: customStart, end: customEnd, label: `${customStart} → ${customEnd}` };
+    }
     if (period === 'week') {
       const { start, end } = getWeekRange(todayStr);
       return { start, end, label: 'Esta semana' };
     }
     if (period === 'month') {
       const start = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-01`;
-      const end = todayStr;
-      return { start, end, label: 'Este mes' };
+      return { start, end: todayStr, label: 'Este mes' };
     }
-    const start = `${now.getFullYear()}-01-01`;
-    return { start, end: todayStr, label: `${now.getFullYear()}` };
+    return { start: `${now.getFullYear()}-01-01`, end: todayStr, label: `${now.getFullYear()}` };
+  };
+
+  const getPriorRange = () => {
+    const { start, end } = getRange();
+    const diffDays = Math.round((new Date(end) - new Date(start)) / 86400000) + 1;
+    const priorEnd = new Date(new Date(start) - 86400000);
+    const priorStart = new Date(priorEnd - (diffDays - 1) * 86400000);
+    const toISO = d => { const tz = d.getTimezoneOffset() * 60000; return new Date(d - tz).toISOString().slice(0,10); };
+    return { start: toISO(priorStart), end: toISO(priorEnd) };
   };
 
   const { start, end, label } = getRange();
+  const prior = getPriorRange();
 
-  const filteredAppts = useMemo(() => {
-    let list = appointments.filter(a => inRange(a.date, start, end));
+  const filterData = (list, dateField = 'date') => {
+    let r = list.filter(i => inRange(i[dateField], start, end));
     if (selectedCompany !== 'all') {
-      list = list.filter(a => {
-        const van = vans.find(v => v.id === a.vanId);
+      r = r.filter(i => {
+        const van = vans.find(v => v.id === (i.vanId || i.van_id));
         return van?.companyId === selectedCompany;
       });
     }
-    return list;
-  }, [appointments, start, end, selectedCompany, vans]);
+    return r;
+  };
 
-  const filteredServices = useMemo(() => {
-    let list = services.filter(s => inRange(s.date, start, end));
-    if (selectedCompany !== 'all') {
-      list = list.filter(s => {
-        const van = vans.find(v => v.id === s.vanId);
-        return van?.companyId === selectedCompany;
-      });
-    }
-    return list;
-  }, [services, start, end, selectedCompany, vans]);
-
-  const filteredExpenses = useMemo(() => {
-    let list = expenses.filter(e => inRange(e.date, start, end));
-    if (selectedCompany !== 'all') {
-      list = list.filter(e => {
-        const van = vans.find(v => v.id === e.vanId);
-        return van?.companyId === selectedCompany;
-      });
-    }
-    return list;
-  }, [expenses, start, end, selectedCompany, vans]);
+  const filteredServices = useMemo(() => filterData(services), [services, start, end, selectedCompany, vans]);
+  const filteredExpenses = useMemo(() => filterData(expenses), [expenses, start, end, selectedCompany, vans]);
+  const filteredAppts = useMemo(() => filterData(appointments), [appointments, start, end, selectedCompany, vans]);
+  const priorServices = useMemo(() => {
+    let r = services.filter(i => inRange(i.date, prior.start, prior.end));
+    if (selectedCompany !== 'all') r = r.filter(i => vans.find(v => v.id === i.vanId)?.companyId === selectedCompany);
+    return r;
+  }, [services, prior.start, prior.end, selectedCompany, vans]);
 
   // KPIs
   const totalRevenue = filteredServices.reduce((s, i) => s + i.amount, 0);
@@ -5612,422 +5613,247 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
   const totalExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0);
   const totalCardFees = filteredServices.reduce((s, i) => s + (i.cardFee || 0), 0);
   const totalGasFees = filteredServices.length * (settings?.gasFee || 7);
-  const netRevenue = totalRevenue - totalExpenses - totalGasFees;
+  const netRevenue = totalRevenue - totalExpenses;
   const completedAppts = filteredAppts.filter(a => a.status === 'completed').length;
+  const cancelledAppts = filteredAppts.filter(a => a.status === 'cancelled').length;
   const totalAppts = filteredAppts.length;
   const totalPets = filteredAppts.reduce((s, a) => s + (a.pets?.length || 0), 0);
   const completionRate = totalAppts > 0 ? Math.round((completedAppts / totalAppts) * 100) : 0;
+  const priorRevenue = priorServices.reduce((s, i) => s + i.amount, 0);
+  const revenueGrowth = priorRevenue > 0 ? ((totalRevenue - priorRevenue) / priorRevenue * 100).toFixed(1) : null;
 
   // Por empresa
   const epwRevenue = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === 'epw').reduce((s,i) => s + i.amount, 0);
   const atwRevenue = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === 'atw').reduce((s,i) => s + i.amount, 0);
 
-  // Por groomer
-  const groomerStats = useMemo(() => {
-    return groomers.filter(g => g.active !== false).map(g => {
-      const gAppts = filteredAppts.filter(a => a.groomerId === g.id || vans.find(v => v.id === a.vanId && v.companyId === (vans.find(vv => vv.id === a.vanId)?.companyId)));
-      const gApptsByGroomer = filteredAppts.filter(a => a.groomerId === g.id);
-      const gRevenue = gApptsByGroomer.filter(a => a.status === 'completed').reduce((s, a) => s + (a.pets?.reduce((ps, ap) => ps + (ap.amount || 0), 0) || 0), 0);
-      const commission = gRevenue * (g.commissionPct || 45) / 100;
-      return { ...g, appts: gApptsByGroomer.length, completed: gApptsByGroomer.filter(a => a.status === 'completed').length, revenue: gRevenue, commission };
-    }).sort((a, b) => b.revenue - a.revenue);
-  }, [groomers, filteredAppts, vans]);
-
-  // Método de pago breakdown
+  // Por método de pago
   const byMethod = PAYMENT_METHODS.reduce((acc, m) => {
-    const amt = filteredServices.filter(s => s.method === m).reduce((s,i) => s + i.amount, 0);
-    acc[m] = amt;
+    acc[m] = filteredServices.filter(s => s.method === m).reduce((s,i) => s + i.amount, 0);
     return acc;
   }, {});
-  const maxMethod = Math.max(...Object.values(byMethod), 1);
 
-  // Días de la semana con más citas
-  const byDay = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((day, i) => {
-    const count = filteredAppts.filter(a => {
-      const d = new Date(a.date + 'T12:00:00').getDay();
-      return ((d + 6) % 7) === i;
-    }).length;
-    return { day, count };
-  });
+  // Por groomer
+  const groomerStats = useMemo(() => groomers.filter(g => g.active !== false).map(g => {
+    const gAppts = filteredAppts.filter(a => a.groomerId === g.id);
+    const gRevenue = gAppts.filter(a => a.status === 'completed').reduce((s, a) => s + (a.pets?.reduce((ps, ap) => ps + (ap.amount || 0), 0) || 0), 0);
+    const commission = gRevenue * (g.commissionPct || 45) / 100;
+    const van = vans.find(v => v.id === g.vanId);
+    const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+    return { ...g, appts: gAppts.length, completed: gAppts.filter(a => a.status === 'completed').length, revenue: gRevenue, commission, van, company };
+  }).sort((a, b) => b.revenue - a.revenue), [groomers, filteredAppts, vans]);
+
+  // Gastos por van y categoría
+  const expensesByVan = useMemo(() => vans.map(v => {
+    const vanExp = filteredExpenses.filter(e => e.vanId === v.id);
+    const byCategory = {};
+    vanExp.forEach(e => { byCategory[e.category] = (byCategory[e.category] || 0) + e.amount; });
+    return { van: v, total: vanExp.reduce((s,e) => s + e.amount, 0), byCategory };
+  }).filter(v => v.total > 0), [filteredExpenses, vans]);
+
+  // Días de la semana
+  const byDay = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'].map((day, i) => ({
+    day, count: filteredAppts.filter(a => ((new Date(a.date + 'T12:00:00').getDay() + 6) % 7) === i).length
+  }));
   const maxDay = Math.max(...byDay.map(d => d.count), 1);
 
-  const KPI = ({ label, value, sub, color = '#0f766e', big = false }) => (
-    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '16px 20px', borderTop: `3px solid ${color}` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>{label}</div>
-      <div style={{ fontFamily: 'Fraunces, serif', fontSize: big ? 32 : 26, fontWeight: 700, color: '#0f172a', letterSpacing: '-0.02em' }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{sub}</div>}
+  // Clientes nuevos vs recurrentes
+  const uniqueClients = [...new Set(filteredAppts.map(a => a.clientId).filter(Boolean))];
+  const allPrevAppts = appointments.filter(a => a.date < start);
+  const prevClientIds = new Set(allPrevAppts.map(a => a.clientId).filter(Boolean));
+  const newClients = uniqueClients.filter(id => !prevClientIds.has(id)).length;
+  const returningClients = uniqueClients.length - newClients;
+
+  // Servicios más populares
+  const serviceCount = {};
+  filteredAppts.forEach(a => (a.pets || []).forEach(ap => {
+    const base = (ap.service || '').split(' + ')[0];
+    if (base) serviceCount[base] = (serviceCount[base] || 0) + 1;
+  }));
+  const topServices = Object.entries(serviceCount).sort((a,b) => b[1]-a[1]).slice(0, 5);
+
+  const pct = (val, total) => total > 0 ? Math.round(val/total*100) : 0;
+
+  const Bar = ({ value, max, color = '#0f766e', height = 8 }) => (
+    <div style={{ height, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
+      <div style={{ height: '100%', width: `${max > 0 ? (value/max)*100 : 0}%`, background: color, borderRadius: 999, transition: 'width 0.5s' }} />
     </div>
   );
+
+  const KPI = ({ label, value, sub, color = '#0f766e', growth }) => (
+    <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, padding: '14px 18px', borderTop: `3px solid ${color}` }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 700, color: '#0f172a' }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{sub}</div>}
+      {growth !== null && growth !== undefined && (
+        <div style={{ fontSize: 11, fontWeight: 600, marginTop: 4, color: parseFloat(growth) >= 0 ? '#0f766e' : '#dc2626' }}>
+          {parseFloat(growth) >= 0 ? '▲' : '▼'} {Math.abs(growth)}% vs período anterior
+        </div>
+      )}
+    </div>
+  );
+
+  const SECTIONS = ['overview','sales','clients','staff','operations','comparison'];
+  const SECTION_LABELS = { overview:'📌 Overview', sales:'💰 Sales', clients:'👥 Clients & Pets', staff:'✂️ Staff', operations:'⚙️ Operations', comparison:'📈 vs Prior Period' };
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Analytics" title="Dashboard" />
 
       {/* Controles */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap', alignItems: 'center' }}>
-        {/* Período */}
-        <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
-          {[['week','Semana'],['month','Mes'],['year','Año']].map(([val, lbl]) => (
-            <button key={val} onClick={() => setPeriod(val)}
-              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: period === val ? 600 : 400, background: period === val ? '#fff' : 'transparent', color: period === val ? '#0f766e' : '#64748b' }}>
-              {lbl}
-            </button>
-          ))}
-        </div>
+      <div style={{ ...styles.card, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          {/* Período */}
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label style={styles.lbl}>Período</label>
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
+              {[['week','Semana'],['month','Mes'],['year','Año'],['custom','Custom']].map(([val, lbl]) => (
+                <button key={val} onClick={() => setPeriod(val)}
+                  style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: period === val ? 600 : 400, background: period === val ? '#fff' : 'transparent', color: period === val ? '#0f766e' : '#64748b' }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Empresa */}
-        <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
-          <button onClick={() => setSelectedCompany('all')}
-            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: selectedCompany === 'all' ? 600 : 400, background: selectedCompany === 'all' ? '#fff' : 'transparent', color: selectedCompany === 'all' ? '#0f766e' : '#64748b' }}>
-            🏢 Todas
+          {/* Fechas custom */}
+          {period === 'custom' && (
+            <>
+              <div>
+                <label style={styles.lbl}>Desde</label>
+                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} style={{ ...styles.input, width: 160 }} />
+              </div>
+              <div>
+                <label style={styles.lbl}>Hasta</label>
+                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} style={{ ...styles.input, width: 160 }} />
+              </div>
+            </>
+          )}
+
+          {/* Empresa */}
+          <div>
+            <label style={styles.lbl}>Empresa</label>
+            <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
+              {[['all','🏢 Todas'], ['epw','🐾 EPW'], ['atw','🐕 ATW']].map(([val, lbl]) => (
+                <button key={val} onClick={() => setSelectedCompany(val)}
+                  style={{ padding: '6px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: selectedCompany === val ? 600 : 400, background: selectedCompany === val ? '#fff' : 'transparent', color: selectedCompany === val ? '#0f766e' : '#64748b' }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ fontSize: 12, color: '#94a3b8', alignSelf: 'flex-end', paddingBottom: 2 }}>{label}</div>
+        </div>
+      </div>
+
+      {/* Secciones nav */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, overflowX: 'auto', paddingBottom: 4 }}>
+        {SECTIONS.map(s => (
+          <button key={s} onClick={() => setSection(s)}
+            style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px solid ${section === s ? '#0f766e' : '#e2e8f0'}`, background: section === s ? '#0f766e' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: section === s ? 700 : 400, color: section === s ? '#fff' : '#64748b', whiteSpace: 'nowrap' }}>
+            {SECTION_LABELS[s]}
           </button>
-          {DEFAULT_COMPANIES.map(c => (
-            <button key={c.id} onClick={() => setSelectedCompany(c.id)}
-              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: selectedCompany === c.id ? 600 : 400, background: selectedCompany === c.id ? '#fff' : 'transparent', color: selectedCompany === c.id ? '#0f766e' : '#64748b' }}>
-              {c.logoEmoji} {c.name}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ fontSize: 12, color: '#94a3b8', marginLeft: 'auto' }}>{label}</div>
+        ))}
       </div>
 
-      {/* KPIs principales */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <KPI label="Ingresos brutos" value={fmt(totalRevenue)} sub={`+${fmt(totalTips)} propinas`} color="#0f766e" big />
-        <KPI label="Neto estimado" value={fmt(netRevenue)} sub={`-${fmt(totalExpenses + totalGasFees)} gastos`} color="#7c3aed" />
-        <KPI label="Citas totales" value={totalAppts} sub={`${completedAppts} completadas (${completionRate}%)`} color="#3b82f6" />
-        <KPI label="Mascotas atendidas" value={totalPets} color="#f59e0b" />
-        <KPI label="Fee tarjeta" value={fmt(totalCardFees)} sub="Solo tarjeta crédito" color="#ec4899" />
-        <KPI label="Gastos operativos" value={fmt(totalExpenses + totalGasFees)} sub={`Gas $${totalGasFees.toFixed(0)} + otros $${totalExpenses.toFixed(0)}`} color="#dc2626" />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-        {/* EPW vs ATW */}
-        {selectedCompany === 'all' && (
-          <div style={{ ...styles.card }}>
-            <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>🏢 Por empresa</h3>
-            {DEFAULT_COMPANIES.map(c => {
-              const rev = c.id === 'epw' ? epwRevenue : atwRevenue;
-              const pct = totalRevenue > 0 ? Math.round(rev / totalRevenue * 100) : 0;
-              return (
-                <div key={c.id} style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600 }}>{c.logoEmoji} {c.name}</span>
-                    <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f766e' }}>{fmt(rev)}</span>
-                  </div>
-                  <div style={{ height: 8, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, background: c.id === 'epw' ? '#0f766e' : '#7c3aed', borderRadius: 999, transition: 'width 0.5s' }} />
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>{pct}% del total</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Métodos de pago */}
-        <div style={{ ...styles.card }}>
-          <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>💳 Métodos de pago</h3>
-          {PAYMENT_METHODS.map(m => {
-            const amt = byMethod[m] || 0;
-            const pct = totalRevenue > 0 ? Math.round(amt / totalRevenue * 100) : 0;
-            const ms = METHOD_STYLES[m];
-            return (
-              <div key={m} style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: ms.dot, display: 'inline-block' }} />{m}
-                  </span>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{fmt(amt)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({pct}%)</span></span>
-                </div>
-                <div style={{ height: 6, background: '#f1f5f9', borderRadius: 999, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${(amt / maxMethod) * 100}%`, background: ms.dot, borderRadius: 999 }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Por groomer */}
-      <div style={{ ...styles.card, marginBottom: 16 }}>
-        <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>✂️ Por groomer</h3>
-        {groomerStats.filter(g => g.appts > 0).length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8', fontSize: 13 }}>Sin datos para este período</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {groomerStats.filter(g => g.appts > 0).map(g => {
-              const van = vans.find(v => v.id === g.vanId);
-              const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
-              const maxRevenue = Math.max(...groomerStats.map(gs => gs.revenue), 1);
-              return (
-                <div key={g.id} style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{g.name}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>
-                        {company?.logoEmoji} {company?.name || ''} · {van?.name || ''} · {g.commissionPct}%
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f766e' }}>{fmt(g.commission)}</div>
-                      <div style={{ fontSize: 11, color: '#94a3b8' }}>a pagar</div>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-                    <span>📅 {g.appts} citas</span>
-                    <span>✅ {g.completed} completadas</span>
-                    <span>💰 {fmt(g.revenue)} ventas</span>
-                  </div>
-                  <div style={{ height: 6, background: '#e2e8f0', borderRadius: 999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(g.revenue / maxRevenue) * 100}%`, background: '#0f766e', borderRadius: 999 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Días de la semana */}
-      <div style={{ ...styles.card }}>
-        <h3 style={{ ...styles.cardH3, marginBottom: 16 }}>📅 Citas por día de la semana</h3>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 100 }}>
-          {byDay.map(({ day, count }) => (
-            <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#0f766e' }}>{count > 0 ? count : ''}</div>
-              <div style={{ width: '100%', background: count > 0 ? '#0f766e' : '#f1f5f9', borderRadius: '4px 4px 0 0', height: count > 0 ? `${Math.max((count / maxDay) * 70, 4)}px` : '4px', transition: 'height 0.4s' }} />
-              <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{day}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ===== INVENTARIO TAB =====
-function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryItems, inventoryRequests, setInventoryRequests, groomers }) {
-  const isGroomer = session?.role === 'groomer';
-  const myVanId = session?.vanId;
-  const [activeSection, setActiveSection] = useState(isGroomer ? 'solicitar' : 'solicitudes');
-  const [requestItems, setRequestItems] = useState({});
-  const [requestNotes, setRequestNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemCategory, setNewItemCategory] = useState('General');
-  const [newItemUnit, setNewItemUnit] = useState('unidad');
-
-  const pendingRequests = inventoryRequests.filter(r => r.status === 'pending');
-  const deliveredRequests = inventoryRequests.filter(r => r.status === 'delivered');
-
-  const handleSendRequest = async () => {
-    const selectedItems = Object.entries(requestItems).filter(([, qty]) => qty > 0);
-    if (selectedItems.length === 0) { alert('Selecciona al menos un artículo'); return; }
-    setSaving(true);
-    const reqId = uid();
-    const groomer = groomers.find(g => g.id === session.userId) || groomers.find(g => g.vanId === myVanId);
-    const req = { id: reqId, vanId: myVanId, groomerId: session.userId, groomerName: session.userName, notes: requestNotes };
-    const items = selectedItems.map(([itemId, qty]) => {
-      const item = inventoryItems.find(i => i.id === itemId);
-      return { itemId, itemName: item?.name || '', quantity: qty };
-    });
-    const ok = await saveInventoryRequest(req, items);
-    if (ok) {
-      const fresh = await loadInventoryRequests();
-      setInventoryRequests(fresh);
-      setRequestItems({});
-      setRequestNotes('');
-      alert('✅ Solicitud enviada al administrador');
-    }
-    setSaving(false);
-  };
-
-  const handleMarkDelivered = async (requestId) => {
-    await markRequestDelivered(requestId);
-    const fresh = await loadInventoryRequests();
-    setInventoryRequests(fresh);
-  };
-
-  const handleAddItem = async () => {
-    if (!newItemName.trim()) { alert('Ingresa el nombre del artículo'); return; }
-    const item = {
-      id: `item-${uid().slice(0,8)}`,
-      name: newItemName.trim(),
-      category: newItemCategory || 'General',
-      unit: newItemUnit || 'unidad',
-      active: true,
-      sort_order: inventoryItems.length + 1,
-    };
-    const { error } = await supabase.from('inventory_items').insert(item);
-    if (error) {
-      console.error('Error agregando artículo:', error);
-      alert(`Error: ${error.message}`);
-      return;
-    }
-    setInventoryItems(prev => [...prev, item]);
-    setNewItemName('');
-    setNewItemCategory('General');
-    setNewItemUnit('unidad');
-    alert(`✅ "${item.name}" agregado correctamente`);
-  };
-
-  const categories = [...new Set(inventoryItems.map(i => i.category))];
-
-  return (
-    <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Insumos" title="Inventario"
-        right={
-          pendingRequests.length > 0 && isAdmin ? (
-            <div style={{ padding: '6px 14px', background: '#fef3c7', borderRadius: 999, fontSize: 13, fontWeight: 700, color: '#92400e', border: '1px solid #fcd34d' }}>
-              🔔 {pendingRequests.length} solicitud{pendingRequests.length !== 1 ? 'es' : ''} pendiente{pendingRequests.length !== 1 ? 's' : ''}
-            </div>
-          ) : null
-        }
-      />
-
-      {/* Toggle secciones */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: '#f1f5f9', padding: 3, borderRadius: 8, flexWrap: 'wrap' }}>
-        {isGroomer ? (
-          <>
-            <button onClick={() => setActiveSection('solicitar')}
-              style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitar' ? 600 : 400, background: activeSection === 'solicitar' ? '#fff' : 'transparent', color: activeSection === 'solicitar' ? '#0f766e' : '#64748b' }}>
-              📦 Solicitar insumos
-            </button>
-            <button onClick={() => setActiveSection('mis-solicitudes')}
-              style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'mis-solicitudes' ? 600 : 400, background: activeSection === 'mis-solicitudes' ? '#fff' : 'transparent', color: activeSection === 'mis-solicitudes' ? '#0f766e' : '#64748b' }}>
-              📋 Mis solicitudes
-            </button>
-          </>
-        ) : (
-          <>
-            <button onClick={() => setActiveSection('solicitudes')}
-              style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitudes' ? 600 : 400, background: activeSection === 'solicitudes' ? '#fff' : 'transparent', color: activeSection === 'solicitudes' ? '#0f766e' : '#64748b' }}>
-              🔔 Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}
-            </button>
-            <button onClick={() => setActiveSection('historial')}
-              style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'historial' ? 600 : 400, background: activeSection === 'historial' ? '#fff' : 'transparent', color: activeSection === 'historial' ? '#0f766e' : '#64748b' }}>
-              📋 Historial
-            </button>
-            <button onClick={() => setActiveSection('articulos')}
-              style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'articulos' ? 600 : 400, background: activeSection === 'articulos' ? '#fff' : 'transparent', color: activeSection === 'articulos' ? '#0f766e' : '#64748b' }}>
-              ⚙️ Artículos
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* ===== SOLICITAR INSUMOS (groomer) ===== */}
-      {activeSection === 'solicitar' && (
+      {/* ===== OVERVIEW ===== */}
+      {section === 'overview' && (
         <div>
-          <div style={styles.card}>
-            <h3 style={styles.cardH3}>📦 ¿Qué necesitas?</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {categories.map(cat => (
-                <div key={cat}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {inventoryItems.filter(i => i.category === cat).map(item => (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: (requestItems[item.id] || 0) > 0 ? '#f0fdfa' : '#f8fafc', borderRadius: 10, border: `1px solid ${(requestItems[item.id] || 0) > 0 ? '#ccfbf1' : '#f1f5f9'}` }}>
-                        <div style={{ flex: 1, fontSize: 14, fontWeight: (requestItems[item.id] || 0) > 0 ? 600 : 400 }}>{item.name}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{item.unit}</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <button onClick={() => setRequestItems(prev => ({ ...prev, [item.id]: Math.max(0, (prev[item.id] || 0) - 1) }))}
-                            style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>−</button>
-                          <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, fontSize: 16, color: (requestItems[item.id] || 0) > 0 ? '#0f766e' : '#94a3b8' }}>
-                            {requestItems[item.id] || 0}
-                          </span>
-                          <button onClick={() => setRequestItems(prev => ({ ...prev, [item.id]: (prev[item.id] || 0) + 1 }))}
-                            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: '#0f766e', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>+</button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <label style={styles.lbl}>Notas adicionales (opcional)</label>
-              <input value={requestNotes} onChange={e => setRequestNotes(e.target.value)} style={styles.input} placeholder="Ej: El shampoo está casi vacío..." />
-            </div>
-
-            {/* Resumen */}
-            {Object.values(requestItems).some(v => v > 0) && (
-              <div style={{ marginTop: 12, padding: '12px 14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1' }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#0f766e', marginBottom: 6 }}>Resumen de solicitud:</div>
-                {Object.entries(requestItems).filter(([, qty]) => qty > 0).map(([itemId, qty]) => {
-                  const item = inventoryItems.find(i => i.id === itemId);
-                  return <div key={itemId} style={{ fontSize: 13, color: '#0f766e' }}>• {item?.name}: {qty} {item?.unit}</div>;
-                })}
-              </div>
-            )}
-
-            <div style={{ marginTop: 16 }}>
-              <button onClick={handleSendRequest} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center' }} disabled={saving}>
-                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : '📦'}
-                {saving ? 'Enviando...' : 'Enviar solicitud al administrador'}
-              </button>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
+            <KPI label="Ingresos brutos" value={fmt(totalRevenue)} sub={`+${fmt(totalTips)} propinas`} color="#0f766e" growth={revenueGrowth} />
+            <KPI label="Neto" value={fmt(netRevenue)} sub={`-${fmt(totalExpenses)} gastos`} color="#7c3aed" />
+            <KPI label="Citas" value={totalAppts} sub={`${completedAppts} completadas (${completionRate}%)`} color="#3b82f6" />
+            <KPI label="Mascotas" value={totalPets} color="#f59e0b" />
+            <KPI label="Fee tarjeta" value={fmt(totalCardFees)} color="#ec4899" />
+            <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub="Ingreso empresa" color="#0284c7" />
           </div>
-        </div>
-      )}
 
-      {/* ===== MIS SOLICITUDES (groomer) ===== */}
-      {activeSection === 'mis-solicitudes' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {inventoryRequests.filter(r => r.van_id === myVanId).length === 0 ? (
-            <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin solicitudes aún</p></div>
-          ) : inventoryRequests.filter(r => r.van_id === myVanId).map(req => (
-            <div key={req.id} style={{ ...styles.card, borderLeft: `3px solid ${req.status === 'pending' ? '#f59e0b' : '#0f766e'}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 12, color: '#64748b' }}>{new Date(req.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: req.status === 'pending' ? '#fef3c7' : '#f0fdfa', color: req.status === 'pending' ? '#92400e' : '#0f766e', fontWeight: 600 }}>
-                  {req.status === 'pending' ? '⏳ Pendiente' : '✅ Entregado'}
-                </span>
-              </div>
-              {(req.inventory_request_items || []).map(item => (
-                <div key={item.id} style={{ fontSize: 13, color: '#475569' }}>• {item.item_name}: {item.quantity}</div>
-              ))}
-              {req.notes && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>📝 {req.notes}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* ===== SOLICITUDES PENDIENTES (admin) ===== */}
-      {activeSection === 'solicitudes' && (
-        <div>
-          {pendingRequests.length === 0 ? (
-            <div style={styles.empty}><p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 18 }}>Sin solicitudes pendientes 🎉</p></div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {pendingRequests.map(req => {
-                const van = vans.find(v => v.id === req.van_id);
+          {/* EPW vs ATW */}
+          {selectedCompany === 'all' && (
+            <div style={{ ...styles.card, marginBottom: 16 }}>
+              <h3 style={styles.cardH3}>🏢 Por empresa</h3>
+              {DEFAULT_COMPANIES.map(c => {
+                const rev = c.id === 'epw' ? epwRevenue : atwRevenue;
+                const p = pct(rev, totalRevenue);
                 return (
-                  <div key={req.id} style={{ ...styles.card, borderLeft: '3px solid #f59e0b' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 15 }}>🚐 {van?.name || req.van_id} — {req.groomer_name}</div>
-                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                          {new Date(req.created_at).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </div>
-                      </div>
-                      <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>⏳ Pendiente</span>
+                  <div key={c.id} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>{c.logoEmoji} {c.name}</span>
+                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f766e' }}>{fmt(rev)} <span style={{ fontSize: 12, color: '#94a3b8', fontFamily: 'Manrope' }}>({p}%)</span></span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10 }}>
-                      {(req.inventory_request_items || []).map(item => (
-                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: '#f8fafc', borderRadius: 6 }}>
-                          <span>📦 {item.item_name}</span>
-                          <span style={{ fontWeight: 600, color: '#0f766e' }}>{item.quantity} {inventoryItems.find(i => i.id === item.item_id)?.unit || ''}</span>
-                        </div>
-                      ))}
+                    <Bar value={rev} max={totalRevenue} color={c.id === 'epw' ? '#0f766e' : '#7c3aed'} height={10} />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Días de la semana */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>📅 Citas por día</h3>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 90 }}>
+              {byDay.map(({ day, count }) => (
+                <div key={day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: count > 0 ? '#0f766e' : 'transparent' }}>{count}</div>
+                  <div style={{ width: '100%', background: count > 0 ? '#0f766e' : '#f1f5f9', borderRadius: '4px 4px 0 0', height: `${Math.max((count/maxDay)*65, 4)}px`, transition: 'height 0.4s' }} />
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{day}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== SALES ===== */}
+      {section === 'sales' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <KPI label="Ventas brutas" value={fmt(totalRevenue)} color="#0f766e" />
+            <KPI label="Propinas" value={fmt(totalTips)} color="#f59e0b" />
+            <KPI label="Fee tarjeta" value={fmt(totalCardFees)} sub="Ingreso empresa" color="#ec4899" />
+            <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub={`${filteredServices.length} servicios × $${settings?.gasFee || 7}`} color="#0284c7" />
+            <KPI label="Total ingresos empresa" value={fmt(totalRevenue + totalCardFees + totalGasFees)} color="#0f172a" />
+          </div>
+
+          {/* Métodos de pago */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>💳 Por método de pago</h3>
+            {PAYMENT_METHODS.map(m => {
+              const amt = byMethod[m] || 0;
+              const ms = METHOD_STYLES[m];
+              return (
+                <div key={m} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: ms.dot, display: 'inline-block' }} />{m}
+                    </span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{fmt(amt)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({pct(amt, totalRevenue)}%)</span></span>
+                  </div>
+                  <Bar value={amt} max={totalRevenue} color={ms.dot} height={6} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* EPW vs ATW desglose */}
+          {selectedCompany === 'all' && (
+            <div style={styles.card}>
+              <h3 style={styles.cardH3}>🏢 Por empresa</h3>
+              {DEFAULT_COMPANIES.map(c => {
+                const rev = c.id === 'epw' ? epwRevenue : atwRevenue;
+                const svcCount = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === c.id).length;
+                const tips = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === c.id).reduce((s,i) => s + (i.tip||0), 0);
+                return (
+                  <div key={c.id} style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>{c.logoEmoji} {c.name}</span>
+                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: '#0f766e' }}>{fmt(rev)}</span>
                     </div>
-                    {req.notes && <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>📝 {req.notes}</div>}
-                    <button onClick={() => handleMarkDelivered(req.id)} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center' }}>
-                      ✅ Marcar como entregado
-                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12, color: '#64748b' }}>
+                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{svcCount}</div>Servicios</div>
+                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{fmt(tips)}</div>Propinas</div>
+                      <div><div style={{ fontWeight: 600, color: '#0f172a' }}>{pct(rev, totalRevenue)}%</div>Del total</div>
+                    </div>
                   </div>
                 );
               })}
@@ -6036,85 +5862,203 @@ function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryIte
         </div>
       )}
 
-      {/* ===== HISTORIAL (admin) ===== */}
-      {activeSection === 'historial' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {deliveredRequests.length === 0 ? (
-            <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin entregas registradas aún</p></div>
-          ) : deliveredRequests.map(req => {
-            const van = vans.find(v => v.id === req.van_id);
+      {/* ===== CLIENTS & PETS ===== */}
+      {section === 'clients' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <KPI label="Clientes únicos" value={uniqueClients.length} color="#0f766e" />
+            <KPI label="Clientes nuevos" value={newClients} sub="Primera visita" color="#3b82f6" />
+            <KPI label="Clientes recurrentes" value={returningClients} sub="Ya han venido" color="#f59e0b" />
+            <KPI label="Mascotas atendidas" value={totalPets} color="#ec4899" />
+          </div>
+
+          {/* Servicios más populares */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>🌟 Servicios más populares</h3>
+            {topServices.length === 0 ? (
+              <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin datos para este período</div>
+            ) : topServices.map(([name, count], i) => (
+              <div key={name} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13, fontWeight: i === 0 ? 700 : 400 }}>{i === 0 ? '⭐ ' : ''}{name}</span>
+                  <span style={{ fontWeight: 600, color: '#0f766e' }}>{count} vez{count !== 1 ? 'es' : ''}</span>
+                </div>
+                <Bar value={count} max={topServices[0]?.[1] || 1} color={i === 0 ? '#0f766e' : '#94a3b8'} height={6} />
+              </div>
+            ))}
+          </div>
+
+          {/* Ticket promedio */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>💰 Ticket promedio</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Por cita</div>
+                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: '#0f766e' }}>
+                  {fmt(totalAppts > 0 ? totalRevenue / totalAppts : 0)}
+                </div>
+              </div>
+              <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 6 }}>Por mascota</div>
+                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: '#0f766e' }}>
+                  {fmt(totalPets > 0 ? totalRevenue / totalPets : 0)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== STAFF ===== */}
+      {section === 'staff' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <KPI label="Groomers activos" value={groomerStats.filter(g => g.appts > 0).length} color="#0f766e" />
+            <KPI label="Total comisiones" value={fmt(groomerStats.reduce((s,g) => s + g.commission, 0))} color="#7c3aed" />
+            <KPI label="Citas completadas" value={completedAppts} sub={`${completionRate}% tasa de completación`} color="#3b82f6" />
+          </div>
+
+          {groomerStats.filter(g => g.appts > 0).length === 0 ? (
+            <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin datos de groomers para este período</p></div>
+          ) : groomerStats.filter(g => g.appts > 0).map(g => {
+            const maxRev = Math.max(...groomerStats.map(gs => gs.revenue), 1);
             return (
-              <div key={req.id} style={{ ...styles.card, borderLeft: '3px solid #0f766e', opacity: 0.85 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>🚐 {van?.name} — {req.groomer_name}</div>
-                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>✅ Entregado</span>
+              <div key={g.id} style={styles.card}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600 }}>✂️ {g.name}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                      {g.company?.logoEmoji} {g.company?.name || ''} · {g.van?.name || ''} · {g.commissionPct}%
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: '#0f766e' }}>{fmt(g.commission)}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>a pagar</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-                  Solicitado: {new Date(req.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                  {req.delivered_at && ` · Entregado: ${new Date(req.delivered_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, fontSize: 12, marginBottom: 8 }}>
+                  <div style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{g.appts}</div>
+                    <div style={{ color: '#94a3b8' }}>Citas</div>
+                  </div>
+                  <div style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#0f766e' }}>{g.completed}</div>
+                    <div style={{ color: '#94a3b8' }}>Completadas</div>
+                  </div>
+                  <div style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{fmt(g.revenue)}</div>
+                    <div style={{ color: '#94a3b8' }}>Ventas</div>
+                  </div>
                 </div>
-                {(req.inventory_request_items || []).map(item => (
-                  <div key={item.id} style={{ fontSize: 12, color: '#475569' }}>• {item.item_name}: {item.quantity}</div>
-                ))}
+                <Bar value={g.revenue} max={maxRev} color='#0f766e' height={6} />
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ===== ARTÍCULOS (admin) ===== */}
-      {activeSection === 'articulos' && (
-        <div>
-          <div style={styles.card}>
-            <h3 style={styles.cardH3}>➕ Nuevo artículo</h3>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Nombre *</label>
-                <input value={newItemName} onChange={e => setNewItemName(e.target.value)} style={styles.input} placeholder="Ej: Shampoo desodorizante" />
-              </div>
-              <div>
-                <label style={styles.lbl}>Categoría</label>
-                <input value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)} style={styles.input} placeholder="Shampoo, Insumos, Cuidado..." list="cat-list" />
-                <datalist id="cat-list">
-                  {categories.map(c => <option key={c} value={c} />)}
-                </datalist>
-              </div>
-              <div>
-                <label style={styles.lbl}>Unidad</label>
-                <select value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} style={styles.input}>
-                  {['botella','frasco','paquete','rollo','unidad','caja','galón'].map(u => <option key={u} value={u}>{u}</option>)}
-                </select>
-              </div>
-            </div>
-            <button onClick={handleAddItem} style={{ ...styles.btnPrimary, marginTop: 12 }}><Plus size={15} /> Agregar artículo</button>
+      {/* ===== OPERATIONS ===== */}
+      {section === 'operations' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+            <KPI label="Total citas" value={totalAppts} color="#3b82f6" />
+            <KPI label="Completadas" value={completedAppts} sub={`${completionRate}%`} color="#0f766e" />
+            <KPI label="Canceladas" value={cancelledAppts} sub={`${pct(cancelledAppts, totalAppts)}%`} color="#dc2626" />
+            <KPI label="Total gastos" value={fmt(totalExpenses)} color="#f59e0b" />
           </div>
 
-          <div style={{ ...styles.card, marginTop: 16 }}>
-            <h3 style={styles.cardH3}>Artículos registrados</h3>
-            {categories.map(cat => (
-              <div key={cat} style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
-                {inventoryItems.filter(i => i.category === cat).map(item => (
-                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 14 }}>{item.name}</span>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: '#94a3b8' }}>{item.unit}</span>
-                      <button onClick={async () => {
-                        if (!confirm(`¿Desactivar "${item.name}"?`)) return;
-                        await supabase.from('inventory_items').update({ active: false }).eq('id', item.id);
-                        setInventoryItems(prev => prev.filter(i => i.id !== item.id));
-                      }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={13} /></button>
-                    </div>
+          {/* Gastos por van y categoría */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>⛽ Gastos por van</h3>
+            {expensesByVan.length === 0 ? (
+              <div style={{ color: '#94a3b8', fontSize: 13, textAlign: 'center', padding: 20 }}>Sin gastos para este período</div>
+            ) : expensesByVan.map(({ van, total, byCategory }) => (
+              <div key={van.id} style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>🚐 {van.name}</span>
+                  <span style={{ fontWeight: 700, color: '#dc2626' }}>{fmt(total)}</span>
+                </div>
+                {Object.entries(byCategory).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => (
+                  <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 4 }}>
+                    <span>• {cat}</span>
+                    <span style={{ fontWeight: 500 }}>{fmt(amt)}</span>
                   </div>
                 ))}
               </div>
             ))}
           </div>
+
+          {/* Citas por van */}
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>🚐 Citas por van</h3>
+            {vans.map(v => {
+              const count = filteredAppts.filter(a => a.vanId === v.id).length;
+              const completed = filteredAppts.filter(a => a.vanId === v.id && a.status === 'completed').length;
+              if (count === 0) return null;
+              return (
+                <div key={v.id} style={{ marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13 }}>{v.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{completed}/{count} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({pct(completed, count)}%)</span></span>
+                  </div>
+                  <Bar value={completed} max={count} color='#0f766e' height={6} />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ===== VS PRIOR PERIOD ===== */}
+      {section === 'comparison' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, fontSize: 13, color: '#0f766e', border: '1px solid #ccfbf1' }}>
+            📊 Comparando <strong>{label}</strong> vs período anterior ({prior.start} → {prior.end})
+          </div>
+
+          {[
+            { label: 'Ingresos', current: totalRevenue, prior: priorRevenue, fmt: true },
+            { label: 'Servicios', current: filteredServices.length, prior: priorServices.length, fmt: false },
+            { label: 'Citas', current: totalAppts, prior: appointments.filter(a => inRange(a.date, prior.start, prior.end)).length, fmt: false },
+          ].map(item => {
+            const diff = item.current - item.prior;
+            const diffPct = item.prior > 0 ? ((diff / item.prior) * 100).toFixed(1) : null;
+            const isUp = diff >= 0;
+            return (
+              <div key={item.label} style={styles.card}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>{item.label}</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+                  <div style={{ textAlign: 'center', padding: '10px', background: '#f0fdfa', borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Período actual</div>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: '#0f766e' }}>
+                      {item.fmt ? fmt(item.current) : item.current}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', background: '#f8fafc', borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Período anterior</div>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: '#94a3b8' }}>
+                      {item.fmt ? fmt(item.prior) : item.prior}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', background: isUp ? '#f0fdfa' : '#fef2f2', borderRadius: 10 }}>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>Diferencia</div>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: isUp ? '#0f766e' : '#dc2626' }}>
+                      {isUp ? '▲' : '▼'} {diffPct ? `${Math.abs(diffPct)}%` : '—'}
+                    </div>
+                    <div style={{ fontSize: 11, color: isUp ? '#0f766e' : '#dc2626' }}>
+                      {item.fmt ? fmt(Math.abs(diff)) : Math.abs(diff)} {isUp ? 'más' : 'menos'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
+
 
 function AuditoriaTab() {
   const [logs, setLogs] = useState([]);
