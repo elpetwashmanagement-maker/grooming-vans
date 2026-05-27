@@ -2738,6 +2738,55 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <DollarSign size={14} /> Completar y cobrar
                         </button>
                       )}
+                      {/* Ver invoice — cita completada */}
+                      {appt.status === 'completed' && (
+                        <button onClick={async () => {
+                          // Buscar invoice guardada
+                          const { data } = await supabase.from('invoices')
+                            .select('*').eq('appointment_id', appt.id).single();
+                          if (data) {
+                            const van = vans.find(v => v.id === appt.vanId);
+                            setShowInvoice({
+                              id: data.id,
+                              invoiceNumber: data.invoice_number,
+                              companyId: data.company_id,
+                              clientName: data.client_name,
+                              clientAddress: data.client_address,
+                              groomerName: data.groomer_name,
+                              vanName: data.van_name,
+                              date: data.date,
+                              services: typeof data.services === 'string' ? JSON.parse(data.services) : (data.services || []),
+                              subtotal: parseFloat(data.subtotal) || 0,
+                              gasFee: parseFloat(data.gas_fee) || 0,
+                              cardFee: parseFloat(data.card_fee) || 0,
+                              tip: parseFloat(data.tip) || 0,
+                              total: parseFloat(data.total) || 0,
+                              method: data.method,
+                            });
+                          } else {
+                            // Reconstruir invoice desde la cita si no existe
+                            const van = vans.find(v => v.id === appt.vanId);
+                            const subtotal = (appt.pets || []).reduce((s, ap) => s + (ap.amount || 0), 0);
+                            setShowInvoice({
+                              invoiceNumber: '—',
+                              companyId: van?.companyId || 'epw',
+                              clientName: appt.client?.name || '',
+                              clientAddress: appt.client?.address || '',
+                              groomerName: van?.groomer || '',
+                              date: appt.date,
+                              services: (appt.pets || []).map(ap => ({ petName: ap.pet?.name || 'Mascota', service: ap.service || '', amount: ap.amount || 0 })),
+                              subtotal,
+                              gasFee: 7,
+                              cardFee: 0,
+                              tip: 0,
+                              total: subtotal + 7,
+                              method: 'Efectivo',
+                            });
+                          }
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
+                          🧾 Ver Invoice
+                        </button>
+                      )}
                       {appt.client?.address && (
                         <button onClick={() => openMaps(appt.client.address)} style={{ ...styles.btnSecondary, justifyContent: 'center' }}>
                           <MapPin size={14} /> Google Maps
