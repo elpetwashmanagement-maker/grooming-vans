@@ -1550,6 +1550,8 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
   const [filterVanId, setFilterVanId] = useState('todos');
   const [showSignature, setShowSignature] = useState(null); // appt
+  const [reasignando, setReasignando] = useState(null); // appt id
+  const [reasignForm, setReasignForm] = useState({ vanId: '', groomerId: '' });
 
   const isGroomer = session?.role === 'groomer';
   const myVanId = session?.vanId;
@@ -2369,6 +2371,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <X size={14} /> Cancelar
                         </button>
                       )}
+                      {appt.status !== 'completed' && appt.status !== 'cancelled' && isAdmin && (
+                        <button onClick={() => { setReasignando(appt.id); setReasignForm({ vanId: appt.vanId, groomerId: appt.groomerId || '' }); }}
+                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e' }}>
+                          🔄 Reasignar
+                        </button>
+                      )}
                       {appt.status === 'cancelled' && isAdmin && (
                         <button onClick={() => { if (confirm('¿Borrar esta cita permanentemente? No se puede deshacer.')) deleteAppt(appt.id); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center', background: 'var(--color-background-danger)' }}>
@@ -2376,6 +2384,44 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                     </div>
+
+                    {/* Formulario de reasignación */}
+                    {reasignando === appt.id && (
+                      <div style={{ marginBottom: 14, padding: '12px 14px', background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b' }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 10 }}>🔄 Reasignar cita</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                          <div>
+                            <label style={styles.lbl}>Van</label>
+                            <select value={reasignForm.vanId} onChange={e => setReasignForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
+                              {vans.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Groomer del día</label>
+                            <select value={reasignForm.groomerId} onChange={e => setReasignForm(f => ({...f, groomerId: e.target.value}))} style={styles.input}>
+                              <option value="">Sin asignar</option>
+                              {(session?.groomers || []).filter(g => g.active !== false).map(g => (
+                                <option key={g.id} value={g.id}>{g.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setReasignando(null)} style={styles.btnSecondary}><X size={13} /> Cancelar</button>
+                          <button onClick={async () => {
+                            await supabase.from('appointments').update({
+                              van_id: reasignForm.vanId,
+                              groomer_id: reasignForm.groomerId || null,
+                            }).eq('id', appt.id);
+                            await refreshAppointments();
+                            setReasignando(null);
+                            alert('✅ Cita reasignada correctamente');
+                          }} style={{ ...styles.btnPrimary, background: '#f59e0b', borderColor: '#f59e0b' }}>
+                            <Check size={13} /> Confirmar reasignación
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Ficha de grooming y servicio por mascota */}
                     <div>
