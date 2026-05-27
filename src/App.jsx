@@ -497,6 +497,34 @@ const saveInvoice = async (invoice) => {
   return !error;
 };
 
+// ===== GASTOS EMPRESA =====
+const loadCompanyExpenses = async () => {
+  const { data, error } = await supabase.from('company_expenses').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return (data || []).map(e => ({
+    id: e.id, companyId: e.company_id, category: e.category,
+    description: e.description || '', amount: parseFloat(e.amount) || 0,
+    method: e.method || 'cash', vanId: e.van_id || null,
+    receiptUrl: e.receipt_url || null, date: e.date, createdBy: e.created_by || '',
+  }));
+};
+
+const saveCompanyExpense = async (expense) => {
+  const { error } = await supabase.from('company_expenses').upsert({
+    id: expense.id, company_id: expense.companyId, category: expense.category,
+    description: expense.description || '', amount: expense.amount,
+    method: expense.method || 'cash', van_id: expense.vanId || null,
+    receipt_url: expense.receiptUrl || null, date: expense.date,
+    created_by: expense.createdBy || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+const deleteCompanyExpense = async (id) => {
+  await supabase.from('company_expenses').delete().eq('id', id);
+};
+
 // ===== INVENTARIO =====
 const loadInventoryItems = async () => {
   const { data, error } = await supabase.from('inventory_items').select('*').eq('active', true).order('sort_order');
@@ -555,19 +583,21 @@ export default function App() {
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [inventoryItems, setInventoryItems] = useState([]);
   const [inventoryRequests, setInventoryRequests] = useState([]);
+  const [companyExpenses, setCompanyExpenses] = useState([]);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
         loadServicePrices(), loadGroomers(), loadCompanies(),
-        loadInventoryItems(), loadInventoryRequests()
+        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
       setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
       setCompanies(cos); setInventoryItems(invItems); setInventoryRequests(invReqs);
+      setCompanyExpenses(compExp);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -814,6 +844,13 @@ export default function App() {
             users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive}
             servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice}
             groomers={groomers} addGroomer={addGroomer} updateGroomer={updateGroomer} toggleGroomerActive={toggleGroomerActive}
+          />
+        )}
+        {tab === 'gastos-empresa' && isAdmin && (
+          <GastosEmpresaTab
+            vans={vans} session={session} companies={companies}
+            companyExpenses={companyExpenses}
+            setCompanyExpenses={setCompanyExpenses}
           />
         )}
         {tab === 'inventario' && (
@@ -1355,6 +1392,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'clientes', label: 'Clientes', icon: Plus, show: true },
     { id: 'razas', label: 'IA Razas', icon: Sparkles, show: true },
     { id: 'cierre', label: isGroomer ? 'Mi Cierre' : 'Cierre Diario', icon: FileText, show: true },
+    { id: 'gastos-empresa', label: '💼 Gastos', icon: DollarSign, show: isAdmin },
     { id: 'inventario', label: '📦 Inventario', icon: Plus, show: true },
     { id: 'semana', label: 'Reporte Semanal', icon: TrendingUp, show: canViewReports },
     { id: 'dashboard', label: 'Dashboard', icon: TrendingUp, show: isAdmin },
@@ -6059,6 +6097,477 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
   );
 }
 
+
+// ===== GASTOS EMPRESA TAB =====
+const COMPANY_EXPENSE_CATEGORIES = [
+  { id: 'Mantenimiento', icon: '🔧' },
+  { id: 'Repuestos',     icon: '⚙️' },
+  { id: 'Insumos',       icon: '🧴' },
+  { id: 'Seguros',       icon: '🛡️' },
+  { id: 'Marketing',     icon: '📱' },
+  { id: 'Equipos',       icon: '✂️' },
+  { id: 'Administrativo',icon: '📋' },
+  { id: 'Otros',         icon: '💼' },
+];
+
+function GastosEmpresaTab({ vans, session, companies, companyExpenses, setCompanyExpenses }) {
+  const [form, setForm] = useState({
+    companyId: 'epw', category: 'Mantenimiento', description: '',
+    amount: '', method: 'cash', vanId: '', date: todayISO(),
+  });
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [filterCompany, setFilterCompany] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [viewingReceipt, setViewingReceipt] = useState(null);
+  const [dateStart, setDateStart] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+  });
+  const [dateEnd, setDateEnd] = useState(todayISO());
+
+  const filtered = useMemo(() => companyExpenses.filter(e =>
+    inRange(e.date, dateStart, dateEnd) &&
+    (filterCompany === 'all' || e.companyId === filterCompany) &&
+    (filterCategory === 'all' || e.category === filterCategory)
+  ).sort((a,b) => b.date.localeCompare(a.date)), [companyExpenses, dateStart, dateEnd, filterCompany, filterCategory]);
+
+  const totalFiltered = filtered.reduce((s,e) => s + e.amount, 0);
+  const byCategory = useMemo(() => {
+    const map = {};
+    filtered.forEach(e => { map[e.category] = (map[e.category] || 0) + e.amount; });
+    return Object.entries(map).sort((a,b) => b[1]-a[1]);
+  }, [filtered]);
+
+  const handleSubmit = async () => {
+    if (!form.amount || !form.category) { alert('Ingresa categoría y monto'); return; }
+    setSaving(true);
+    const expense = {
+      id: uid(), companyId: form.companyId, category: form.category,
+      description: form.description.trim(), amount: parseFloat(form.amount) || 0,
+      method: form.method, vanId: form.vanId || null,
+      date: form.date, createdBy: session?.userName || '',
+    };
+    if (receiptFile) {
+      const ext = receiptFile.name.split('.').pop();
+      const path = `company-${expense.id}.${ext}`;
+      const { error } = await supabase.storage.from('receipts').upload(path, receiptFile, { upsert: true });
+      if (!error) {
+        const { data } = supabase.storage.from('receipts').getPublicUrl(path);
+        expense.receiptUrl = data.publicUrl;
+      }
+    }
+    const ok = await saveCompanyExpense(expense);
+    if (ok) {
+      setCompanyExpenses(prev => [expense, ...prev]);
+      setForm({ companyId: 'epw', category: 'Mantenimiento', description: '', amount: '', method: 'cash', vanId: '', date: todayISO() });
+      setReceiptFile(null); setReceiptPreview(null);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Administración" title="💼 Gastos de Empresa" />
+
+      <div style={styles.card}>
+        <h3 style={styles.cardH3}>Registrar gasto</h3>
+        <div style={{ marginBottom: 14 }}>
+          <label style={styles.lbl}>Empresa</label>
+          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            {DEFAULT_COMPANIES.map(c => (
+              <button key={c.id} type="button" onClick={() => setForm(f => ({...f, companyId: c.id, vanId: ''}))}
+                style={{ flex: 1, padding: '9px', borderRadius: 10, border: `2px solid ${form.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: form.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 14, fontWeight: form.companyId === c.id ? 700 : 400, color: form.companyId === c.id ? '#0f766e' : '#64748b' }}>
+                {c.logoEmoji} {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={styles.lbl}>Categoría</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+            {COMPANY_EXPENSE_CATEGORIES.map(cat => (
+              <button key={cat.id} type="button" onClick={() => setForm(f => ({...f, category: cat.id}))}
+                style={{ padding: '6px 14px', borderRadius: 999, border: `1.5px solid ${form.category === cat.id ? '#0f766e' : '#e2e8f0'}`, background: form.category === cat.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: form.category === cat.id ? 700 : 400, color: form.category === cat.id ? '#0f766e' : '#64748b' }}>
+                {cat.icon} {cat.id}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={styles.formGrid}>
+          <div>
+            <label style={styles.lbl}>Fecha *</label>
+            <input type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))} style={styles.input} />
+          </div>
+          <div>
+            <label style={styles.lbl}>Monto *</label>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
+              <input type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({...f, amount: e.target.value}))} style={{ ...styles.input, paddingLeft: 24 }} placeholder="0.00" />
+            </div>
+          </div>
+          <div>
+            <label style={styles.lbl}>Descripción</label>
+            <input value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))} style={styles.input} placeholder="Ej: Cambio de aceite Van 2" />
+          </div>
+          <div>
+            <label style={styles.lbl}>Método de pago</label>
+            <select value={form.method} onChange={e => setForm(f => ({...f, method: e.target.value}))} style={styles.input}>
+              <option value="cash">💵 Cash</option>
+              <option value="tarjeta-empresa">💳 Tarjeta empresa</option>
+              <option value="cheque">📄 Cheque</option>
+              <option value="zelle">📱 Zelle</option>
+            </select>
+          </div>
+          <div>
+            <label style={styles.lbl}>Van (opcional)</label>
+            <select value={form.vanId} onChange={e => setForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
+              <option value="">🏢 Toda la empresa</option>
+              {vans.filter(v => v.companyId === form.companyId).map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={styles.lbl}>📷 Recibo (opcional)</label>
+            <input type="file" accept="image/*" capture="environment"
+              onChange={e => { const f = e.target.files[0]; if (!f) return; setReceiptFile(f); setReceiptPreview(URL.createObjectURL(f)); }}
+              style={{ ...styles.input, padding: '7px 12px', fontSize: 13 }} />
+          </div>
+        </div>
+
+        {receiptPreview && (
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img src={receiptPreview} alt="Recibo" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 8, border: '1px solid #e2e8f0' }} />
+            <button onClick={() => { setReceiptFile(null); setReceiptPreview(null); }} style={{ fontSize: 11, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}>Quitar foto</button>
+          </div>
+        )}
+        <div style={{ marginTop: 16 }}>
+          <button onClick={handleSubmit} style={styles.btnPrimary} disabled={saving}>
+            {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
+            {saving ? 'Guardando...' : 'Registrar gasto'}
+          </button>
+        </div>
+      </div>
+
+      {/* Filtros */}
+      <div style={{ ...styles.card, marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div><label style={styles.lbl}>Desde</label><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
+          <div><label style={styles.lbl}>Hasta</label><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
+          <div>
+            <label style={styles.lbl}>Empresa</label>
+            <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} style={styles.input}>
+              <option value="all">Todas</option>
+              {DEFAULT_COMPANIES.map(c => <option key={c.id} value={c.id}>{c.logoEmoji} {c.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={styles.lbl}>Categoría</label>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={styles.input}>
+              <option value="all">Todas</option>
+              {COMPANY_EXPENSE_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {c.id}</option>)}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginTop: 16 }}>
+        <div style={{ ...styles.kpiCard, borderTop: '3px solid #dc2626' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Total gastos</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: '#dc2626', marginTop: 6 }}>{fmt(totalFiltered)}</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{filtered.length} registro{filtered.length !== 1 ? 's' : ''}</div>
+        </div>
+        {byCategory.slice(0, 3).map(([cat, amt]) => {
+          const catInfo = COMPANY_EXPENSE_CATEGORIES.find(c => c.id === cat);
+          return (
+            <div key={cat} style={styles.kpiCard}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{catInfo?.icon} {cat}</div>
+              <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 700, color: '#0f172a', marginTop: 6 }}>{fmt(amt)}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Lista */}
+      <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filtered.length === 0 ? (
+          <div style={styles.empty}><p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>Sin gastos para este período</p></div>
+        ) : filtered.map(e => {
+          const catInfo = COMPANY_EXPENSE_CATEGORIES.find(c => c.id === e.category);
+          const company = DEFAULT_COMPANIES.find(c => c.id === e.companyId);
+          const van = vans.find(v => v.id === e.vanId);
+          const methodLabels = { cash: '💵 Cash', 'tarjeta-empresa': '💳 Tarjeta empresa', cheque: '📄 Cheque', zelle: '📱 Zelle' };
+          return (
+            <div key={e.id} className="row-hover" style={{ ...styles.card, padding: '12px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 18 }}>{catInfo?.icon || '💼'}</span>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{e.category}</span>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>{company?.logoEmoji} {company?.name}</span>
+                    {van && <span style={{ fontSize: 11, color: '#64748b' }}>🚐 {van.name}</span>}
+                    {!e.vanId && <span style={{ fontSize: 11, color: '#94a3b8' }}>🏢 Empresa</span>}
+                  </div>
+                  {e.description && <div style={{ fontSize: 13, color: '#64748b', marginBottom: 4 }}>{e.description}</div>}
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{formatDateNice(e.date)} · {methodLabels[e.method] || e.method}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                  {e.receiptUrl && (
+                    <img src={e.receiptUrl} alt="Recibo" onClick={() => setViewingReceipt(e.receiptUrl)}
+                      style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e2e8f0' }} />
+                  )}
+                  <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: '#dc2626' }}>{fmt(e.amount)}</span>
+                  <button onClick={async () => { if (!confirm('¿Eliminar?')) return; await deleteCompanyExpense(e.id); setCompanyExpenses(prev => prev.filter(x => x.id !== e.id)); }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={14} /></button>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {viewingReceipt && (
+        <div onClick={() => setViewingReceipt(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <img src={viewingReceipt} alt="Recibo" style={{ maxWidth: '90vw', maxHeight: '90vh', borderRadius: 12, objectFit: 'contain' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== INVENTARIO TAB =====
+function InventarioTab({ vans, session, isAdmin, inventoryItems, setInventoryItems, inventoryRequests, setInventoryRequests, groomers }) {
+  const isGroomer = session?.role === 'groomer';
+  const myVanId = session?.vanId;
+  const [activeSection, setActiveSection] = useState(isGroomer ? 'solicitar' : 'solicitudes');
+  const [requestItems, setRequestItems] = useState({});
+  const [requestNotes, setRequestNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemCategory, setNewItemCategory] = useState('General');
+  const [newItemUnit, setNewItemUnit] = useState('unidad');
+
+  const pendingRequests = inventoryRequests.filter(r => r.status === 'pending');
+  const deliveredRequests = inventoryRequests.filter(r => r.status === 'delivered');
+  const categories = [...new Set(inventoryItems.map(i => i.category))];
+
+  const handleSendRequest = async () => {
+    const selectedItems = Object.entries(requestItems).filter(([, qty]) => qty > 0);
+    if (selectedItems.length === 0) { alert('Selecciona al menos un artículo'); return; }
+    setSaving(true);
+    const reqId = uid();
+    const req = { id: reqId, vanId: myVanId, groomerId: session.userId, groomerName: session.userName, notes: requestNotes };
+    const items = selectedItems.map(([itemId, qty]) => {
+      const item = inventoryItems.find(i => i.id === itemId);
+      return { itemId, itemName: item?.name || '', quantity: qty };
+    });
+    const ok = await saveInventoryRequest(req, items);
+    if (ok) {
+      const fresh = await loadInventoryRequests();
+      setInventoryRequests(fresh);
+      setRequestItems({});
+      setRequestNotes('');
+      alert('✅ Solicitud enviada al administrador');
+    }
+    setSaving(false);
+  };
+
+  const handleMarkDelivered = async (requestId) => {
+    await markRequestDelivered(requestId);
+    const fresh = await loadInventoryRequests();
+    setInventoryRequests(fresh);
+  };
+
+  const handleAddItem = async () => {
+    if (!newItemName.trim()) { alert('Ingresa el nombre del artículo'); return; }
+    const item = { id: `item-${uid().slice(0,8)}`, name: newItemName.trim(), category: newItemCategory || 'General', unit: newItemUnit || 'unidad', active: true, sort_order: inventoryItems.length + 1 };
+    const { error } = await supabase.from('inventory_items').insert(item);
+    if (error) { alert(`Error: ${error.message}`); return; }
+    setInventoryItems(prev => [...prev, item]);
+    setNewItemName('');
+    alert(`✅ "${item.name}" agregado`);
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Insumos" title="📦 Inventario"
+        right={pendingRequests.length > 0 && isAdmin ? (
+          <div style={{ padding: '6px 14px', background: '#fef3c7', borderRadius: 999, fontSize: 13, fontWeight: 700, color: '#92400e', border: '1px solid #fcd34d' }}>
+            🔔 {pendingRequests.length} pendiente{pendingRequests.length !== 1 ? 's' : ''}
+          </div>
+        ) : null}
+      />
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 20, background: '#f1f5f9', padding: 3, borderRadius: 8, flexWrap: 'wrap' }}>
+        {isGroomer ? (
+          <>
+            <button onClick={() => setActiveSection('solicitar')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitar' ? 600 : 400, background: activeSection === 'solicitar' ? '#fff' : 'transparent', color: activeSection === 'solicitar' ? '#0f766e' : '#64748b' }}>📦 Solicitar insumos</button>
+            <button onClick={() => setActiveSection('mis-solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'mis-solicitudes' ? 600 : 400, background: activeSection === 'mis-solicitudes' ? '#fff' : 'transparent', color: activeSection === 'mis-solicitudes' ? '#0f766e' : '#64748b' }}>📋 Mis solicitudes</button>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setActiveSection('solicitudes')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'solicitudes' ? 600 : 400, background: activeSection === 'solicitudes' ? '#fff' : 'transparent', color: activeSection === 'solicitudes' ? '#0f766e' : '#64748b' }}>🔔 Solicitudes {pendingRequests.length > 0 && `(${pendingRequests.length})`}</button>
+            <button onClick={() => setActiveSection('historial')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'historial' ? 600 : 400, background: activeSection === 'historial' ? '#fff' : 'transparent', color: activeSection === 'historial' ? '#0f766e' : '#64748b' }}>📋 Historial</button>
+            <button onClick={() => setActiveSection('articulos')} style={{ flex: 1, padding: '7px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeSection === 'articulos' ? 600 : 400, background: activeSection === 'articulos' ? '#fff' : 'transparent', color: activeSection === 'articulos' ? '#0f766e' : '#64748b' }}>⚙️ Artículos</button>
+          </>
+        )}
+      </div>
+
+      {activeSection === 'solicitar' && (
+        <div style={styles.card}>
+          <h3 style={styles.cardH3}>📦 ¿Qué necesitas?</h3>
+          {categories.map(cat => (
+            <div key={cat} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
+              {inventoryItems.filter(i => i.category === cat).map(item => (
+                <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: (requestItems[item.id] || 0) > 0 ? '#f0fdfa' : '#f8fafc', borderRadius: 10, marginBottom: 6, border: `1px solid ${(requestItems[item.id] || 0) > 0 ? '#ccfbf1' : '#f1f5f9'}` }}>
+                  <div style={{ flex: 1, fontSize: 14 }}>{item.name}</div>
+                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{item.unit}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button onClick={() => setRequestItems(prev => ({...prev, [item.id]: Math.max(0, (prev[item.id]||0)-1)}))} style={{ width: 28, height: 28, borderRadius: '50%', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, fontSize: 16, color: (requestItems[item.id]||0) > 0 ? '#0f766e' : '#94a3b8' }}>{requestItems[item.id] || 0}</span>
+                    <button onClick={() => setRequestItems(prev => ({...prev, [item.id]: (prev[item.id]||0)+1}))} style={{ width: 28, height: 28, borderRadius: '50%', border: 'none', background: '#0f766e', cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div style={{ marginTop: 12 }}>
+            <label style={styles.lbl}>Notas adicionales</label>
+            <input value={requestNotes} onChange={e => setRequestNotes(e.target.value)} style={styles.input} placeholder="Ej: El shampoo está casi vacío..." />
+          </div>
+          <button onClick={handleSendRequest} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: 14 }} disabled={saving}>
+            {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : '📦'}
+            {saving ? 'Enviando...' : 'Enviar solicitud al administrador'}
+          </button>
+        </div>
+      )}
+
+      {activeSection === 'mis-solicitudes' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {inventoryRequests.filter(r => r.van_id === myVanId).length === 0
+            ? <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin solicitudes aún</p></div>
+            : inventoryRequests.filter(r => r.van_id === myVanId).map(req => (
+              <div key={req.id} style={{ ...styles.card, borderLeft: `3px solid ${req.status === 'pending' ? '#f59e0b' : '#0f766e'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{new Date(req.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                  <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: req.status === 'pending' ? '#fef3c7' : '#f0fdfa', color: req.status === 'pending' ? '#92400e' : '#0f766e', fontWeight: 600 }}>
+                    {req.status === 'pending' ? '⏳ Pendiente' : '✅ Entregado'}
+                  </span>
+                </div>
+                {(req.inventory_request_items || []).map(item => (
+                  <div key={item.id} style={{ fontSize: 13, color: '#475569' }}>• {item.item_name}: {item.quantity}</div>
+                ))}
+              </div>
+            ))}
+        </div>
+      )}
+
+      {activeSection === 'solicitudes' && (
+        <div>
+          {pendingRequests.length === 0
+            ? <div style={styles.empty}><p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 18 }}>Sin solicitudes pendientes 🎉</p></div>
+            : pendingRequests.map(req => {
+              const van = vans.find(v => v.id === req.van_id);
+              return (
+                <div key={req.id} style={{ ...styles.card, borderLeft: '3px solid #f59e0b', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>🚐 {van?.name || req.van_id} — {req.groomer_name}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{new Date(req.created_at).toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: '#fef3c7', color: '#92400e', fontWeight: 600 }}>⏳ Pendiente</span>
+                  </div>
+                  {(req.inventory_request_items || []).map(item => (
+                    <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: '#f8fafc', borderRadius: 6, marginBottom: 4 }}>
+                      <span>📦 {item.item_name}</span>
+                      <span style={{ fontWeight: 600, color: '#0f766e' }}>{item.quantity} {inventoryItems.find(i => i.id === item.item_id)?.unit || ''}</span>
+                    </div>
+                  ))}
+                  {req.notes && <div style={{ fontSize: 12, color: '#64748b', margin: '8px 0' }}>📝 {req.notes}</div>}
+                  <button onClick={() => handleMarkDelivered(req.id)} style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', marginTop: 8 }}>✅ Marcar como entregado</button>
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {activeSection === 'historial' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {deliveredRequests.length === 0
+            ? <div style={styles.empty}><p style={{ margin: 0, color: '#64748b' }}>Sin entregas registradas</p></div>
+            : deliveredRequests.map(req => {
+              const van = vans.find(v => v.id === req.van_id);
+              return (
+                <div key={req.id} style={{ ...styles.card, borderLeft: '3px solid #0f766e', opacity: 0.85 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ fontWeight: 600 }}>🚐 {van?.name} — {req.groomer_name}</div>
+                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>✅ Entregado</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+                    {new Date(req.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                    {req.delivered_at && ` → ${new Date(req.delivered_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}`}
+                  </div>
+                  {(req.inventory_request_items || []).map(item => (
+                    <div key={item.id} style={{ fontSize: 12, color: '#475569' }}>• {item.item_name}: {item.quantity}</div>
+                  ))}
+                </div>
+              );
+            })}
+        </div>
+      )}
+
+      {activeSection === 'articulos' && (
+        <div>
+          <div style={styles.card}>
+            <h3 style={styles.cardH3}>➕ Nuevo artículo</h3>
+            <div style={styles.formGrid}>
+              <div><label style={styles.lbl}>Nombre *</label><input value={newItemName} onChange={e => setNewItemName(e.target.value)} style={styles.input} placeholder="Ej: Shampoo desodorizante" /></div>
+              <div>
+                <label style={styles.lbl}>Categoría</label>
+                <input value={newItemCategory} onChange={e => setNewItemCategory(e.target.value)} style={styles.input} placeholder="Shampoo, Insumos, Cuidado..." list="cat-list" />
+                <datalist id="cat-list">{categories.map(c => <option key={c} value={c} />)}</datalist>
+              </div>
+              <div>
+                <label style={styles.lbl}>Unidad</label>
+                <select value={newItemUnit} onChange={e => setNewItemUnit(e.target.value)} style={styles.input}>
+                  {['botella','frasco','paquete','rollo','unidad','caja','galón'].map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={handleAddItem} style={{ ...styles.btnPrimary, marginTop: 12 }}><Plus size={15} /> Agregar artículo</button>
+          </div>
+
+          <div style={{ ...styles.card, marginTop: 16 }}>
+            <h3 style={styles.cardH3}>Artículos registrados</h3>
+            {categories.map(cat => (
+              <div key={cat} style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
+                {inventoryItems.filter(i => i.category === cat).map(item => (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14 }}>{item.name}</span>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>{item.unit}</span>
+                      <button onClick={async () => {
+                        if (!confirm(`¿Desactivar "${item.name}"?`)) return;
+                        await supabase.from('inventory_items').update({ active: false }).eq('id', item.id);
+                        setInventoryItems(prev => prev.filter(i => i.id !== item.id));
+                      }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AuditoriaTab() {
   const [logs, setLogs] = useState([]);
