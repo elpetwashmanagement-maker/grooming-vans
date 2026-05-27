@@ -389,9 +389,16 @@ const savePet = async (pet) => {
 const loadAppointments = async () => {
   const { data, error } = await supabase
     .from('appointments')
-    .select(`*, appointment_pets(*, pets(*)), clients(*)`)
-    .order('date').order('time_start');
-  if (error) { console.error(error); return []; }
+    .select(`*, appointment_pets(*, pets(*))`)
+    .order('date').order('time_start', { nullsFirst: true });
+  if (error) { console.error('loadAppointments error:', error); return []; }
+  // Cargar clientes por separado para evitar conflicto de tipos
+  const clientIds = [...new Set((data || []).map(a => a.client_id).filter(Boolean))];
+  let clientMap = {};
+  if (clientIds.length > 0) {
+    const { data: cData } = await supabase.from('clients').select('*').in('id', clientIds);
+    (cData || []).forEach(c => { clientMap[c.id] = c; });
+  }
   return (data || []).map(a => ({
     id: a.id, date: a.date, timeStart: a.time_start, timeEnd: a.time_end || '',
     vanId: a.van_id, clientId: a.client_id, status: a.status || 'unconfirmed',
@@ -399,7 +406,7 @@ const loadAppointments = async () => {
     agreementSigned: a.agreement_signed || false,
     groomerId: a.groomer_id || null,
     companyId: a.company_id || 'epw',
-    client: a.clients ? { id: a.clients.id, name: a.clients.name, phone: a.clients.phone, address: a.clients.address } : null,
+    client: clientMap[a.client_id] ? { id: clientMap[a.client_id].id, name: clientMap[a.client_id].name, phone: clientMap[a.client_id].phone, address: clientMap[a.client_id].address } : null,
     pets: (a.appointment_pets || []).map(ap => ({
       id: ap.id, petId: ap.pet_id, service: ap.service || '', amount: parseFloat(ap.amount) || 0,
       tip: parseFloat(ap.tip) || 0, cardFee: parseFloat(ap.card_fee) || 0,
