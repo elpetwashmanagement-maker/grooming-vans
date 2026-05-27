@@ -2394,46 +2394,43 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
             {!isGroomer && (
               <>
-                {/* Selector de empresa */}
+                {/* Solo selector de van — empresa y groomer automáticos */}
                 <div style={{ gridColumn: 'span 2' }}>
-                  <label style={styles.lbl}>Empresa</label>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {DEFAULT_COMPANIES.map(c => (
-                      <button key={c.id} type="button"
-                        onClick={() => setNewApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || f.vanId, groomerId: '' }))}
-                        style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `2px solid ${newApptForm.companyId === c.id ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: newApptForm.companyId === c.id ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: newApptForm.companyId === c.id ? 700 : 400, color: newApptForm.companyId === c.id ? '#0f766e' : 'var(--color-text-secondary)' }}>
-                        {c.logoEmoji} {c.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Selector de van filtrado por empresa */}
-                <div>
                   <label style={styles.lbl}>Van</label>
                   <select value={newApptForm.vanId}
                     onChange={e => {
                       const van = vans.find(v => v.id === e.target.value);
-                      setNewApptForm(f => ({...f, vanId: e.target.value, companyId: van?.companyId || f.companyId}));
+                      const groomer = (session?.groomers || []).find(g => g.vanId === e.target.value);
+                      setNewApptForm(f => ({
+                        ...f,
+                        vanId: e.target.value,
+                        companyId: van?.companyId || f.companyId,
+                        groomerId: groomer?.id || '',
+                      }));
                     }}
                     style={styles.input}>
-                    {vans.filter(v => !newApptForm.companyId || v.companyId === newApptForm.companyId).map(v => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
+                    {vans.map(v => {
+                      const groomer = (session?.groomers || []).find(g => g.vanId === v.id);
+                      const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
+                      return (
+                        <option key={v.id} value={v.id}>
+                          {v.name}{groomer ? ` — ${groomer.name}` : ''} {company ? `(${company.logoEmoji} ${company.name})` : ''}
+                        </option>
+                      );
+                    })}
                   </select>
-                </div>
-
-                {/* Selector de groomer */}
-                <div>
-                  <label style={styles.lbl}>Groomer del día</label>
-                  <select value={newApptForm.groomerId}
-                    onChange={e => setNewApptForm(f => ({...f, groomerId: e.target.value}))}
-                    style={styles.input}>
-                    <option value="">— Seleccionar groomer —</option>
-                    {(session?.groomers || []).filter(g => g.active !== false).map(g => (
-                      <option key={g.id} value={g.id}>{g.name}</option>
-                    ))}
-                  </select>
+                  {/* Info de empresa y groomer automáticos */}
+                  {newApptForm.vanId && (() => {
+                    const van = vans.find(v => v.id === newApptForm.vanId);
+                    const groomer = (session?.groomers || []).find(g => g.vanId === newApptForm.vanId);
+                    const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+                    return (
+                      <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 6, fontSize: 12, color: '#0f766e', display: 'flex', gap: 12 }}>
+                        <span>{company?.logoEmoji} {company?.name}</span>
+                        {groomer && <span>✂️ {groomer.name} · {groomer.commissionPct}%</span>}
+                      </div>
+                    );
+                  })()}
                 </div>
               </>
             )}
@@ -4313,415 +4310,135 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         ))}
       </div>
 
-      {/* ===== GROOMERS ===== */}
+      {/* ===== EMPRESAS: VAN + GROOMER JUNTOS ===== */}
       <div style={{ ...styles.card, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>✂️ Groomers</h3>
+          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Empresas — Vans y Groomers</h3>
           <button onClick={() => {
-            const newG = { id: `groomer-${uid().slice(0,6)}`, name: '', pin: '', commissionPct: 45, vanId: vans[0]?.id || null, active: true, language: 'es' };
+            const newG = { id: `groomer-${uid().slice(0,6)}`, name: '', pin: '', commissionPct: 45, vanId: null, active: true, language: 'es', companyId: 'epw' };
             addGroomer(newG);
           }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
             <Plus size={14} /> Nuevo groomer
           </button>
         </div>
 
-        {/* Tabla de groomers */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(groomers || []).map(g => {
-            const isEditing = editVan[`groomer-${g.id}`];
-            return (
-              <div key={g.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'var(--color-background-secondary)', borderRadius: 10, opacity: g.active === false ? 0.5 : 1 }}>
-                {isEditing ? (
-                  <>
-                    <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, name: e.target.value } })}
-                      placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
-                    <input type="text" maxLength="4" value={isEditing.pin}
-                      onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
-                      placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
-                    <div style={{ position: 'relative', width: 90 }}>
-                      <input type="number" min="0" max="100" value={isEditing.commissionPct}
-                        onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, commissionPct: e.target.value } })}
-                        style={{ ...styles.input, paddingRight: 24 }} />
-                      <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                    </div>
-                    <select value={isEditing.vanId || ''} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, vanId: e.target.value } })}
-                      style={{ ...styles.input, minWidth: 120 }}>
-                      <option value="">Sin van</option>
-                      {vans.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                    <button onClick={async () => {
-                      const ed = editVan[`groomer-${g.id}`];
-                      await updateGroomer({ ...g, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
-                      setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; });
-                    }} style={styles.iconBtnGreen}><Check size={16} /></button>
-                    <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{g.name || 'Sin nombre'}</div>
-                    <div style={{ fontFamily: 'monospace', fontSize: 13, background: '#fff', padding: '4px 10px', borderRadius: 6, border: '1px solid #e2e8f0', letterSpacing: '0.15em', color: '#475569' }}>{g.pin || '----'}</div>
-                    <div style={{ background: '#f0fdfa', padding: '4px 10px', borderRadius: 6, border: '1px solid #ccfbf1', color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{g.commissionPct || 45}%</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', minWidth: 80 }}>
-                      {vans.find(v => v.id === g.vanId)?.name || 'Sin van'}
-                    </div>
-                    <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${g.id}`]: { name: g.name, pin: g.pin, commissionPct: g.commissionPct, vanId: g.vanId }}))} style={styles.iconBtn}><Edit2 size={15} /></button>
-                    <button onClick={() => {
-                      if (!confirm(`¿${g.active === false ? 'Activar' : 'Desactivar'} a ${g.name}?`)) return;
-                      toggleGroomerActive(g.id, g.active === false);
-                    }} style={{ ...styles.iconBtn, color: g.active === false ? 'var(--color-text-success)' : 'var(--color-text-danger)' }}>
-                      {g.active === false ? <Check size={15} /> : <Trash2 size={15} />}
-                    </button>
-                  </>
-                )}
+        {DEFAULT_COMPANIES.map(company => {
+          const companyVans = vans.filter(v => v.companyId === company.id && v.active !== false);
+          const companyGroomers = (groomers || []).filter(g => g.active !== false).filter(g => {
+            const van = vans.find(v => v.id === g.vanId);
+            return van?.companyId === company.id || g.companyId === company.id;
+          });
+
+          return (
+            <div key={company.id} style={{ marginBottom: 20, padding: '16px', background: '#f8fafc', borderRadius: 12, border: `1px solid ${company.id === 'epw' ? '#ccfbf1' : '#ede9fe'}` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
+                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{company.name}</div>
+                <span style={{ fontSize: 12, color: '#94a3b8' }}>{companyGroomers.length} groomer{companyGroomers.length !== 1 ? 's' : ''}</span>
               </div>
-            );
-          })}
-          {(!groomers || groomers.length === 0) && (
-            <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-secondary)', fontSize: 13 }}>
-              Sin groomers registrados. Clic en "Nuevo groomer" para agregar.
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {companyVans.map(v => {
+                  const assignedGroomer = (groomers || []).find(g => g.vanId === v.id && g.active !== false);
+                  const isEditing = editVan[`groomer-${assignedGroomer?.id}`];
+
+                  return (
+                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      {/* Van */}
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', minWidth: 60 }}>🚐 {v.name}</div>
+                      <div style={{ color: '#e2e8f0' }}>→</div>
+
+                      {/* Groomer asignado */}
+                      {isEditing ? (
+                        <>
+                          <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, name: e.target.value } })}
+                            placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
+                          <input type="text" maxLength="4" value={isEditing.pin}
+                            onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
+                            placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
+                          <div style={{ position: 'relative', width: 90 }}>
+                            <input type="number" min="0" max="100" value={isEditing.commissionPct}
+                              onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, commissionPct: e.target.value } })}
+                              style={{ ...styles.input, paddingRight: 24 }} />
+                            <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                          </div>
+                          <button onClick={async () => {
+                            const ed = editVan[`groomer-${assignedGroomer.id}`];
+                            await updateGroomer({ ...assignedGroomer, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
+                            setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; });
+                          }} style={styles.iconBtnGreen}><Check size={16} /></button>
+                          <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
+                        </>
+                      ) : assignedGroomer ? (
+                        <>
+                          <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{assignedGroomer.name}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.15em', color: '#475569' }}>{assignedGroomer.pin}</div>
+                          <div style={{ background: '#f0fdfa', padding: '3px 8px', borderRadius: 6, color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{assignedGroomer.commissionPct}%</div>
+                          <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${assignedGroomer.id}`]: { name: assignedGroomer.name, pin: assignedGroomer.pin, commissionPct: assignedGroomer.commissionPct }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
+                        </>
+                      ) : (
+                        <div style={{ flex: 1, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Sin groomer asignado</div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Groomers sin van asignada en esta empresa */}
+                {companyGroomers.filter(g => !g.vanId || !vans.find(v => v.id === g.vanId && v.companyId === company.id)).map(g => {
+                  const isEditing = editVan[`groomer-${g.id}`];
+                  return (
+                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px dashed #fcd34d' }}>
+                      <div style={{ fontSize: 13, color: '#94a3b8', minWidth: 60 }}>🚐 —</div>
+                      <div style={{ color: '#e2e8f0' }}>→</div>
+                      {isEditing ? (
+                        <>
+                          <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, name: e.target.value } })}
+                            placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
+                          <input type="text" maxLength="4" value={isEditing.pin}
+                            onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
+                            placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center' }} />
+                          <select value={isEditing.vanId || ''} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, vanId: e.target.value } })}
+                            style={{ ...styles.input, minWidth: 100 }}>
+                            <option value="">Sin van</option>
+                            {vans.filter(v => v.companyId === company.id).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
+                          <button onClick={async () => {
+                            const ed = editVan[`groomer-${g.id}`];
+                            await updateGroomer({ ...g, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
+                            setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; });
+                          }} style={styles.iconBtnGreen}><Check size={16} /></button>
+                          <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#92400e' }}>{g.name || 'Sin nombre'}</div>
+                          <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#fef3c7', padding: '3px 8px', borderRadius: 6 }}>{g.pin}</div>
+                          <div style={{ fontSize: 12, color: '#92400e' }}>Sin van</div>
+                          <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${g.id}`]: { name: g.name, pin: g.pin, commissionPct: g.commissionPct, vanId: g.vanId }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
-        </div>
+          );
+        })}
       </div>
 
-      {/* ===== USUARIOS ===== */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>👥 Usuarios del sistema</h3>
-          <button onClick={() => setShowNewUser(!showNewUser)} style={styles.btnPrimary}>
-            <Plus size={15} /> Nuevo usuario
-          </button>
-        </div>
-
-        {/* Formulario nuevo usuario */}
-        {showNewUser && (
-          <div style={{ background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#0f766e', marginBottom: 12 }}>Crear nuevo usuario</div>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Nombre *</label>
-                <input value={newUser.name} onChange={e => setNewUser({ ...newUser, name: e.target.value })} style={styles.input} placeholder="Nombre completo" />
-              </div>
-              <div>
-                <label style={styles.lbl}>Rol *</label>
-                <select value={newUser.role} onChange={e => handleRoleChange(e.target.value, true)} style={styles.input}>
-                  <option value="manager">📋 Administradora</option>
-                  <option value="admin">👑 Admin</option>
-                </select>
-              </div>
-              <div>
-                <label style={styles.lbl}>PIN (4 dígitos) *</label>
-                <input type="text" maxLength="4" value={newUser.pin}
-                  onChange={e => setNewUser({ ...newUser, pin: e.target.value.replace(/\D/g,'').slice(0,4) })}
-                  style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.3em', textAlign: 'center' }} placeholder="0000" />
-              </div>
-              {newUser.role === 'groomer' && (
-                <div>
-                  <label style={styles.lbl}>Van asignada *</label>
-                  <select value={newUser.van_id} onChange={e => setNewUser({ ...newUser, van_id: e.target.value })} style={styles.input}>
-                    <option value="">Seleccionar van...</option>
-                    {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer || 'Sin groomer'}</option>)}
-                  </select>
-                </div>
-              )}
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <label style={styles.lbl}>Permisos personalizados</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
-                {PERMS.map(p => (
-                  <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
-                    <input type="checkbox" checked={!!newUser[p.key]} onChange={e => setNewUser({ ...newUser, [p.key]: e.target.checked })}
-                      style={{ width: 16, height: 16, accentColor: '#0f766e' }} />
-                    {p.label}
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 14 }}>
-              <button onClick={() => setShowNewUser(false)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
-              <button onClick={handleCreateUser} style={styles.btnPrimary} disabled={saving}>
-                {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-                {saving ? 'Creando...' : 'Crear usuario'}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Lista activos */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {activeUsers.map(u => (
-            <div key={u.id}>
-              {editingUser?.id === u.id ? (
-                <div style={{ background: '#fafaf7', border: '1px solid #e2e8f0', borderRadius: 12, padding: 14 }}>
-                  <div style={styles.formGrid}>
-                    <div>
-                      <label style={styles.lbl}>Nombre</label>
-                      <input value={editingUser.name} onChange={e => setEditingUser({ ...editingUser, name: e.target.value })} style={styles.input} />
-                    </div>
-                    <div>
-                      <label style={styles.lbl}>Rol</label>
-                      <select value={editingUser.role} onChange={e => handleRoleChange(e.target.value, false)} style={styles.input} disabled={editingUser.role === 'admin'}>
-                        <option value="manager">📋 Administradora</option>
-                        <option value="admin">👑 Admin</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={styles.lbl}>PIN</label>
-                      <input type="text" maxLength="4" value={editingUser.pin}
-                        onChange={e => setEditingUser({ ...editingUser, pin: e.target.value.replace(/\D/g,'').slice(0,4) })}
-                        style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.3em', textAlign: 'center' }} />
-                    </div>
-                    {editingUser.role === 'groomer' && (
-                      <div>
-                        <label style={styles.lbl}>Van</label>
-                        <select value={editingUser.van_id || ''} onChange={e => setEditingUser({ ...editingUser, van_id: e.target.value })} style={styles.input}>
-                          <option value="">Sin van</option>
-                          {vans.map(v => <option key={v.id} value={v.id}>{v.name} — {v.groomer || 'Sin groomer'}</option>)}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <label style={styles.lbl}>Permisos</label>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 6 }}>
-                      {PERMS.map(p => (
-                        <label key={p.key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#475569' }}>
-                          <input type="checkbox" checked={!!editingUser[p.key]} onChange={e => setEditingUser({ ...editingUser, [p.key]: e.target.checked })}
-                            style={{ width: 16, height: 16, accentColor: '#0f766e' }} />
-                          {p.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
-                    <button onClick={() => setEditingUser(null)} style={styles.btnSecondary}><X size={15} /> Cancelar</button>
-                    <button onClick={handleSaveEdit} style={styles.btnPrimary} disabled={saving}>
-                      {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-                      Guardar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fafaf7', borderRadius: 10, border: '1px solid #f1f5f9' }}>
-                  <div style={{ fontSize: 20, flexShrink: 0 }}>{{ admin:'👑', manager:'📋', groomer:'🚐' }[u.role]}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>{u.name}</div>
-                    <div style={{ fontSize: 11, color: roleColors[u.role], fontWeight: 500 }}>{roleLabels[u.role]}</div>
-                  </div>
-                  {u.role === 'groomer' && (
-                    <div style={{ fontSize: 11, color: '#64748b', flexShrink: 0 }}>
-                      {vans.find(v => v.id === u.van_id)?.name || '—'}
-                    </div>
-                  )}
-                  <div style={{ fontFamily: 'monospace', fontSize: 12, letterSpacing: '0.15em', color: '#475569', background: '#fff', padding: '4px 8px', borderRadius: 6, border: '1px solid #e2e8f0', flexShrink: 0 }}>
-                    {u.pin}
-                  </div>
-                  <button onClick={() => setEditingUser({ ...u })} style={styles.iconBtn}><Edit2 size={14} /></button>
-                  {u.role !== 'admin' && (
-                    <button onClick={() => toggleUserActive(u.id, false)} style={{ ...styles.iconBtn, color: '#dc2626' }} title="Desactivar">
-                      <X size={14} />
-                    </button>
-                  )}
-                </div>
-              )}
+      {/* Vans inactivas */}
+      {vans.filter(v => v.active === false).length > 0 && (
+        <div style={{ ...styles.card, marginTop: 16, opacity: 0.6 }}>
+          <h3 style={{ ...styles.cardH3, marginBottom: 10, fontSize: 14 }}>Vans inactivas</h3>
+          {vans.filter(v => v.active === false).map(v => (
+            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', fontSize: 13 }}>
+              <span style={{ textDecoration: 'line-through', color: '#94a3b8' }}>🚐 {v.name}</span>
+              <button onClick={() => updateVans(vans.map(van => van.id === v.id ? { ...van, active: true } : van))}
+                style={{ fontSize: 12, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer' }}>Activar</button>
             </div>
           ))}
         </div>
-
-        {/* Usuarios inactivos */}
-        {inactiveUsers.length > 0 && (
-          <div style={{ marginTop: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-              Inactivos ({inactiveUsers.length})
-            </div>
-            {inactiveUsers.map(u => (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 10, marginBottom: 6, opacity: 0.6 }}>
-                <div style={{ fontSize: 18 }}>{{ admin:'👑', manager:'📋', groomer:'🚐' }[u.role]}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, fontSize: 13, textDecoration: 'line-through', color: '#94a3b8' }}>{u.name}</div>
-                  <div style={{ fontSize: 11, color: '#94a3b8' }}>{roleLabels[u.role]}</div>
-                </div>
-                <button onClick={() => toggleUserActive(u.id, true)}
-                  style={{ fontSize: 12, padding: '4px 10px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, cursor: 'pointer', color: '#0f766e', fontWeight: 500 }}>
-                  Reactivar
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Propinas y fees */}
-      <div style={styles.card}>
-        <h3 style={styles.cardH3}>💳 Propinas y fees</h3>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>La comisión de cada groomer se configura en la sección ✂️ Groomers</p>
-        <div style={styles.formGrid}>
-          <div>
-            <label style={styles.lbl}>% Propinas al groomer</label>
-            <div style={{ position: 'relative' }}>
-              <input type="number" min="0" max="100" step="1" value={settings.tipsToGroomer}
-                onChange={e => updateSettings({ ...settings, tipsToGroomer: parseFloat(e.target.value) || 0 })}
-                style={{ ...styles.input, paddingRight: 32 }} />
-              <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-            </div>
-          </div>
-          <div>
-            <label style={styles.lbl}>Fee tarjeta crédito (global)</label>
-            <div style={{ position: 'relative' }}>
-              <input type="number" min="0" max="100" step="0.1" value={settings.cardFeePct}
-                onChange={e => updateSettings({ ...settings, cardFeePct: parseFloat(e.target.value) || 0 })}
-                style={{ ...styles.input, paddingRight: 32 }} />
-              <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Solo se suma cuando pagan con tarjeta</p>
-          </div>
-          <div>
-            <label style={styles.lbl}>🧾 Tax rate (Florida)</label>
-            <div style={{ position: 'relative' }}>
-              <input type="number" min="0" max="20" step="0.1" value={settings.taxRate ?? 7.0}
-                onChange={e => updateSettings({ ...settings, taxRate: parseFloat(e.target.value) || 0 })}
-                style={{ ...styles.input, paddingRight: 32 }} />
-              <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-            </div>
-            <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Aplica a compras de la empresa (gastos)</p>
-          </div>
-        </div>
-
-        {/* Fees por empresa */}
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>
-            Fee de gasolina por empresa
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {(groomers ? [{ id: 'epw', name: 'El Pet Wash', logoEmoji: '🐾' }, { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕' }] : []).map(co => {
-              const company = (groomers?.companies || []).find(c => c.id === co.id) || co;
-              return (
-                <div key={co.id} style={{ padding: '12px 14px', background: 'var(--color-background-secondary)', borderRadius: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>{co.logoEmoji} {co.name}</div>
-                  <label style={styles.lbl}>Fee gasolina por servicio</label>
-                  <div style={{ position: 'relative' }}>
-                    <input type="number" min="0" step="0.50"
-                      defaultValue={co.id === 'epw' ? (settings.gasFee || 7) : (settings.gasFeeATW || 7)}
-                      onChange={e => {
-                        if (co.id === 'epw') updateSettings({ ...settings, gasFee: parseFloat(e.target.value) || 0 });
-                        else updateSettings({ ...settings, gasFeeATW: parseFloat(e.target.value) || 0 });
-                      }}
-                      style={{ ...styles.input, paddingLeft: 24 }} />
-                    <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* PIN admin */}
-      <div style={{ ...styles.card, marginTop: 16 }}>
-        <h3 style={styles.cardH3}>🔒 PIN de administrador</h3>
-        <div style={{ maxWidth: 200 }}>
-          <label style={styles.lbl}>PIN admin (4 dígitos)</label>
-          <input type="text" maxLength="4" value={settings.adminPin}
-            onChange={e => { const v = e.target.value.replace(/\D/g, '').slice(0, 4); updateSettings({ ...settings, adminPin: v }); }}
-            style={{ ...styles.input, fontFamily: 'monospace', fontSize: 18, letterSpacing: '0.3em', textAlign: 'center' }}
-            placeholder="0000" />
-        </div>
-      </div>
-
-      {/* Categorías de gastos */}
-      <div style={{ ...styles.card, marginTop: 16 }}>
-        <h3 style={styles.cardH3}>⛽ Categorías de gastos</h3>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>Los groomers usan estas categorías al registrar sus gastos</p>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-          {categories.map(c => {
-            const expCount = (expenses || []).filter(e => e.category === c).length;
-            return editingCategory?.old === c ? (
-              <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <input value={editingCategory.new} onChange={e => setEditingCategory({ ...editingCategory, new: e.target.value })}
-                  onKeyDown={e => { if (e.key === 'Enter') handleRenameCategory(); if (e.key === 'Escape') setEditingCategory(null); }}
-                  style={{ ...styles.input, padding: '3px 8px', fontSize: 13, width: 140 }} autoFocus />
-                <button onClick={handleRenameCategory} style={styles.iconBtnGreen}><Check size={13} /></button>
-                <button onClick={() => setEditingCategory(null)} style={styles.iconBtn}><X size={13} /></button>
-              </div>
-            ) : (
-              <div key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 999, fontSize: 13 }}>
-                <span style={{ color: '#0f766e', fontWeight: 500 }}>{c}</span>
-                {expCount > 0 && (
-                  <span style={{ fontSize: 10, background: 'var(--color-background-info)', color: 'var(--color-text-info)', padding: '1px 5px', borderRadius: 999 }}>{expCount}</span>
-                )}
-                <button onClick={() => setEditingCategory({ old: c, new: c })}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: '#94a3b8', display: 'flex' }}>
-                  <Edit2 size={11} />
-                </button>
-                <button onClick={() => {
-                  if (expCount > 0) {
-                    alert(`No se puede eliminar "${c}" porque tiene ${expCount} gasto${expCount !== 1 ? 's' : ''} registrado${expCount !== 1 ? 's' : ''}. Primero renómbrala si quieres cambiarla.`);
-                    return;
-                  }
-                  if (confirm(`¿Eliminar la categoría "${c}"?`)) removeCategory(c);
-                }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: expCount > 0 ? '#e2e8f0' : '#94a3b8', display: 'flex' }}
-                   title={expCount > 0 ? `Tiene ${expCount} gastos — no se puede borrar` : 'Eliminar categoría'}>
-                  <X size={11} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <input value={newCategory} onChange={e => setNewCategory(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
-            style={{ ...styles.input, flex: 1 }} placeholder="Nueva categoría..." />
-          <button onClick={handleAddCategory} style={styles.btnPrimary}><Plus size={15} /> Agregar</button>
-        </div>
-      </div>
-
-      {/* Vans y PINs */}
-      <div style={{ ...styles.card, marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>🚐 Vans / Puestos</h3>
-          <button onClick={() => {
-            const newVan = { id: `van-${uid().slice(0,6)}`, name: `Van ${vans.length + 1}`, groomer: '', pin: '', commissionPct: 45, active: true };
-            updateVans([...vans, newVan]);
-            setEditVan(prev => ({ ...prev, [newVan.id]: { name: newVan.name, groomer: '', pin: '', commissionPct: 45 } }));
-          }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
-            <Plus size={14} /> Nueva van
-          </button>
-        </div>
-        <div style={styles.vanList}>
-          {vans.map(v => {
-            const editing = editVan[v.id];
-            const assignedGroomer = (groomers || []).find(g => g.vanId === v.id);
-            return (
-              <div key={v.id} style={{ ...styles.vanRow, opacity: v.active === false ? 0.5 : 1 }}>
-                {editing ? (
-                  <>
-                    <input value={editing.name} onChange={e => setEditVan({ ...editVan, [v.id]: { ...editing, name: e.target.value } })}
-                      placeholder="Nombre del puesto" style={{ ...styles.input, flex: 1 }} />
-                    <button onClick={() => saveEdit(v.id)} style={styles.iconBtnGreen}><Check size={16} /></button>
-                    <button onClick={() => cancelEdit(v.id)} style={styles.iconBtn}><X size={16} /></button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{v.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', flex: 1 }}>
-                      {assignedGroomer ? `✂️ ${assignedGroomer.name}` : 'Sin groomer asignado'}
-                    </div>
-                    <button onClick={() => setEditVan({ ...editVan, [v.id]: { name: v.name } })} style={styles.iconBtn}><Edit2 size={15} /></button>
-                    <button onClick={() => {
-                      const active = v.active !== false;
-                      if (!confirm(`¿${active ? 'Desactivar' : 'Activar'} ${v.name}?`)) return;
-                      updateVans(vans.map(van => van.id === v.id ? { ...van, active: !active } : van));
-                    }} style={{ ...styles.iconBtn, color: v.active === false ? 'var(--color-text-success)' : 'var(--color-text-danger)' }}
-                      title={v.active === false ? 'Activar van' : 'Desactivar van'}>
-                      {v.active === false ? <Check size={15} /> : <Trash2 size={15} />}
-                    </button>
-                  </>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Zona peligrosa */}
       <div style={{ ...styles.card, marginTop: 16, borderColor: '#fecaca' }}>
@@ -4732,7 +4449,6 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     </div>
   );
 }
-
 // ===== COMPONENTES UI =====
 function SectionTitle({ eyebrow, title, right }) {
   return (
