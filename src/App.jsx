@@ -2991,7 +2991,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
     return Object.values(groomerMap).map(r => {
       const gasFees = r.citas * (settings.gasFee || 7);
       const commission = r.sales * (r.commissionPct / 100);
-      const totalPay = commission - gasFees;
+      const totalPay = commission; // Gas fee lo paga el cliente, no se descuenta al groomer
       const company = DEFAULT_COMPANIES.find(c => c.id === r.companyId) || DEFAULT_COMPANIES[0];
       return { ...r, gasFees, commission, totalPay, company };
     }).sort((a, b) => a.groomerName.localeCompare(b.groomerName));
@@ -3012,7 +3012,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
       const expTotal = vanExpenses.reduce((sum, e) => sum + e.amount, 0);
       const commission = sales * (vanCommission / 100);
       const tipShare = tips * (settings.tipsToGroomer / 100);
-      const totalPay = commission + tipShare - gasFees - expTotal;
+      const totalPay = commission + tipShare - expTotal; // Gas fee lo paga el cliente, no se descuenta al groomer
       const byMethod = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = items.filter(i => i.method === m).reduce((sum, i) => sum + i.amount, 0); return acc; }, {});
       return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, byMethod, vanCommission };
     });
@@ -3164,7 +3164,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                   <th style={{ ...styles.th, textAlign: 'right' }}>Propinas</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>Comisión %</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>+ Propinas</th>
-                  <th style={{ ...styles.th, textAlign: 'right' }}>- Gas. (${settings.gasFee}×)</th>
+                  <th style={{ ...styles.th, textAlign: 'right' }}>Gas (empresa)</th>
                   <th style={{ ...styles.th, textAlign: 'right' }}>- Gastos</th>
                   <th style={{ ...styles.th, textAlign: 'right', color: '#0f766e' }}>A PAGAR</th>
                 </tr>
@@ -3181,7 +3181,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                       <div style={{ fontSize: 11, color: '#94a3b8' }}>{r.vanCommission}%</div>
                     </td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#64748b' }}>{fmt(r.tipShare)}</td>
-                    <td style={{ ...styles.td, textAlign: 'right', color: '#dc2626' }}>-{fmt(r.gasFees)}</td>
+                    <td style={{ ...styles.td, textAlign: 'right', color: '#0284c7' }}>{fmt(r.gasFees)}</td>
                     <td style={{ ...styles.td, textAlign: 'right', color: '#dc2626' }}>{r.expTotal > 0 ? `-${fmt(r.expTotal)}` : '—'}</td>
                     <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 16 }}>{fmt(r.totalPay)}</td>
                   </tr>
@@ -3193,7 +3193,7 @@ function SemanaTab({ vans, services, expenses, settings, appointments, groomers 
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.tips)}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.commission)}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700 }}>{fmt(totals.tipShare)}</td>
-                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>-{fmt(totals.gasFees)}</td>
+                  <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#0284c7' }}>{fmt(totals.gasFees)}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{totals.expTotal > 0 ? `-${fmt(totals.expTotal)}` : '—'}</td>
                   <td style={{ ...styles.td, textAlign: 'right', fontWeight: 800, color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 17 }}>{fmt(totals.totalPay)}</td>
                 </tr>
