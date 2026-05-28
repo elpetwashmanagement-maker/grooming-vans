@@ -4585,6 +4585,7 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
 
 // ===== CONFIG TAB =====
 function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive }) {
+  const [activeSection, setActiveSection] = useState(null);
   const [editVan, setEditVan] = useState({});
   const [showNewGroomerForm, setShowNewGroomerForm] = useState(false);
   const [newGroomerData, setNewGroomerData] = useState({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
@@ -4707,316 +4708,370 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Settings" title="Ajustes generales" />
+      <SectionTitle eyebrow="Groomora" title="⚙️ Settings" />
 
-      {/* ===== LISTA DE SERVICIOS Y PRECIOS ===== */}
-      <div style={styles.card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>💰 Lista de servicios y precios</h3>
-          <button onClick={() => setShowNewService(!showNewService)} style={styles.btnPrimary}>
-            <Plus size={15} /> Nuevo servicio
-          </button>
+      {/* Menú principal */}
+      {!activeSection ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+          {[
+            { id: 'companies', icon: '🏢', title: 'Companies', sub: 'Vans & Groomers' },
+            { id: 'fees', icon: '💳', title: 'Fees & Rates', sub: 'Gas, Card, Tax' },
+            { id: 'services', icon: '✂️', title: 'Services', sub: 'Prices & Add-ons' },
+            { id: 'users', icon: '👥', title: 'Users', sub: 'PINs & Roles' },
+            { id: 'categories', icon: '📋', title: 'Categories', sub: 'Expense types' },
+            { id: 'danger', icon: '⚠️', title: 'Danger Zone', sub: 'Clear data' },
+          ].map(s => (
+            <button key={s.id} onClick={() => setActiveSection(s.id)}
+              style={{ padding: '20px 16px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14, cursor: 'pointer', textAlign: 'left' }}>
+              <div style={{ fontSize: 30, marginBottom: 8 }}>{s.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{s.title}</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{s.sub}</div>
+            </button>
+          ))}
         </div>
+      ) : (
+        <div>
+          <button onClick={() => setActiveSection(null)} style={{ ...styles.btnSecondary, marginBottom: 16 }}>
+            ← Back to Settings
+          </button>
 
-        {/* Formulario nuevo servicio */}
-        {showNewService && (
-          <div style={{ padding: 14, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>Nuevo servicio</div>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Categoría</label>
-                <select value={newService.category} onChange={e => setNewService(f => ({...f, category: e.target.value}))} style={styles.input}>
-                  <option value="Signature Bath">Signature Bath</option>
-                  <option value="Full Groom">Full Groom</option>
-                  <option value="Add-on">Add-on</option>
-                </select>
-              </div>
-              <div>
-                <label style={styles.lbl}>Nombre del servicio</label>
-                <input value={newService.name} onChange={e => setNewService(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Ej: Baño especial" />
-              </div>
-              {newService.category !== 'Add-on' && (
-                <>
-                  <div>
-                    <label style={styles.lbl}>Tamaño</label>
-                    <select value={newService.size} onChange={e => setNewService(f => ({...f, size: e.target.value}))} style={styles.input}>
-                      <option value="">Todos</option>
-                      {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={styles.lbl}>Tipo de pelo</label>
-                    <select value={newService.hair_type} onChange={e => setNewService(f => ({...f, hair_type: e.target.value}))} style={styles.input}>
-                      <option value="">Todos</option>
-                      {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </div>
-                </>
-              )}
-              <div>
-                <label style={styles.lbl}>Precio ($)</label>
-                <input type="number" step="1" value={newService.price} onChange={e => setNewService(f => ({...f, price: e.target.value}))} style={styles.input} placeholder="0" />
-              </div>
-              <div>
-                <label style={styles.lbl}>Duración (min)</label>
-                <input type="number" step="15" value={newService.duration_minutes} onChange={e => setNewService(f => ({...f, duration_minutes: parseInt(e.target.value) || 60}))} style={styles.input} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 10 }}>
-              <button onClick={() => setShowNewService(false)} style={styles.btnSecondary}><X size={14} /> Cancelar</button>
-              <button onClick={handleAddService} style={styles.btnPrimary}><Check size={14} /> Agregar</button>
-            </div>
-          </div>
-        )}
+          {/* ===== COMPANIES ===== */}
+          {activeSection === 'companies' && (
+            <div>
+              <div style={{ ...styles.card, marginTop: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companies — Vans & Groomers</h3>
+                  <button onClick={() => setShowNewGroomerForm(prev => !prev)} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+                    <Plus size={14} /> New Groomer
+                  </button>
+                </div>
 
-        {/* Lista de precios por categoría */}
-        {categories_prices.map(cat => (
-          <div key={cat} style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, paddingBottom: 4, borderBottom: '0.5px solid var(--color-border-tertiary)' }}>
-              {cat}
+                {/* Formulario nuevo groomer */}
+                {showNewGroomerForm && (
+                  <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 16 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>➕ New Groomer</div>
+                    <div style={styles.formGrid}>
+                      <div>
+                        <label style={styles.lbl}>Name *</label>
+                        <input value={newGroomerData.name} onChange={e => setNewGroomerData(d => ({...d, name: e.target.value}))} style={styles.input} placeholder="Groomer name" />
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>PIN * (4 digits)</label>
+                        <input type="text" maxLength="4" value={newGroomerData.pin} onChange={e => setNewGroomerData(d => ({...d, pin: e.target.value.replace(/\D/g,'').slice(0,4)}))} style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} placeholder="0000" />
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Company *</label>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {DEFAULT_COMPANIES.map(c => (
+                            <button key={c.id} type="button" onClick={() => setNewGroomerData(d => ({...d, companyId: c.id, vanId: ''}))}
+                              style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${newGroomerData.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: newGroomerData.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newGroomerData.companyId === c.id ? 700 : 400, color: newGroomerData.companyId === c.id ? '#0f766e' : '#64748b' }}>
+                              {c.logoEmoji} {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Van</label>
+                        <select value={newGroomerData.vanId} onChange={e => setNewGroomerData(d => ({...d, vanId: e.target.value}))} style={styles.input}>
+                          <option value="">— No van assigned —</option>
+                          {vans.filter(v => v.companyId === newGroomerData.companyId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Commission %</label>
+                        <div style={{ position: 'relative' }}>
+                          <input type="number" min="0" max="100" value={newGroomerData.commissionPct} onChange={e => setNewGroomerData(d => ({...d, commissionPct: e.target.value}))} style={{ ...styles.input, paddingRight: 28 }} />
+                          <span style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                      <button onClick={async () => {
+                        if (!newGroomerData.name.trim()) { alert('Enter groomer name'); return; }
+                        if (!newGroomerData.pin || newGroomerData.pin.length !== 4) { alert('PIN must be 4 digits'); return; }
+                        const newG = { id: `groomer-${uid().slice(0,6)}`, name: newGroomerData.name.trim(), pin: newGroomerData.pin, commissionPct: parseFloat(newGroomerData.commissionPct) || 45, vanId: newGroomerData.vanId || null, active: true, companyId: newGroomerData.companyId };
+                        await addGroomer(newG);
+                        setShowNewGroomerForm(false);
+                        setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
+                      }} style={styles.btnPrimary}><Plus size={14} /> Add Groomer</button>
+                      <button onClick={() => { setShowNewGroomerForm(false); setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' }); }} style={styles.btnSecondary}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+
+                {DEFAULT_COMPANIES.map(company => {
+                  const companyVans = vans.filter(v => v.companyId === company.id && v.active !== false);
+                  const companyGroomers = (groomers || []).filter(g => g.active !== false).filter(g => {
+                    const van = vans.find(v => v.id === g.vanId);
+                    return van?.companyId === company.id || g.companyId === company.id;
+                  });
+                  return (
+                    <div key={company.id} style={{ marginBottom: 20, padding: '16px', background: '#f8fafc', borderRadius: 12, border: `1px solid ${company.id === 'epw' ? '#ccfbf1' : '#ede9fe'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                        <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
+                        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{company.name}</div>
+                        <span style={{ fontSize: 12, color: '#94a3b8' }}>{companyGroomers.length} groomer{companyGroomers.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {companyVans.map(v => {
+                          const assignedGroomer = (groomers || []).find(g => g.vanId === v.id && g.active !== false);
+                          const isEditing = editVan[`groomer-${assignedGroomer?.id}`];
+                          return (
+                            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', minWidth: 60 }}>🚐 {v.name}</div>
+                              <div style={{ color: '#e2e8f0' }}>→</div>
+                              {isEditing ? (
+                                <>
+                                  <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, name: e.target.value } })} placeholder="Name" style={{ ...styles.input, flex: 1 }} />
+                                  <input type="text" maxLength="4" value={isEditing.pin} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })} placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
+                                  <div style={{ position: 'relative', width: 90 }}>
+                                    <input type="number" min="0" max="100" value={isEditing.commissionPct} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, commissionPct: e.target.value } })} style={{ ...styles.input, paddingRight: 24 }} />
+                                    <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
+                                  </div>
+                                  <button onClick={async () => {
+                                    const ed = editVan[`groomer-${assignedGroomer.id}`];
+                                    await updateGroomer({ ...assignedGroomer, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
+                                    setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; });
+                                  }} style={styles.iconBtnGreen}><Check size={16} /></button>
+                                  <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
+                                </>
+                              ) : assignedGroomer ? (
+                                <>
+                                  <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{assignedGroomer.name}</div>
+                                  <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.15em', color: '#475569' }}>{assignedGroomer.pin}</div>
+                                  <div style={{ background: '#f0fdfa', padding: '3px 8px', borderRadius: 6, color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{assignedGroomer.commissionPct}%</div>
+                                  <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${assignedGroomer.id}`]: { name: assignedGroomer.name, pin: assignedGroomer.pin, commissionPct: assignedGroomer.commissionPct }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
+                                  <button onClick={async () => {
+                                    if (!confirm(`Deactivate ${assignedGroomer.name}? They won't appear in new appointments.`)) return;
+                                    await updateGroomer({ ...assignedGroomer, active: false });
+                                  }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={14} /></button>
+                                </>
+                              ) : (
+                                <div style={{ flex: 1, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>No groomer assigned</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {(servicePrices || []).filter(p => p.category === cat).map(price => (
-                <div key={price.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', background: 'var(--color-background-secondary)', borderRadius: 8 }}>
-                  <div style={{ flex: 1, fontSize: 13 }}>
-                    {price.name}
-                    {price.size && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.size.split('(')[0].trim()}</span>}
-                    {price.hair_type && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12 }}> · {price.hair_type}</span>}
-                    {/* Peso del tamaño */}
-                    {price.size && (
-                      <span style={{ marginLeft: 6, fontSize: 11, padding: '1px 6px', background: 'var(--color-background-info)', color: 'var(--color-text-info)', borderRadius: 999 }}>
-                        {price.size.match(/\(([^)]+)\)/)?.[1] || ''}
-                      </span>
+          )}
+
+          {/* ===== FEES & RATES ===== */}
+          {activeSection === 'fees' && (
+            <div style={styles.card}>
+              <h3 style={styles.cardH3}>💳 Fees & Rates</h3>
+              <div style={styles.formGrid}>
+                <div>
+                  <label style={styles.lbl}>% Tips to groomer</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min="0" max="100" step="1" value={settings.tipsToGroomer}
+                      onChange={e => updateSettings({ ...settings, tipsToGroomer: parseFloat(e.target.value) || 0 })}
+                      style={{ ...styles.input, paddingRight: 32 }} />
+                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.lbl}>Gas fee per service</label>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
+                    <input type="number" min="0" step="0.5" value={settings.gasFee}
+                      onChange={e => updateSettings({ ...settings, gasFee: parseFloat(e.target.value) || 0 })}
+                      style={{ ...styles.input, paddingLeft: 24 }} />
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.lbl}>Credit card fee %</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min="0" max="100" step="0.1" value={settings.cardFeePct}
+                      onChange={e => updateSettings({ ...settings, cardFeePct: parseFloat(e.target.value) || 0 })}
+                      style={{ ...styles.input, paddingRight: 32 }} />
+                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Only added for credit card payments</p>
+                </div>
+                <div>
+                  <label style={styles.lbl}>🧾 Tax rate (Florida)</label>
+                  <div style={{ position: 'relative' }}>
+                    <input type="number" min="0" max="20" step="0.1" value={settings.taxRate ?? 7.0}
+                      onChange={e => updateSettings({ ...settings, taxRate: parseFloat(e.target.value) || 0 })}
+                      style={{ ...styles.input, paddingRight: 32 }} />
+                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Applies to company purchases</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== SERVICES ===== */}
+          {activeSection === 'services' && (
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ ...styles.cardH3, margin: 0 }}>✂️ Services & Prices</h3>
+                <button onClick={() => setShowNewService(!showNewService)} style={styles.btnPrimary}>
+                  <Plus size={15} /> New service
+                </button>
+              </div>
+              {showNewService && (
+                <div style={{ padding: 14, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>New service</div>
+                  <div style={styles.formGrid}>
+                    <div>
+                      <label style={styles.lbl}>Category</label>
+                      <select value={newService.category} onChange={e => setNewService(f => ({...f, category: e.target.value}))} style={styles.input}>
+                        <option value="Signature Bath">Signature Bath</option>
+                        <option value="Full Groom">Full Groom</option>
+                        <option value="Add-on">Add-on</option>
+                        <option value="Cat">Cat</option>
+                        <option value="Exotic">Exotic</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Name *</label>
+                      <input value={newService.name} onChange={e => setNewService(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="e.g. Small (1-20 lbs)" />
+                    </div>
+                    {['Signature Bath','Full Groom'].includes(newService.category) && (
+                      <>
+                        <div>
+                          <label style={styles.lbl}>Size</label>
+                          <input value={newService.size} onChange={e => setNewService(f => ({...f, size: e.target.value}))} style={styles.input} placeholder="Small (1-20 lbs)" />
+                        </div>
+                        <div>
+                          <label style={styles.lbl}>Hair type</label>
+                          <select value={newService.hair_type} onChange={e => setNewService(f => ({...f, hair_type: e.target.value}))} style={styles.input}>
+                            <option value="">All types</option>
+                            <option value="Short Hair">Short Hair</option>
+                            <option value="Long Hair">Long Hair</option>
+                          </select>
+                        </div>
+                      </>
                     )}
+                    <div>
+                      <label style={styles.lbl}>Price *</label>
+                      <input type="number" step="0.01" value={newService.price} onChange={e => setNewService(f => ({...f, price: e.target.value}))} style={styles.input} placeholder="0.00" />
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', flexShrink: 0 }}>{price.duration_minutes}min</div>
-                  {editingPrice[price.id] !== undefined ? (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <span style={{ color: 'var(--color-text-secondary)' }}>$</span>
-                      <input type="number" step="1" value={editingPrice[price.id]}
-                        onChange={e => setEditingPrice(prev => ({...prev, [price.id]: e.target.value}))}
-                        style={{ ...styles.input, width: 80, padding: '4px 8px', fontSize: 13 }}
-                        onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(price); if (e.key === 'Escape') setEditingPrice(prev => { const c = {...prev}; delete c[price.id]; return c; }); }}
-                        autoFocus />
-                      <button onClick={() => handleSavePrice(price)} style={styles.iconBtnGreen}><Check size={14} /></button>
-                      <button onClick={() => setEditingPrice(prev => { const c = {...prev}; delete c[price.id]; return c; })} style={styles.iconBtn}><X size={14} /></button>
-                    </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <button onClick={async () => {
+                      if (!newService.name || !newService.price) { alert('Name and price required'); return; }
+                      await addServicePrice({ id: `svc-${uid().slice(0,8)}`, category: newService.category, name: newService.name, size: newService.size, hair_type: newService.hair_type, price: parseFloat(newService.price) || 0, duration_minutes: 60 });
+                      setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
+                      setShowNewService(false);
+                    }} style={styles.btnPrimary}><Plus size={14} /> Save service</button>
+                    <button onClick={() => setShowNewService(false)} style={styles.btnSecondary}>Cancel</button>
+                  </div>
+                </div>
+              )}
+              {['Signature Bath','Full Groom','Add-on','Cat','Exotic'].map(cat => {
+                const items = (servicePrices || []).filter(p => p.category === cat);
+                if (items.length === 0) return null;
+                return (
+                  <div key={cat} style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
+                    {items.map(p => (
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 4 }}>
+                        <div style={{ flex: 1, fontSize: 13 }}>
+                          {p.name}{p.size ? ` · ${p.size}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''}
+                        </div>
+                        {editingPrice[p.id] !== undefined ? (
+                          <>
+                            <input type="number" step="0.01" value={editingPrice[p.id]}
+                              onChange={e => setEditingPrice(prev => ({...prev, [p.id]: e.target.value}))}
+                              style={{ ...styles.input, width: 90, textAlign: 'right', padding: '4px 8px' }} />
+                            <button onClick={async () => {
+                              await updateServicePrice({ ...p, price: parseFloat(editingPrice[p.id]) || 0 });
+                              setEditingPrice(prev => { const c = {...prev}; delete c[p.id]; return c; });
+                            }} style={styles.iconBtnGreen}><Check size={14} /></button>
+                            <button onClick={() => setEditingPrice(prev => { const c = {...prev}; delete c[p.id]; return c; })} style={styles.iconBtn}><X size={14} /></button>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 14 }}>${p.price}</span>
+                            <button onClick={() => setEditingPrice(prev => ({...prev, [p.id]: p.price}))} style={styles.iconBtn}><Edit2 size={13} /></button>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ===== USERS ===== */}
+          {activeSection === 'users' && (
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ ...styles.cardH3, margin: 0 }}>👥 Users</h3>
+                <button onClick={() => setShowNewUser(!showNewUser)} style={styles.btnPrimary}>
+                  <Plus size={15} /> New user
+                </button>
+              </div>
+              {(users || []).map(u => (
+                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 8, opacity: u.active === false ? 0.5 : 1 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
+                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{u.role} · PIN: {u.pin}</div>
+                  </div>
+                  <button onClick={() => toggleUserActive(u.id, u.active !== false)} style={{ fontSize: 12, color: u.active !== false ? '#dc2626' : '#0f766e', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {u.active !== false ? 'Deactivate' : 'Activate'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ===== CATEGORIES ===== */}
+          {activeSection === 'categories' && (
+            <div style={styles.card}>
+              <h3 style={styles.cardH3}>📋 Expense Categories</h3>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <input value={newCategory} onChange={e => setNewCategory(e.target.value)} style={{ ...styles.input, flex: 1 }} placeholder="New category name" />
+                <button onClick={async () => {
+                  if (!newCategory.trim()) return;
+                  await addCategory(newCategory.trim());
+                  setNewCategory('');
+                }} style={styles.btnPrimary}><Plus size={15} /></button>
+              </div>
+              {(categories || []).map(cat => (
+                <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 6 }}>
+                  {editingCategory?.old === cat ? (
+                    <>
+                      <input value={editingCategory.new} onChange={e => setEditingCategory(prev => ({...prev, new: e.target.value}))} style={{ ...styles.input, flex: 1, padding: '4px 8px' }} />
+                      <button onClick={handleRenameCategory} style={styles.iconBtnGreen}><Check size={14} /></button>
+                      <button onClick={() => setEditingCategory(null)} style={styles.iconBtn}><X size={14} /></button>
+                    </>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>${price.price}</span>
-                      <button onClick={() => setEditingPrice(prev => ({...prev, [price.id]: price.price}))} style={styles.iconBtn}><Edit2 size={14} /></button>
-                    </div>
+                    <>
+                      <span style={{ flex: 1, fontSize: 14 }}>{cat}</span>
+                      <button onClick={() => setEditingCategory({ old: cat, new: cat })} style={styles.iconBtn}><Edit2 size={13} /></button>
+                      <button onClick={() => removeCategory(cat)} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={13} /></button>
+                    </>
                   )}
                 </div>
               ))}
             </div>
-          </div>
-        ))}
-      </div>
+          )}
 
-      {/* ===== EMPRESAS: VAN + GROOMER JUNTOS ===== */}
-      <div style={{ ...styles.card, marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companies — Vans & Groomers</h3>
-          <button onClick={() => setShowNewGroomerForm(prev => !prev)}
-            style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
-            <Plus size={14} /> New Groomer
-          </button>
-        </div>
-
-        {/* Formulario nuevo groomer */}
-        {showNewGroomerForm && (
-          <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>➕ New Groomer</div>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Name *</label>
-                <input value={newGroomerData.name} onChange={e => setNewGroomerData(d => ({...d, name: e.target.value}))}
-                  style={styles.input} placeholder="Groomer name" />
-              </div>
-              <div>
-                <label style={styles.lbl}>PIN * (4 digits)</label>
-                <input type="text" maxLength="4" value={newGroomerData.pin}
-                  onChange={e => setNewGroomerData(d => ({...d, pin: e.target.value.replace(/\D/g,'').slice(0,4)}))}
-                  style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} placeholder="0000" />
-              </div>
-              <div>
-                <label style={styles.lbl}>Company *</label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {DEFAULT_COMPANIES.map(c => (
-                    <button key={c.id} type="button"
-                      onClick={() => setNewGroomerData(d => ({...d, companyId: c.id, vanId: ''}))}
-                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${newGroomerData.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: newGroomerData.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newGroomerData.companyId === c.id ? 700 : 400, color: newGroomerData.companyId === c.id ? '#0f766e' : '#64748b' }}>
-                      {c.logoEmoji} {c.name}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <label style={styles.lbl}>Van</label>
-                <select value={newGroomerData.vanId} onChange={e => setNewGroomerData(d => ({...d, vanId: e.target.value}))} style={styles.input}>
-                  <option value="">— No van assigned —</option>
-                  {vans.filter(v => v.companyId === newGroomerData.companyId).map(v => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={styles.lbl}>Commission %</label>
-                <div style={{ position: 'relative' }}>
-                  <input type="number" min="0" max="100" value={newGroomerData.commissionPct}
-                    onChange={e => setNewGroomerData(d => ({...d, commissionPct: e.target.value}))}
-                    style={{ ...styles.input, paddingRight: 28 }} />
-                  <span style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>%</span>
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-              <button onClick={async () => {
-                if (!newGroomerData.name.trim()) { alert('Enter groomer name'); return; }
-                if (!newGroomerData.pin || newGroomerData.pin.length !== 4) { alert('PIN must be 4 digits'); return; }
-                const newG = {
-                  id: `groomer-${uid().slice(0,6)}`, name: newGroomerData.name.trim(),
-                  pin: newGroomerData.pin, commissionPct: parseFloat(newGroomerData.commissionPct) || 45,
-                  vanId: newGroomerData.vanId || null, active: true,
-                  companyId: newGroomerData.companyId,
-                };
-                await addGroomer(newG);
-                setShowNewGroomerForm(false);
-                setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
-              }} style={styles.btnPrimary}>
-                <Plus size={14} /> Add Groomer
+          {/* ===== DANGER ZONE ===== */}
+          {activeSection === 'danger' && (
+            <div style={{ ...styles.card, borderColor: '#fecaca' }}>
+              <h3 style={{ ...styles.cardH3, color: '#991b1b' }}>⚠️ Danger Zone</h3>
+              <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>
+                There are {services.length} service{services.length !== 1 ? 's' : ''} recorded in total.
+              </p>
+              <button onClick={clearAll} style={styles.btnDanger}>
+                <Trash2 size={15} /> Delete all history
               </button>
-              <button onClick={() => { setShowNewGroomerForm(false); setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' }); }}
-                style={styles.btnSecondary}>Cancel</button>
             </div>
-          </div>
-        )}
+          )}
 
-        {DEFAULT_COMPANIES.map(company => {
-          const companyVans = vans.filter(v => v.companyId === company.id && v.active !== false);
-          const companyGroomers = (groomers || []).filter(g => g.active !== false).filter(g => {
-            const van = vans.find(v => v.id === g.vanId);
-            return van?.companyId === company.id || g.companyId === company.id;
-          });
-
-          return (
-            <div key={company.id} style={{ marginBottom: 20, padding: '16px', background: '#f8fafc', borderRadius: 12, border: `1px solid ${company.id === 'epw' ? '#ccfbf1' : '#ede9fe'}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
-                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{company.name}</div>
-                <span style={{ fontSize: 12, color: '#94a3b8' }}>{companyGroomers.length} groomer{companyGroomers.length !== 1 ? 's' : ''}</span>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {companyVans.map(v => {
-                  const assignedGroomer = (groomers || []).find(g => g.vanId === v.id && g.active !== false);
-                  const isEditing = editVan[`groomer-${assignedGroomer?.id}`];
-
-                  return (
-                    <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                      {/* Van */}
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', minWidth: 60 }}>🚐 {v.name}</div>
-                      <div style={{ color: '#e2e8f0' }}>→</div>
-
-                      {/* Groomer asignado */}
-                      {isEditing ? (
-                        <>
-                          <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, name: e.target.value } })}
-                            placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
-                          <input type="text" maxLength="4" value={isEditing.pin}
-                            onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
-                            placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
-                          <div style={{ position: 'relative', width: 90 }}>
-                            <input type="number" min="0" max="100" value={isEditing.commissionPct}
-                              onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, commissionPct: e.target.value } })}
-                              style={{ ...styles.input, paddingRight: 24 }} />
-                            <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                          </div>
-                          <button onClick={async () => {
-                            const ed = editVan[`groomer-${assignedGroomer.id}`];
-                            await updateGroomer({ ...assignedGroomer, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
-                            setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; });
-                          }} style={styles.iconBtnGreen}><Check size={16} /></button>
-                          <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
-                        </>
-                      ) : assignedGroomer ? (
-                        <>
-                          <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{assignedGroomer.name}</div>
-                          <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.15em', color: '#475569' }}>{assignedGroomer.pin}</div>
-                          <div style={{ background: '#f0fdfa', padding: '3px 8px', borderRadius: 6, color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{assignedGroomer.commissionPct}%</div>
-                          <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${assignedGroomer.id}`]: { name: assignedGroomer.name, pin: assignedGroomer.pin, commissionPct: assignedGroomer.commissionPct }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
-                        </>
-                      ) : (
-                        <div style={{ flex: 1, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>Sin groomer asignado</div>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Groomers sin van asignada en esta empresa */}
-                {companyGroomers.filter(g => !g.vanId || !vans.find(v => v.id === g.vanId && v.companyId === company.id)).map(g => {
-                  const isEditing = editVan[`groomer-${g.id}`];
-                  return (
-                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px dashed #fcd34d' }}>
-                      <div style={{ fontSize: 13, color: '#94a3b8', minWidth: 60 }}>🚐 —</div>
-                      <div style={{ color: '#e2e8f0' }}>→</div>
-                      {isEditing ? (
-                        <>
-                          <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, name: e.target.value } })}
-                            placeholder="Nombre" style={{ ...styles.input, flex: 1 }} />
-                          <input type="text" maxLength="4" value={isEditing.pin}
-                            onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })}
-                            placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center' }} />
-                          <select value={isEditing.vanId || ''} onChange={e => setEditVan({ ...editVan, [`groomer-${g.id}`]: { ...isEditing, vanId: e.target.value } })}
-                            style={{ ...styles.input, minWidth: 100 }}>
-                            <option value="">Sin van</option>
-                            {vans.filter(v => v.companyId === company.id).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                          </select>
-                          <button onClick={async () => {
-                            const ed = editVan[`groomer-${g.id}`];
-                            await updateGroomer({ ...g, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
-                            setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; });
-                          }} style={styles.iconBtnGreen}><Check size={16} /></button>
-                          <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${g.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: '#92400e' }}>{g.name || 'Sin nombre'}</div>
-                          <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#fef3c7', padding: '3px 8px', borderRadius: 6 }}>{g.pin}</div>
-                          <div style={{ fontSize: 12, color: '#92400e' }}>Sin van</div>
-                          <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${g.id}`]: { name: g.name, pin: g.pin, commissionPct: g.commissionPct, vanId: g.vanId }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Vans inactivas */}
-      {vans.filter(v => v.active === false).length > 0 && (
-        <div style={{ ...styles.card, marginTop: 16, opacity: 0.6 }}>
-          <h3 style={{ ...styles.cardH3, marginBottom: 10, fontSize: 14 }}>Vans inactivas</h3>
-          {vans.filter(v => v.active === false).map(v => (
-            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', fontSize: 13 }}>
-              <span style={{ textDecoration: 'line-through', color: '#94a3b8' }}>🚐 {v.name}</span>
-              <button onClick={() => updateVans(vans.map(van => van.id === v.id ? { ...van, active: true } : van))}
-                style={{ fontSize: 12, color: '#0f766e', background: 'none', border: 'none', cursor: 'pointer' }}>Activar</button>
-            </div>
-          ))}
         </div>
       )}
-
-      {/* Zona peligrosa */}
-      <div style={{ ...styles.card, marginTop: 16, borderColor: '#fecaca' }}>
-        <h3 style={{ ...styles.cardH3, color: '#991b1b' }}>Zona peligrosa</h3>
-        <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>Hay {services.length} servicio{services.length === 1 ? '' : 's'} registrado{services.length === 1 ? '' : 's'} en total.</p>
-        <button onClick={clearAll} style={styles.btnDanger}><Trash2 size={15} /> Delete todo el historial</button>
-      </div>
     </div>
   );
 }
