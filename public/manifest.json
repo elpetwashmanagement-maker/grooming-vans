@@ -1,1 +1,18 @@
-
+{
+  "name": "Groomora",
+  "short_name": "Groomora",
+  "description": "Grooming management app for mobile and salon businesses",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0f766e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
