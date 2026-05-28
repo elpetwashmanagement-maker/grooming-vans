@@ -3650,12 +3650,13 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
       {/* Modal de cobro */}
       {showCobroForm && (
-        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: 20, padding: 28, maxWidth: 460, width: '100%', boxShadow: '0 25px 80px rgba(0,0,0,0.5)', margin: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', maxWidth: 460, width: '100%', boxShadow: '0 -10px 40px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
+            <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 999, margin: '0 auto 16px' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Cobro del servicio</div>
-                <h3 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', margin: '4px 0 0', fontFamily: 'Fraunces, serif' }}>💰 {showCobroForm.client?.name}</h3>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Collect Payment</div>
+                <h3 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '4px 0 0', fontFamily: 'Fraunces, serif' }}>💰 {showCobroForm.client?.name}</h3>
               </div>
               <button onClick={() => setShowCobroForm(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
             </div>
