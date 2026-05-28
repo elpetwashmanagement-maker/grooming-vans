@@ -154,18 +154,75 @@ const TRANSLATIONS = {
 
 const useT = (lang = 'es') => (key) => TRANSLATIONS[lang]?.[key] ?? TRANSLATIONS['es'][key] ?? key;
 
+// ===== SQUARE CONFIG =====
+const SQUARE_CONFIG = {
+  sandbox: {
+    appId: 'sandbox-sq0idb-O_iKDsUOzV0sxyoXc0rzTQ',
+    locationId: 'L2EGW8SFRMRR77299',
+    scriptUrl: 'https://sandbox.web.squarecdn.com/v1/square.js',
+  },
+  production: {
+    appId: 'sq0idp-HnbL8ULCx-2jtvYlfKdtEQ',
+    locationId: 'L2FFGMCZY3V9J',
+    scriptUrl: 'https://web.squarecdn.com/v1/square.js',
+    accessToken: 'EAAAly0RKJsg84R-QnkHw0M7aFqXkfw7XsRfragMR1EymiqBdyHtfswPX903IRMs',
+  }
+};
+const SQUARE_ENV = 'sandbox'; // cambiar a 'production' cuando esté listo
+const SQ = SQUARE_CONFIG[SQUARE_ENV];
+
+// Cargar Square SDK
+const loadSquareSDK = () => new Promise((resolve, reject) => {
+  if (window.Square) { resolve(window.Square); return; }
+  const script = document.createElement('script');
+  script.src = SQ.scriptUrl;
+  script.onload = () => resolve(window.Square);
+  script.onerror = reject;
+  document.head.appendChild(script);
+});
+
+const processSquarePayment = async (amountCents) => {
+  try {
+    const Square = await loadSquareSDK();
+    const payments = Square.payments(SQ.appId, SQ.locationId);
+
+    // Intentar Tap to Pay primero (iPhone)
+    let paymentMethod;
+    try {
+      const tapToPay = await payments.tapToPay();
+      paymentMethod = tapToPay;
+    } catch (tapError) {
+      // Fallback a card form si Tap to Pay no está disponible
+      const card = await payments.card();
+      await card.attach('#square-card-container');
+      paymentMethod = card;
+    }
+
+    if (amountCents === 0) return { success: true, token: null };
+
+    const result = await paymentMethod.tokenize();
+    if (result.status === 'OK') {
+      return { success: true, token: result.token };
+    }
+    return { success: false, error: result.errors?.[0]?.message || 'Payment failed' };
+  } catch (err) {
+    console.error('Square error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
 // ===== SUPABASE =====
 const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ===== CONSTANTES =====
-const PAYMENT_METHODS = ['Efectivo', 'Zelle', 'Tarjeta crédito', 'Cheque'];
+const PAYMENT_METHODS = ['Cash', 'Zelle', 'Credit Card', 'Check'];
 const METHOD_STYLES = {
-  'Efectivo':       { bg: '#dcfce7', text: '#166534', dot: '#16a34a' },
-  'Zelle':          { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
-  'Tarjeta crédito':{ bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
-  'Cheque':         { bg: '#fef3c7', text: '#854d0e', dot: '#d97706' },
+  'Cash':        { bg: '#dcfce7', text: '#166534', dot: '#16a34a' },
+  'Zelle':       { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
+  'Credit Card': { bg: '#e0f2fe', text: '#075985', dot: '#0284c7' },
+  'Check':       { bg: '#fef3c7', text: '#854d0e', dot: '#d97706' },
 };
 const DEFAULT_VANS = [
   { id: 'van-1', name: 'Van 1', groomer: 'Luis',    pin: '1111', commissionPct: 45 },
@@ -410,7 +467,7 @@ const loadAppointments = async () => {
     pets: (a.appointment_pets || []).map(ap => ({
       id: ap.id, petId: ap.pet_id, service: ap.service || '', amount: parseFloat(ap.amount) || 0,
       tip: parseFloat(ap.tip) || 0, cardFee: parseFloat(ap.card_fee) || 0,
-      method: ap.method || 'Efectivo', status: ap.status || 'pending',
+      method: ap.method || 'Cash', status: ap.status || 'pending',
       checkinTime: ap.checkin_time || '', checkoutTime: ap.checkout_time || '',
       pet: ap.pets ? { id: ap.pets.id, name: ap.pets.name, breed: ap.pets.breed, size: ap.pets.size, lastBlade: ap.pets.last_blade, lastCombo: ap.pets.last_combo, allergies: ap.pets.allergies, behavior_notes: ap.pets.behavior_notes } : null,
     })),
@@ -436,7 +493,7 @@ const saveAppointmentPet = async (ap) => {
   const { error } = await supabase.from('appointment_pets').upsert({
     id: ap.id, appointment_id: ap.appointmentId, pet_id: ap.petId,
     service: ap.service || '', amount: ap.amount || 0, tip: ap.tip || 0,
-    card_fee: ap.cardFee || 0, method: ap.method || 'Efectivo',
+    card_fee: ap.cardFee || 0, method: ap.method || 'Cash',
     status: ap.status || 'pending', checkin_time: ap.checkinTime || '',
     checkout_time: ap.checkoutTime || '',
   });
@@ -1642,7 +1699,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
   const [activeSection, setActiveSection] = useState(isAdmin ? 'servicios' : 'gastos');
   const [date, setDate] = useState(todayISO());
   const [vanId, setVanId] = useState(fixedVanId || vans[0]?.id || '');
-  const [form, setForm] = useState({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' });
+  const [form, setForm] = useState({ client: '', pet: '', service: '', method: 'Cash', amount: '', tip: '' });
   const [editingId, setEditingId] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [expenseForm, setExpenseForm] = useState({ category: categories[0] || 'Gasolina', description: '', amount: '', method: 'cash', odometer: '', station: '' });
@@ -1661,15 +1718,16 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
   useEffect(() => { if (fixedVanId) setVanId(fixedVanId); }, [fixedVanId]);
 
   // Calcular totales del servicio con fees
-  const calcTotal = (base, tip, method) => {
+  const calcTotal = (base, tip, method, serviceName = '') => {
     const baseAmt = parseFloat(base) || 0;
     const tipAmt = parseFloat(tip) || 0;
-    const gasFee = settings?.gasFee || 7;
-    const cardFee = method === 'Tarjeta crédito' ? ((baseAmt + tipAmt) * ((settings?.cardFeePct || 5.5) / 100)) : 0;
-    return { baseAmt, tipAmt, gasFee, cardFee, total: baseAmt + tipAmt + gasFee + cardFee };
+    const isGuarantee = baseAmt === 0 || serviceName.toLowerCase().includes('guarantee');
+    const gasFee = isGuarantee ? 0 : (settings?.gasFee || 7);
+    const cardFee = (!isGuarantee && method === 'Credit Card') ? ((baseAmt + tipAmt) * ((settings?.cardFeePct || 5.5) / 100)) : 0;
+    return { baseAmt, tipAmt, gasFee, cardFee, total: baseAmt + tipAmt + gasFee + cardFee, isGuarantee };
   };
 
-  const currentCalc = calcTotal(form.amount, form.tip, form.method);
+  const currentCalc = calcTotal(form.amount, form.tip, form.method, form.service || '');
 
   // Autocompletado
   const knownClients = useMemo(() => {
@@ -1696,7 +1754,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
 
   const handleSubmit = () => {
     if (!form.client.trim() || !form.amount) { alert('Completa al menos cliente y monto'); return; }
-    const calc = calcTotal(form.amount, form.tip, form.method);
+    const calc = calcTotal(form.amount, form.tip, form.method, form.service || '');
     if (editingId) {
       const existing = services.find(s => s.id === editingId);
       if (existing) updateService({ ...existing, ...form, amount: calc.baseAmt, tip: calc.tipAmt, cardFee: calc.cardFee, vanId, date });
@@ -1704,7 +1762,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
     } else {
       addService({ id: uid(), date, vanId, client: form.client.trim(), pet: form.pet.trim(), service: form.service.trim(), method: form.method, amount: calc.baseAmt, tip: calc.tipAmt, cardFee: calc.cardFee, createdAt: Date.now() });
     }
-    setForm({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' });
+    setForm({ client: '', pet: '', service: '', method: 'Cash', amount: '', tip: '' });
   };
 
   const handleEdit = (s) => {
@@ -1715,7 +1773,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
   const handleDelete = (id) => {
     if (confirm('¿Eliminar este servicio?')) {
       removeService(id);
-      if (editingId === id) { setEditingId(null); setForm({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' }); }
+      if (editingId === id) { setEditingId(null); setForm({ client: '', pet: '', service: '', method: 'Cash', amount: '', tip: '' }); }
     }
   };
 
@@ -2021,7 +2079,7 @@ function RegistroTab({ vans, services, addService, updateService, removeService,
 
             <div style={styles.formActions}>
               {editingId && (
-                <button onClick={() => { setEditingId(null); setForm({ client: '', pet: '', service: '', method: 'Efectivo', amount: '', tip: '' }); }} style={styles.btnSecondary}>
+                <button onClick={() => { setEditingId(null); setForm({ client: '', pet: '', service: '', method: 'Cash', amount: '', tip: '' }); }} style={styles.btnSecondary}>
                   <X size={15} /> Cancelar
                 </button>
               )}
@@ -2125,7 +2183,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [clientSearch, setClientSearch] = useState('');
 
   const [showCobroForm, setShowCobroForm] = useState(null);
-  const [cobroForm, setCobroForm] = useState({ method: 'Efectivo', tip: '' });
+  const [cobroForm, setCobroForm] = useState({ method: 'Cash', tip: '' });
   const [viewMode, setViewMode] = useState('lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
   const [filterVanId, setFilterVanId] = useState('todos');
@@ -2191,7 +2249,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
   const handleComplete = (appt) => {
     setShowCobroForm(appt);
-    setCobroForm({ method: 'Efectivo', tip: '' });
+    setCobroForm({ method: 'Cash', tip: '' });
   };
 
   const handleConfirmarCobro = async () => {
@@ -2200,20 +2258,44 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     const appt = showCobroForm;
     const tip = parseFloat(cobroForm.tip) || 0;
     const cardFeePct = settings?.cardFeePct || 5.5;
-    const gasFee = settings?.gasFee || 7;
     const method = cobroForm.method;
     const van = vans.find(v => v.id === appt.vanId);
     const companyId = van?.companyId || appt.companyId || 'epw';
 
+    // Si es tarjeta → procesar con Square primero
+    if (method === 'Credit Card') {
+      const isGuaranteeCheck = (appt.pets || []).every(ap =>
+        (ap.service || '').toLowerCase().includes('guarantee') || (ap.amount || 0) === 0
+      );
+      if (!isGuaranteeCheck) {
+        const subtotalCheck = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
+        const totalCheck = subtotalCheck + (settings?.gasFee || 7) + tip;
+        const amountCents = Math.round(totalCheck * 100);
+        const squareResult = await processSquarePayment(amountCents);
+        if (!squareResult.success) {
+          alert(`❌ Payment failed: ${squareResult.error}`);
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
+    // Si todos los servicios son Guarantee → gasFee = $0
+    const isGuarantee = (appt.pets || []).every(ap =>
+      (ap.service || '').toLowerCase().includes('guarantee') ||
+      (ap.amount || 0) === 0
+    );
+    const gasFee = isGuarantee ? 0 : (settings?.gasFee || 7);
+
     // Calcular totales
     const subtotal = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
-    const cardFee = method === 'Tarjeta crédito' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : 0;
+    const cardFee = method === 'Credit Card' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : 0;
     const total = subtotal + gasFee + cardFee + tip;
 
     // Registrar cada mascota como servicio en el cierre diario
     for (const ap of (appt.pets || [])) {
       const amount = ap.amount || appt.servicePrice || 0;
-      const apCardFee = method === 'Tarjeta crédito' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
+      const apCardFee = method === 'Credit Card' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
       await supabase.from('services').insert({
         id: uid(), date: appt.date, van_id: appt.vanId,
         client: appt.client?.name || '', pet: ap.pet?.name || '',
@@ -2354,7 +2436,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             id: uid(), petId: pid,
             service: newApptForm.serviceName || '',
             amount: finalPrice, tip: 0, cardFee: 0,
-            method: 'Efectivo', status: 'pending',
+            method: 'Cash', status: 'pending',
             checkinTime: '', checkoutTime: '',
             pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size, allergies: p.allergies, behavior_notes: p.behavior_notes } : null,
           };
@@ -2363,7 +2445,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
           id: uid(), petId: null,
           service: newApptForm.serviceName || '',
           amount: finalPrice, tip: 0, cardFee: 0,
-          method: 'Efectivo', status: 'pending',
+          method: 'Cash', status: 'pending',
           checkinTime: '', checkoutTime: '',
           pet: null,
         }];
@@ -3174,7 +3256,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                               cardFee: 0,
                               tip: 0,
                               total: subtotal + 7,
-                              method: 'Efectivo',
+                              method: 'Cash',
                             });
                           }
                         }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
@@ -3636,15 +3718,31 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Método de pago</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
                 {PAYMENT_METHODS.map(m => (
-                  <button key={m} onClick={() => setCobroForm(f => ({...f, method: m}))}
+                  <button key={m} onClick={async () => {
+                    setCobroForm(f => ({...f, method: m}));
+                    if (m === 'Credit Card') {
+                      setTimeout(async () => {
+                        try { await processSquarePayment(0); } catch(e) {}
+                      }, 300);
+                    }
+                  }}
                     style={{ padding: '12px 8px', borderRadius: 10, border: `2px solid ${cobroForm.method === m ? '#0f766e' : '#e2e8f0'}`, background: cobroForm.method === m ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 15, fontWeight: cobroForm.method === m ? 700 : 500, color: cobroForm.method === m ? '#0f766e' : '#475569' }}>
                     {m}
                   </button>
                 ))}
               </div>
-              {cobroForm.method === 'Tarjeta crédito' && (
-                <div style={{ marginTop: 8, padding: '8px 12px', background: '#fffbeb', borderRadius: 8, fontSize: 13, color: '#92400e', border: '1px solid #fcd34d' }}>
-                  ⚠️ Se agrega {settings?.cardFeePct || 5.5}% de fee de tarjeta
+              {cobroForm.method === 'Credit Card' && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ padding: '8px 12px', background: '#fffbeb', borderRadius: 8, fontSize: 13, color: '#92400e', border: '1px solid #fcd34d', marginBottom: 10 }}>
+                    ⚠️ {settings?.cardFeePct || 5.5}% card fee will be added
+                  </div>
+                  {/* Square Card Container */}
+                  <div style={{ padding: '14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 10 }}>
+                      💳 Enter card details or use Tap to Pay
+                    </div>
+                    <div id="square-card-container" style={{ minHeight: 89 }}></div>
+                  </div>
                 </div>
               )}
             </div>
@@ -4172,12 +4270,12 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
       [`Week: ${start} a ${end}`],
       [`Commission: ${settings.commissionPct}% · Tips: ${settings.tipsToGroomer}% · Fee gasolina: $${settings.gasFee} · Fee tarjeta: ${settings.cardFeePct}%`],
       [],
-      ['Van','Groomer','Services','Sales','Efectivo','Zelle','Tarjeta','Cheque','Tips','Fee Tarjeta','Fee Gasolina','Expenses','Commission','+ Tips','- Gasolina','- Expenses','A PAGAR'],
+      ['Van','Groomer','Services','Sales','Cash','Zelle','Tarjeta','Check','Tips','Fee Tarjeta','Fee Gasolina','Expenses','Commission','+ Tips','- Gasolina','- Expenses','A PAGAR'],
     ];
     report.forEach(r => rows.push([
       r.van.name, r.van.groomer||'', r.count, r.sales.toFixed(2),
-      r.byMethod['Efectivo'].toFixed(2), r.byMethod['Zelle'].toFixed(2),
-      r.byMethod['Tarjeta crédito'].toFixed(2), r.byMethod['Cheque'].toFixed(2),
+      r.byMethod['Cash'].toFixed(2), r.byMethod['Zelle'].toFixed(2),
+      r.byMethod['Credit Card'].toFixed(2), r.byMethod['Check'].toFixed(2),
       r.tips.toFixed(2), r.cardFees.toFixed(2), r.gasFees.toFixed(2), r.expTotal.toFixed(2),
       r.commission.toFixed(2), r.tipShare.toFixed(2), (-r.gasFees).toFixed(2), (-r.expTotal).toFixed(2), r.totalPay.toFixed(2),
     ]));
@@ -4807,7 +4905,7 @@ function SectionTitle({ eyebrow, title, right }) {
   );
 }
 function MethodChip({ method }) {
-  const s = METHOD_STYLES[method] || METHOD_STYLES['Efectivo'];
+  const s = METHOD_STYLES[method] || METHOD_STYLES['Cash'];
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 999, background: s.bg, color: s.text, fontSize: 12, fontWeight: 600 }}>
       <span style={{ ...styles.dot, background: s.dot }} />{method}
@@ -5094,7 +5192,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
         if (mainBlade) await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
       }
 
-      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: getPetTotal(pf), tip: 0, cardFee: 0, method: 'Efectivo', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
+      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: getPetTotal(pf), tip: 0, cardFee: 0, method: 'Cash', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
     }
 
     // 3. Crear cita
