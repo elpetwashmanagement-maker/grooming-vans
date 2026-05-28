@@ -732,6 +732,29 @@ const saveInvoice = async (invoice) => {
   return !error;
 };
 
+// ===== GROOMING PHOTOS =====
+const loadGroomingPhotos = async (appointmentId) => {
+  const { data, error } = await supabase.from('grooming_photos')
+    .select('*').eq('appointment_id', appointmentId).order('created_at');
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+
+const saveGroomingPhoto = async (photo) => {
+  const { error } = await supabase.from('grooming_photos').insert({
+    id: photo.id, appointment_id: photo.appointmentId,
+    pet_id: photo.petId || null, pet_name: photo.petName || '',
+    photo_url: photo.photoUrl, type: photo.type || 'after',
+    created_by: photo.createdBy || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+const deleteGroomingPhoto = async (id) => {
+  await supabase.from('grooming_photos').delete().eq('id', id);
+};
+
 // ===== FUEL LOGS =====
 const loadFuelLogs = async () => {
   const { data, error } = await supabase.from('fuel_logs').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
@@ -2207,6 +2230,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [showSignature, setShowSignature] = useState(null); // appt
   const [reasignando, setReasignando] = useState(null); // appt id
   const [editingPets, setEditingPets] = useState(null); // appt id siendo editado
+  const [apptPhotos, setApptPhotos] = useState({}); // { apptId: [photos] }
+  const [showPhotos, setShowPhotos] = useState(null); // appt id
+  const [viewingPhoto, setViewingPhoto] = useState(null);
   const [reasignForm, setReasignForm] = useState({ vanId: '', groomerId: '' });
   const [showInvoice, setShowInvoice] = useState(null);
 
@@ -3286,8 +3312,17 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           <MapPin size={14} /> Google Maps
                         </button>
                       )}
-                      {/* Editar mascotas y precios */}
-                      {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                      {/* Fotos antes/después */}
+                      {(appt.status === 'in_progress' || appt.status === 'completed') && (
+                        <button onClick={async () => {
+                          if (showPhotos === appt.id) { setShowPhotos(null); return; }
+                          const photos = await loadGroomingPhotos(appt.id);
+                          setApptPhotos(prev => ({...prev, [appt.id]: photos}));
+                          setShowPhotos(appt.id);
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: showPhotos === appt.id ? '#0f766e' : '#e2e8f0', color: showPhotos === appt.id ? '#0f766e' : '#64748b' }}>
+                          📸 {showPhotos === appt.id ? 'Hide photos' : 'Photos'}
+                        </button>
+                      )}
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
@@ -3322,6 +3357,77 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                     </div>
+
+                    {/* Panel de fotos */}
+                    {showPhotos === appt.id && (
+                      <div style={{ marginTop: 14, padding: '14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 12 }}>📸 Grooming Photos</div>
+
+                        {/* Fotos existentes */}
+                        {(apptPhotos[appt.id] || []).length > 0 ? (
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
+                            {(apptPhotos[appt.id] || []).map(photo => (
+                              <div key={photo.id} style={{ position: 'relative' }}>
+                                <img src={photo.photo_url} alt={photo.type} onClick={() => setViewingPhoto(photo.photo_url)}
+                                  style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '2px solid #e2e8f0' }} />
+                                <div style={{ position: 'absolute', top: 4, left: 4, background: photo.type === 'before' ? '#fef3c7' : '#f0fdfa', borderRadius: 999, padding: '2px 6px', fontSize: 10, fontWeight: 700, color: photo.type === 'before' ? '#92400e' : '#0f766e' }}>
+                                  {photo.type === 'before' ? 'BEFORE' : 'AFTER'}
+                                </div>
+                                {(isAdmin || session?.role === 'groomer') && (
+                                  <button onClick={async () => {
+                                    await deleteGroomingPhoto(photo.id);
+                                    setApptPhotos(prev => ({...prev, [appt.id]: prev[appt.id].filter(p => p.id !== photo.id)}));
+                                  }} style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(220,38,38,0.9)', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <X size={12} />
+                                  </button>
+                                )}
+                                {photo.pet_name && <div style={{ fontSize: 10, color: '#64748b', textAlign: 'center', marginTop: 3 }}>🐾 {photo.pet_name}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 13, padding: '16px 0', marginBottom: 12 }}>No photos yet</div>
+                        )}
+
+                        {/* Subir nueva foto */}
+                        {appt.status !== 'cancelled' && (
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8 }}>Add photo:</div>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {['before', 'after'].map(type => (
+                                <label key={type} style={{ flex: 1, cursor: 'pointer' }}>
+                                  <div style={{ padding: '10px', background: type === 'before' ? '#fffbeb' : '#f0fdfa', border: `1.5px dashed ${type === 'before' ? '#f59e0b' : '#0f766e'}`, borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 600, color: type === 'before' ? '#92400e' : '#0f766e' }}>
+                                    📷 {type === 'before' ? 'Before' : 'After'}
+                                  </div>
+                                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                                    onChange={async e => {
+                                      const file = e.target.files[0];
+                                      if (!file) return;
+                                      const photoId = uid();
+                                      const ext = file.name.split('.').pop();
+                                      const path = `grooming-${photoId}.${ext}`;
+                                      const { error } = await supabase.storage.from('receipts').upload(path, file, { upsert: true });
+                                      if (error) { alert('Error uploading photo'); return; }
+                                      const { data } = supabase.storage.from('receipts').getPublicUrl(path);
+                                      const pet = appt.pets?.[0];
+                                      const photo = { id: photoId, appointmentId: appt.id, petId: pet?.petId || null, petName: pet?.pet?.name || '', photoUrl: data.publicUrl, type, createdBy: session?.userName || '' };
+                                      await saveGroomingPhoto(photo);
+                                      setApptPhotos(prev => ({...prev, [appt.id]: [...(prev[appt.id] || []), { id: photoId, photo_url: data.publicUrl, type, pet_name: pet?.pet?.name || '' }]}));
+                                    }} />
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Modal ver foto grande */}
+                    {viewingPhoto && (
+                      <div onClick={() => setViewingPhoto(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                        <img src={viewingPhoto} alt="Photo" style={{ maxWidth: '95vw', maxHeight: '95vh', borderRadius: 8, objectFit: 'contain' }} />
+                      </div>
+                    )}
 
                     {/* Panel edición mascotas y precios */}
                     {editingPets === appt.id && (
