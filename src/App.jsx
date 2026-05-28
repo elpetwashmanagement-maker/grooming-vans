@@ -162,13 +162,12 @@ const SQUARE_CONFIG = {
     scriptUrl: 'https://sandbox.web.squarecdn.com/v1/square.js',
   },
   production: {
-    appId: 'sq0idp-HnbL8ULCx-2jtvYlfKdtEQ',
-    locationId: 'L2FFGMCZY3V9J',
+    appId: import.meta.env.VITE_SQUARE_APP_ID || 'sq0idp-HnbL8ULCx-2jtvYlfKdtEQ',
+    locationId: import.meta.env.VITE_SQUARE_LOCATION_ID || 'L2FFGMCZY3V9J',
     scriptUrl: 'https://web.squarecdn.com/v1/square.js',
-    accessToken: 'EAAAly0RKJsg84R-QnkHw0M7aFqXkfw7XsRfragMR1EymiqBdyHtfswPX903IRMs',
   }
 };
-const SQUARE_ENV = 'sandbox'; // cambiar a 'production' cuando esté listo
+const SQUARE_ENV = 'production';
 const SQ = SQUARE_CONFIG[SQUARE_ENV];
 
 // Cargar Square SDK
