@@ -1145,7 +1145,7 @@ export default function App() {
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'semana' && canViewReports && <WeekTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
-        {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} />}
+        {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -6418,7 +6418,7 @@ Si no es un perro, responde: {"error": "No es un perro"}` }
 }
 
 // ===== DASHBOARD TAB =====
-function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies }) {
+function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies, companyExpenses }) {
   const [section, setSection] = useState('overview');
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState('');
@@ -6560,8 +6560,8 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
     </div>
   );
 
-  const SECTIONS = ['overview','sales','clients','staff','operations','comparison'];
-  const SECTION_LABELS = { overview:'📌 Overview', sales:'💰 Sales', clients:'👥 Clients & Pets', staff:'✂️ Staff', operations:'⚙️ Operations', comparison:'📈 vs Prior Period' };
+  const SECTIONS = ['overview','sales','clients','staff','operations','comparison','pl'];
+  const SECTION_LABELS = { overview:'📌 Overview', sales:'💰 Sales', clients:'👥 Clients & Pets', staff:'✂️ Staff', operations:'⚙️ Operations', comparison:'📈 vs Prior Period', pl:'📊 P&L' };
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
@@ -6923,12 +6923,113 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
           })}
         </div>
       )}
+
+      {/* ===== P&L ===== */}
+      {section === 'pl' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {DEFAULT_COMPANIES.map(company => {
+            const compSvcs = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === company.id);
+            const compExp = filteredExpenses.filter(e => vans.find(v => v.id === e.vanId)?.companyId === company.id);
+            const revenue = compSvcs.reduce((s, i) => s + i.amount, 0);
+            const tips = compSvcs.reduce((s, i) => s + (i.tip || 0), 0);
+            const cardFees = compSvcs.reduce((s, i) => s + (i.cardFee || 0), 0);
+            const gasFees = compSvcs.length * (settings?.gasFee || 7);
+            const expenses = compExp.reduce((s, e) => s + e.amount, 0);
+            const commissions = revenue * 0.45; // promedio 45%
+            const companyIncome = revenue * 0.55 + gasFees + cardFees;
+            const netProfit = companyIncome - expenses;
+            const margin = companyIncome > 0 ? ((netProfit / companyIncome) * 100).toFixed(1) : 0;
+
+            return (
+              <div key={company.id} style={styles.card}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                  <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{company.name}</div>
+                  <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, background: netProfit >= 0 ? '#f0fdfa' : '#fef2f2', color: netProfit >= 0 ? '#0f766e' : '#dc2626', fontWeight: 700 }}>
+                    {netProfit >= 0 ? '▲' : '▼'} {margin}% margin
+                  </span>
+                </div>
+
+                {/* Ingresos */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>📈 Revenue</div>
+                  {[
+                    { label: 'Grooming sales', value: revenue, color: '#0f766e' },
+                    { label: 'Gas fee income', value: gasFees, color: '#0284c7' },
+                    { label: 'Card fee income', value: cardFees, color: '#ec4899' },
+                    { label: 'Tips', value: tips, color: '#f59e0b' },
+                  ].map(item => (
+                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{item.label}</span>
+                      <span style={{ fontWeight: 600, color: item.color }}>{fmt(item.value)}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontWeight: 700 }}>
+                    <span style={{ fontSize: 14 }}>Total Revenue</span>
+                    <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: '#0f766e' }}>{fmt(companyIncome)}</span>
+                  </div>
+                </div>
+
+                {/* Gastos */}
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>📉 Expenses</div>
+                  {[
+                    { label: 'Groomer commissions (≈45%)', value: commissions, color: '#dc2626' },
+                    { label: 'Operating expenses', value: expenses, color: '#dc2626' },
+                  ].map(item => (
+                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ fontSize: 13, color: '#64748b' }}>{item.label}</span>
+                      <span style={{ fontWeight: 600, color: item.color }}>-{fmt(item.value)}</span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontWeight: 700 }}>
+                    <span style={{ fontSize: 14 }}>Total Expenses</span>
+                    <span style={{ fontFamily: 'Fraunces, serif', fontSize: 18, color: '#dc2626' }}>-{fmt(commissions + expenses)}</span>
+                  </div>
+                </div>
+
+                {/* Net Profit */}
+                <div style={{ padding: '14px', background: netProfit >= 0 ? '#f0fdfa' : '#fef2f2', borderRadius: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: '#0f172a' }}>Net Profit</span>
+                  <span style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 800, color: netProfit >= 0 ? '#0f766e' : '#dc2626' }}>{fmt(netProfit)}</span>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Total consolidado */}
+          <div style={{ ...styles.card, borderTop: '3px solid #0f172a' }}>
+            <h3 style={styles.cardH3}>🏢 Group Guerrero Orejarena — Consolidated</h3>
+            {(() => {
+              const totalRev = filteredServices.reduce((s, i) => s + i.amount, 0);
+              const totalGas = filteredServices.length * (settings?.gasFee || 7);
+              const totalCard = filteredServices.reduce((s, i) => s + (i.cardFee || 0), 0);
+              const totalExp = filteredExpenses.reduce((s, e) => s + e.amount, 0);
+              const totalComm = totalRev * 0.45;
+              const totalIncome = totalRev * 0.55 + totalGas + totalCard;
+              const totalNet = totalIncome - totalExp;
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+                  {[
+                    { label: 'Total Revenue', value: totalIncome, color: '#0f766e' },
+                    { label: 'Commissions', value: totalComm, color: '#dc2626' },
+                    { label: 'Expenses', value: totalExp, color: '#dc2626' },
+                    { label: 'NET PROFIT', value: totalNet, color: totalNet >= 0 ? '#0f766e' : '#dc2626', big: true },
+                  ].map(item => (
+                    <div key={item.label} style={{ padding: '12px', background: '#f8fafc', borderRadius: 10, textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>{item.label}</div>
+                      <div style={{ fontFamily: 'Fraunces, serif', fontSize: item.big ? 24 : 18, fontWeight: 800, color: item.color }}>{fmt(Math.abs(item.value))}</div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-
-// ===== PAYROLL TAB =====
 function PayrollTab({ groomers, vans, services, appointments, settings, groomerPayments, setGroomerPayments, session }) {
   const [dateStart, setDateStart] = useState(() => {
     const d = new Date();
