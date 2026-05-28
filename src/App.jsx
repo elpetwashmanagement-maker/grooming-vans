@@ -5779,11 +5779,52 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                                       </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
-                                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-success)' }}>Total: ${ap.amount || 0}</span>
+                                    {/* Precio manual */}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px dashed #e2e8f0' }}>
+                                      <span style={{ fontSize: 12, fontWeight: 600, color: '#64748b' }}>Price</span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ color: '#94a3b8' }}>$</span>
+                                        <input type="number" step="0.01" defaultValue={ap.amount || 0}
+                                          onBlur={async e => {
+                                            const newAmount = parseFloat(e.target.value) || 0;
+                                            await supabase.from('appointment_pets').update({ amount: newAmount }).eq('id', ap.id);
+                                            await refreshAppointments();
+                                          }}
+                                          style={{ ...styles.input, width: 90, textAlign: 'right', fontWeight: 700, fontSize: 15, color: '#0f766e', padding: '4px 8px' }} />
+                                        <button onClick={async () => {
+                                          if (!confirm(`Remove ${ap.pet?.name || 'pet'} from this appointment?`)) return;
+                                          await supabase.from('appointment_pets').delete().eq('id', ap.id);
+                                          await refreshAppointments();
+                                        }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={14} /></button>
+                                      </div>
                                     </div>
                                   </div>
                                 ))}
+
+                                {/* Agregar mascota */}
+                                <div style={{ marginTop: 10, padding: '10px 12px', background: '#f0fdfa', borderRadius: 8, border: '1px dashed #0f766e' }}>
+                                  <div style={{ fontSize: 12, fontWeight: 600, color: '#0f766e', marginBottom: 8 }}>➕ Add pet to appointment</div>
+                                  <select onChange={async e => {
+                                    if (!e.target.value) return;
+                                    const petId = e.target.value;
+                                    const pet = pets.find(p => p.id === petId || p.id === parseInt(petId));
+                                    await supabase.from('appointment_pets').insert({
+                                      id: uid(), appointment_id: a.id,
+                                      pet_id: petId, service: '', amount: 0,
+                                    });
+                                    await refreshAppointments();
+                                    e.target.value = '';
+                                  }} style={{ ...styles.input, fontSize: 12 }}>
+                                    <option value="">— Select pet to add —</option>
+                                    {(pets || []).filter(p => {
+                                      const clientId = a.clientId || a.client_id;
+                                      return (p.client_id == clientId || p.clientId == clientId) &&
+                                        !(a.pets || []).find(ap => ap.petId === p.id || ap.pet_id === p.id);
+                                    }).map(p => (
+                                      <option key={p.id} value={p.id}>{p.name} — {p.breed || ''}</option>
+                                    ))}
+                                  </select>
+                                </div>
                               </div>
                             )}
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
