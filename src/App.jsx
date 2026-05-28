@@ -1014,7 +1014,7 @@ export default function App() {
   // Clients
   const addClient = async (client) => {
     const ok = await saveClient(client);
-    if (ok) setClients(prev => [...prev, client].sort((a,b) => a.name.localeCompare(b.name)));
+    if (ok) setClients(prev => [client, ...prev].sort((a,b) => a.name.localeCompare(b.name)));
     return ok;
   };
   const updateClient = async (client) => {
@@ -2288,8 +2288,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   }, [appointments, date, isGroomer, myVanId, filterVanId, vans]);
 
   const filteredClients = useMemo(() => {
-    if (!clientSearch.trim()) return clients.slice(0, 8);
-    return clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 8);
+    if (!clientSearch.trim()) return clients.slice(0, 15);
+    return clients.filter(c => 
+      c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+      c.phone?.includes(clientSearch) ||
+      c.address?.toLowerCase().includes(clientSearch.toLowerCase())
+    ).slice(0, 15);
   }, [clients, clientSearch]);
 
   const clientPets = useMemo(() => {
