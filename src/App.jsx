@@ -7022,26 +7022,87 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
     </div>
   );
 }
+// ===== PAYROLL TAB =====
 function PayrollTab({ groomers, vans, services, appointments, settings, groomerPayments, setGroomerPayments, session }) {
-  const [dateStart, setDateStart] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
-  });
-  const [dateEnd, setDateEnd] = useState(todayISO());
+  
+  // Calcular semana actual (Lun-Dom)
+  const getCurrentWeek = () => {
+    const today = new Date();
+    const day = today.getDay(); // 0=Dom, 1=Lun...
+    const diffToMon = day === 0 ? -6 : 1 - day;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + diffToMon);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const toISO = d => { const tz = d.getTimezoneOffset() * 60000; return new Date(d - tz).toISOString().slice(0,10); };
+    return { start: toISO(monday), end: toISO(sunday) };
+  };
+
+  const getPrevWeek = (start) => {
+    const d = new Date(start + 'T12:00:00');
+    d.setDate(d.getDate() - 7);
+    const tz = d.getTimezoneOffset() * 60000;
+    const newStart = new Date(d - tz).toISOString().slice(0,10);
+    const endD = new Date(d);
+    endD.setDate(d.getDate() + 6);
+    const newEnd = new Date(endD - tz).toISOString().slice(0,10);
+    return { start: newStart, end: newEnd };
+  };
+
+  const getNextWeek = (start) => {
+    const d = new Date(start + 'T12:00:00');
+    d.setDate(d.getDate() + 7);
+    const tz = d.getTimezoneOffset() * 60000;
+    const newStart = new Date(d - tz).toISOString().slice(0,10);
+    const endD = new Date(d);
+    endD.setDate(d.getDate() + 6);
+    const newEnd = new Date(endD - tz).toISOString().slice(0,10);
+    return { start: newStart, end: newEnd };
+  };
+
+  const week = getCurrentWeek();
+  const [weekStart, setWeekStart] = useState(week.start);
+  const [weekEnd, setWeekEnd] = useState(week.end);
   const [payingGroomer, setPayingGroomer] = useState(null);
   const [payForm, setPayForm] = useState({ method: 'cash', notes: '', date: todayISO() });
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(null);
 
-  // Calcular comisiones por groomer en el período
+  const navigateWeek = (direction) => {
+    const newWeek = direction === 'prev' ? getPrevWeek(weekStart) : getNextWeek(weekStart);
+    setWeekStart(newWeek.start);
+    setWeekEnd(newWeek.end);
+    setPayingGroomer(null);
+  };
+
+  // Verificar citas sin cerrar en la semana
+  const openAppts = useMemo(() => {
+    return appointments.filter(a =>
+      inRange(a.date, weekStart, weekEnd) &&
+      a.status !== 'completed' &&
+      a.status !== 'cancelled'
+    );
+  }, [appointments, weekStart, weekEnd]);
+
+  const hasOpenAppts = openAppts.length > 0;
+
+  // Verificar si la semana ya fue pagada
+  const weekAlreadyPaid = (groomerId) => {
+    return groomerPayments.some(p =>
+      p.groomer_id === groomerId &&
+      p.period_start === weekStart &&
+      p.period_end === weekEnd
+    );
+  };
+
+  // Calcular comisiones por groomer
   const groomerStats = useMemo(() => {
     return groomers.filter(g => g.active !== false).map(g => {
       const van = vans.find(v => v.id === g.vanId);
       const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
-      
-      // Servicios del groomer en el período
+
       const groomerServices = services.filter(s => {
-        if (!inRange(s.date, dateStart, dateEnd)) return false;
+        if (!inRange(s.date, weekStart, weekEnd)) return false;
         const sVan = vans.find(v => v.id === s.vanId);
         return sVan?.id === g.vanId || s.groomerId === g.id;
       });
@@ -7053,28 +7114,38 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
       const tipsShare = totalTips * (settings?.tipsToGroomer || 100) / 100;
       const totalEarned = commission + tipsShare;
 
-      // Pagos ya realizados en el período
       const paidInPeriod = groomerPayments
-        .filter(p => p.groomer_id === g.id && inRange(p.date, dateStart, dateEnd))
+        .filter(p => p.groomer_id === g.id && p.period_start === weekStart && p.period_end === weekEnd)
         .reduce((sum, p) => sum + parseFloat(p.amount), 0);
 
       const balance = totalEarned - paidInPeriod;
+      const alreadyPaid = weekAlreadyPaid(g.id);
 
-      return { ...g, van, company, totalSales, totalTips, commission, tipsShare, totalEarned, paidInPeriod, balance, commissionPct, serviceCount: groomerServices.length };
+      // Citas abiertas de este groomer en la semana
+      const groomerOpenAppts = openAppts.filter(a => {
+        const apptVan = vans.find(v => v.id === a.vanId);
+        return apptVan?.id === g.vanId || a.groomerId === g.id;
+      });
+
+      return { ...g, van, company, totalSales, totalTips, commission, tipsShare, totalEarned, paidInPeriod, balance, commissionPct, serviceCount: groomerServices.length, alreadyPaid, groomerOpenAppts };
     }).sort((a, b) => b.balance - a.balance);
-  }, [groomers, vans, services, groomerPayments, dateStart, dateEnd, settings]);
+  }, [groomers, vans, services, groomerPayments, weekStart, weekEnd, openAppts, settings]);
 
   const totalPending = groomerStats.reduce((sum, g) => sum + Math.max(g.balance, 0), 0);
   const totalPaid = groomerStats.reduce((sum, g) => sum + g.paidInPeriod, 0);
 
   const handlePay = async (groomer) => {
+    if (groomer.groomerOpenAppts.length > 0) {
+      alert(`⚠️ ${groomer.name} has ${groomer.groomerOpenAppts.length} open appointment(s) this week. Please close them before paying.`);
+      return;
+    }
     if (!payForm.date) { alert('Enter payment date'); return; }
     setSaving(true);
     const payment = {
       id: uid(), groomerId: groomer.id, groomerName: groomer.name,
       amount: groomer.balance, method: payForm.method,
-      date: payForm.date, notes: payForm.notes,
-      periodStart: dateStart, periodEnd: dateEnd,
+      date: payForm.date, notes: payForm.notes || `Week ${weekStart} to ${weekEnd}`,
+      periodStart: weekStart, periodEnd: weekEnd,
       createdBy: session?.userName || '',
     };
     const ok = await saveGroomerPayment(payment);
@@ -7087,56 +7158,87 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
     setSaving(false);
   };
 
+  const weekLabel = `${formatDateNice(weekStart)} — ${formatDateNice(weekEnd)}`;
+  const isCurrentWeek = weekStart === week.start;
+
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Finance" title="💸 Payroll" />
 
-      {/* Filtro de fechas */}
+      {/* Selector de semana */}
       <div style={styles.card}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div>
-            <label style={styles.lbl}>Period Start</label>
-            <input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 170 }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <button onClick={() => navigateWeek('prev')} style={{ ...styles.iconBtn, fontSize: 20, padding: '8px 12px' }}>‹</button>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+              {isCurrentWeek ? '📅 Current Week' : '📅 Week'}
+            </div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700, color: '#0f172a', marginTop: 2 }}>{weekLabel}</div>
           </div>
-          <div>
-            <label style={styles.lbl}>Period End</label>
-            <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 170 }} />
-          </div>
+          <button onClick={() => navigateWeek('next')} style={{ ...styles.iconBtn, fontSize: 20, padding: '8px 12px' }} disabled={isCurrentWeek}>›</button>
         </div>
+
+        {/* Alerta citas abiertas */}
+        {hasOpenAppts && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: '#fef3c7', borderRadius: 10, border: '1px solid #fcd34d', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, color: '#92400e' }}>
+                {openAppts.length} open appointment{openAppts.length !== 1 ? 's' : ''} this week
+              </div>
+              <div style={{ fontSize: 12, color: '#92400e', marginTop: 2 }}>
+                Close all appointments before paying groomers
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginTop: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginTop: 16 }}>
         <div style={{ ...styles.kpiCard, borderTop: '3px solid #f59e0b' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Total Pending</div>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: '#f59e0b', marginTop: 6 }}>{fmt(totalPending)}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Pending</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: '#f59e0b', marginTop: 6 }}>{fmt(totalPending)}</div>
         </div>
         <div style={{ ...styles.kpiCard, borderTop: '3px solid #0f766e' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Paid This Period</div>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: '#0f766e', marginTop: 6 }}>{fmt(totalPaid)}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Paid</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: '#0f766e', marginTop: 6 }}>{fmt(totalPaid)}</div>
         </div>
         <div style={{ ...styles.kpiCard, borderTop: '3px solid #7c3aed' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Total Earned</div>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 700, color: '#7c3aed', marginTop: 6 }}>{fmt(totalPending + totalPaid)}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>Total</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 700, color: '#7c3aed', marginTop: 6 }}>{fmt(totalPending + totalPaid)}</div>
         </div>
       </div>
 
       {/* Lista de groomers */}
       <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {groomerStats.map(g => (
-          <div key={g.id} style={{ ...styles.card, borderLeft: `4px solid ${g.balance > 0 ? '#f59e0b' : '#0f766e'}` }}>
+          <div key={g.id} style={{ ...styles.card, borderLeft: `4px solid ${g.alreadyPaid ? '#0f766e' : g.balance > 0 ? '#f59e0b' : '#e2e8f0'}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
               <div>
                 <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>✂️ {g.name}</div>
                 <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                   {g.company?.logoEmoji} {g.company?.name} · {g.van?.name} · {g.commissionPct}%
                 </div>
+                {g.groomerOpenAppts.length > 0 && (
+                  <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600, marginTop: 4 }}>
+                    ⚠️ {g.groomerOpenAppts.length} open appointment{g.groomerOpenAppts.length !== 1 ? 's' : ''}
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 11, color: '#94a3b8' }}>Balance</div>
-                <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 800, color: g.balance > 0 ? '#f59e0b' : '#0f766e' }}>
-                  {fmt(g.balance)}
-                </div>
+                {g.alreadyPaid ? (
+                  <div style={{ padding: '6px 12px', background: '#f0fdfa', borderRadius: 999, fontSize: 13, fontWeight: 700, color: '#0f766e' }}>
+                    ✅ Paid
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 11, color: '#94a3b8' }}>Balance</div>
+                    <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 800, color: g.balance > 0 ? '#f59e0b' : '#64748b' }}>
+                      {fmt(g.balance)}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
@@ -7145,35 +7247,45 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
               {[
                 { label: 'Services', value: g.serviceCount },
                 { label: 'Sales', value: fmt(g.totalSales) },
-                { label: `Commission (${g.commissionPct}%)`, value: fmt(g.commission) },
-                { label: 'Already Paid', value: fmt(g.paidInPeriod) },
+                { label: `Commission`, value: fmt(g.commission) },
+                { label: 'Tips', value: fmt(g.tipsShare) },
               ].map(item => (
                 <div key={item.label} style={{ padding: '8px', background: '#f8fafc', borderRadius: 8, textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>{item.label}</div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{item.value}</div>
+                  <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 2 }}>{item.label}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{item.value}</div>
                 </div>
               ))}
             </div>
 
             {/* Botones */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              {g.balance > 0 && payingGroomer !== g.id && (
-                <button onClick={() => setPayingGroomer(g.id)}
-                  style={{ ...styles.btnPrimary, background: '#f59e0b', borderColor: '#f59e0b' }}>
-                  💸 Mark as Paid {fmt(g.balance)}
+            {!g.alreadyPaid && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {g.balance > 0 && payingGroomer !== g.id && (
+                  <button onClick={() => {
+                    if (g.groomerOpenAppts.length > 0) {
+                      alert(`⚠️ ${g.name} has ${g.groomerOpenAppts.length} open appointment(s). Close them first.`);
+                      return;
+                    }
+                    setPayingGroomer(g.id);
+                    setPayForm({ method: 'cash', notes: `Week ${weekStart}`, date: todayISO() });
+                  }}
+                    style={{ ...styles.btnPrimary, background: g.groomerOpenAppts.length > 0 ? '#94a3b8' : '#f59e0b', borderColor: g.groomerOpenAppts.length > 0 ? '#94a3b8' : '#f59e0b' }}>
+                    💸 Pay {fmt(g.balance)}
+                  </button>
+                )}
+                <button onClick={() => setShowHistory(showHistory === g.id ? null : g.id)}
+                  style={{ ...styles.btnSecondary, fontSize: 13 }}>
+                  📋 {showHistory === g.id ? 'Hide' : 'History'}
                 </button>
-              )}
-              <button onClick={() => setShowHistory(showHistory === g.id ? null : g.id)}
-                style={{ ...styles.btnSecondary, fontSize: 13 }}>
-                📋 {showHistory === g.id ? 'Hide' : 'History'}
-              </button>
-            </div>
+              </div>
+            )}
 
             {/* Formulario de pago */}
             {payingGroomer === g.id && (
               <div style={{ marginTop: 12, padding: '14px', background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b' }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 10 }}>
-                  💸 Record payment to {g.name} — {fmt(g.balance)}
+                  💸 Pay {g.name} — {fmt(g.balance)}
+                  <div style={{ fontSize: 11, fontWeight: 400, marginTop: 2 }}>Week: {weekLabel}</div>
                 </div>
                 <div style={styles.formGrid}>
                   <div>
@@ -7191,32 +7303,36 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
                     <label style={styles.lbl}>Notes (optional)</label>
-                    <input value={payForm.notes} onChange={e => setPayForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="e.g. Week of May 26" />
+                    <input value={payForm.notes} onChange={e => setPayForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder={`Week of ${weekStart}`} />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                   <button onClick={() => handlePay(g)} style={{ ...styles.btnPrimary, background: '#f59e0b', borderColor: '#f59e0b' }} disabled={saving}>
                     {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : '✅'}
-                    {saving ? 'Saving...' : `Confirm Payment ${fmt(g.balance)}`}
+                    {saving ? 'Saving...' : `Confirm ${fmt(g.balance)}`}
                   </button>
                   <button onClick={() => setPayingGroomer(null)} style={styles.btnSecondary}>Cancel</button>
                 </div>
               </div>
             )}
 
-            {/* Historial de pagos */}
+            {/* Historial */}
             {showHistory === g.id && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>Payment History</div>
                 {groomerPayments.filter(p => p.groomer_id === g.id).length === 0 ? (
-                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No payments recorded yet</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No payments yet</div>
                 ) : groomerPayments.filter(p => p.groomer_id === g.id).slice(0, 10).map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, marginBottom: 6 }}>
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, marginBottom: 6 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#0f766e' }}>{fmt(parseFloat(p.amount))}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>{formatDateNice(p.date)} · {p.method} {p.notes ? `· ${p.notes}` : ''}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                        {formatDateNice(p.date)} · {p.method}
+                        {p.period_start && ` · ${p.period_start} → ${p.period_end}`}
+                        {p.notes ? ` · ${p.notes}` : ''}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, color: '#94a3b8' }}>✅ Paid</div>
+                    <div style={{ fontSize: 11, color: '#0f766e', fontWeight: 600 }}>✅ Paid</div>
                   </div>
                 ))}
               </div>
