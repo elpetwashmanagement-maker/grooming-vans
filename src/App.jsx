@@ -3323,6 +3323,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                           📸 {showPhotos === appt.id ? 'Hide photos' : 'Photos'}
                         </button>
                       )}
+                      {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
