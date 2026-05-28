@@ -2250,7 +2250,9 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [filterVanId, setFilterVanId] = useState('todos');
   const [showSignature, setShowSignature] = useState(null); // appt
   const [reasignando, setReasignando] = useState(null); // appt id
-  const [editingPets, setEditingPets] = useState(null); // appt id siendo editado
+  const [editingPets, setEditingPets] = useState(null);
+  const [editingApptInfo, setEditingApptInfo] = useState(null); // appt id
+  const [editApptInfoForm, setEditApptInfoForm] = useState({});
   const [apptPhotos, setApptPhotos] = useState({}); // { apptId: [photos] }
   const [showPhotos, setShowPhotos] = useState(null); // appt id
   const [viewingPhoto, setViewingPhoto] = useState(null);
@@ -3355,6 +3357,15 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                       {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                        <button onClick={() => {
+                          if (editingApptInfo === appt.id) { setEditingApptInfo(null); return; }
+                          setEditingApptInfo(appt.id);
+                          setEditApptInfoForm({ date: appt.date, timeStart: appt.timeStart || '', timeEnd: appt.timeEnd || '', vanId: appt.vanId, notes: appt.notes || '' });
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingApptInfo === appt.id ? '#7c3aed' : '#e2e8f0', color: editingApptInfo === appt.id ? '#7c3aed' : '#64748b', background: editingApptInfo === appt.id ? '#f5f3ff' : '#fff' }}>
+                          <Edit2 size={14} /> {editingApptInfo === appt.id ? 'Done' : 'Edit date & time'}
+                        </button>
+                      )}
+                      {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
@@ -3389,6 +3400,67 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                     </div>
+
+                    {/* Panel edición fecha y hora */}
+                    {editingApptInfo === appt.id && (
+                      <div style={{ marginTop: 14, padding: '14px', background: '#f5f3ff', borderRadius: 12, border: '1.5px solid #7c3aed' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', marginBottom: 12 }}>✏️ Edit appointment info</div>
+                        <div style={styles.formGrid}>
+                          <div>
+                            <label style={styles.lbl}>Date</label>
+                            <input type="date" value={editApptInfoForm.date}
+                              onChange={e => setEditApptInfoForm(f => ({...f, date: e.target.value}))}
+                              style={styles.input} />
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Van</label>
+                            <select value={editApptInfoForm.vanId}
+                              onChange={e => setEditApptInfoForm(f => ({...f, vanId: e.target.value}))}
+                              style={styles.input}>
+                              {vans.filter(v => v.active !== false).map(v => (
+                                <option key={v.id} value={v.id}>{v.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Start time</label>
+                            <input type="time" value={editApptInfoForm.timeStart}
+                              onChange={e => setEditApptInfoForm(f => ({...f, timeStart: e.target.value}))}
+                              style={styles.input} />
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>End time</label>
+                            <input type="time" value={editApptInfoForm.timeEnd}
+                              onChange={e => setEditApptInfoForm(f => ({...f, timeEnd: e.target.value}))}
+                              style={styles.input} />
+                          </div>
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <label style={styles.lbl}>Notes</label>
+                            <input value={editApptInfoForm.notes}
+                              onChange={e => setEditApptInfoForm(f => ({...f, notes: e.target.value}))}
+                              style={styles.input} placeholder="Special instructions..." />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                          <button onClick={async () => {
+                            await supabase.from('appointments').update({
+                              date: editApptInfoForm.date,
+                              time_start: editApptInfoForm.timeStart,
+                              time_end: editApptInfoForm.timeEnd,
+                              van_id: editApptInfoForm.vanId,
+                              notes: editApptInfoForm.notes,
+                            }).eq('id', appt.id);
+                            await refreshAppointments();
+                            setEditingApptInfo(null);
+                          }} style={styles.btnPrimary}>
+                            <Check size={14} /> Save changes
+                          </button>
+                          <button onClick={() => setEditingApptInfo(null)} style={styles.btnSecondary}>
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Panel de fotos */}
                     {showPhotos === appt.id && (
