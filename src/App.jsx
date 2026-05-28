@@ -180,7 +180,7 @@ const loadSquareSDK = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const processSquarePayment = async (amountCents) => {
+const processSquarePayment = async (amountCents, note = '') => {
   try {
     const Square = await loadSquareSDK();
     const payments = Square.payments(SQ.appId, SQ.locationId);
@@ -191,7 +191,7 @@ const processSquarePayment = async (amountCents) => {
       const tapToPay = await payments.tapToPay();
       paymentMethod = tapToPay;
     } catch (tapError) {
-      // Fallback a card form si Tap to Pay no está disponible
+      // Fallback a card form
       const card = await payments.card();
       await card.attach('#square-card-container');
       paymentMethod = card;
@@ -199,11 +199,29 @@ const processSquarePayment = async (amountCents) => {
 
     if (amountCents === 0) return { success: true, token: null };
 
+    // Obtener token de Square
     const result = await paymentMethod.tokenize();
-    if (result.status === 'OK') {
-      return { success: true, token: result.token };
+    if (result.status !== 'OK') {
+      return { success: false, error: result.errors?.[0]?.message || 'Tokenization failed' };
     }
-    return { success: false, error: result.errors?.[0]?.message || 'Payment failed' };
+
+    // Enviar token al backend para procesar el pago real
+    const response = await fetch('/api/square-payment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceId: result.token,
+        amount: amountCents,
+        note,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Payment failed' };
+    }
+
+    return { success: true, paymentId: data.paymentId, token: result.token };
   } catch (err) {
     console.error('Square error:', err);
     return { success: false, error: err.message };
@@ -2270,7 +2288,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         const subtotalCheck = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
         const totalCheck = subtotalCheck + (settings?.gasFee || 7) + tip;
         const amountCents = Math.round(totalCheck * 100);
-        const squareResult = await processSquarePayment(amountCents);
+        const squareResult = await processSquarePayment(amountCents, `${appt.client?.name || ''} - ${appt.pets?.map(p => p.pet?.name).join(', ') || ''}`);
         if (!squareResult.success) {
           alert(`❌ Payment failed: ${squareResult.error}`);
           setSaving(false);
