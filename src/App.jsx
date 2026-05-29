@@ -5154,7 +5154,6 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
               🚐 By Van
             </button>
           </div>
-          <button onClick={exportCSV} style={styles.btnPrimary}><Download size={15} /> Exportar CSV</button>
         </div>
       </div>
 
