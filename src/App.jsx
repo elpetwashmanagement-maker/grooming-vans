@@ -2601,8 +2601,6 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [editingPets, setEditingPets] = useState(null);
   const [editingApptInfo, setEditingApptInfo] = useState(null);
   const [editApptInfoForm, setEditApptInfoForm] = useState({});
-  const [showDepositPanel, setShowDepositPanel] = useState(null);
-  const [depositForm, setDepositForm] = useState({ amount: '', method: 'Cash', date: todayISO(), notes: '' });
   const [showCardPanel, setShowCardPanel] = useState(null);
   const [cardForm, setCardForm] = useState({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
   const [apptPhotos, setApptPhotos] = useState({}); // { apptId: [photos] }
@@ -3732,12 +3730,6 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                       {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
-                        <button onClick={() => setShowDepositPanel(showDepositPanel === appt.id ? null : appt.id)}
-                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: showDepositPanel === appt.id ? '#f59e0b' : '#e2e8f0', color: showDepositPanel === appt.id ? '#92400e' : '#64748b', background: showDepositPanel === appt.id ? '#fffbeb' : '#fff' }}>
-                          💵 {showDepositPanel === appt.id ? 'Hide deposit' : 'Add Deposit'}
-                        </button>
-                      )}
-                      {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
@@ -3773,73 +3765,6 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                       )}
                     </div>
 
-                    {/* Panel de depósito */}
-                    {showDepositPanel === appt.id && (
-                      <div style={{ marginTop: 14, padding: '14px', background: '#fffbeb', borderRadius: 12, border: '1.5px solid #f59e0b' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>💵 Add Deposit</div>
-                        {/* Depósitos existentes */}
-                        {deposits.filter(d => d.appointment_id === appt.id).length > 0 && (
-                          <div style={{ marginBottom: 12 }}>
-                            {deposits.filter(d => d.appointment_id === appt.id).map(d => (
-                              <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#fff', borderRadius: 8, marginBottom: 4 }}>
-                                <div style={{ fontSize: 12 }}>{formatDateNice(d.date)} · {d.method} {d.notes ? `· ${d.notes}` : ''}</div>
-                                <div style={{ fontWeight: 700, color: '#f59e0b' }}>${parseFloat(d.amount).toFixed(2)}</div>
-                              </div>
-                            ))}
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textAlign: 'right', marginTop: 4 }}>
-                              Total deposited: ${deposits.filter(d => d.appointment_id === appt.id).reduce((s, d) => s + parseFloat(d.amount), 0).toFixed(2)}
-                            </div>
-                          </div>
-                        )}
-                        <div style={styles.formGrid}>
-                          <div>
-                            <label style={styles.lbl}>Amount</label>
-                            <input type="number" step="0.01" value={depositForm.amount}
-                              onChange={e => setDepositForm(f => ({...f, amount: e.target.value}))}
-                              style={styles.input} placeholder="0.00" />
-                          </div>
-                          <div>
-                            <label style={styles.lbl}>Method</label>
-                            <select value={depositForm.method} onChange={e => setDepositForm(f => ({...f, method: e.target.value}))} style={styles.input}>
-                              <option value="Cash">💵 Cash</option>
-                              <option value="Zelle">📱 Zelle</option>
-                              <option value="Credit Card">💳 Credit Card</option>
-                              <option value="Check">📄 Check</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label style={styles.lbl}>Date</label>
-                            <input type="date" value={depositForm.date} onChange={e => setDepositForm(f => ({...f, date: e.target.value}))} style={styles.input} />
-                          </div>
-                          <div>
-                            <label style={styles.lbl}>Notes</label>
-                            <input value={depositForm.notes} onChange={e => setDepositForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Optional" />
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                          <button onClick={async () => {
-                            if (!depositForm.amount) { alert('Enter amount'); return; }
-                            const deposit = {
-                              id: uid(), appointmentId: appt.id, clientId: appt.clientId,
-                              amount: parseFloat(depositForm.amount), method: depositForm.method,
-                              date: depositForm.date, notes: depositForm.notes,
-                              createdBy: session?.userName || '',
-                            };
-                            const ok = await saveDeposit(deposit);
-                            if (ok) {
-                              setDeposits(prev => [deposit, ...prev]);
-                              setDepositForm({ amount: '', method: 'Cash', date: todayISO(), notes: '' });
-                              alert(`✅ Deposit of $${deposit.amount.toFixed(2)} recorded!`);
-                            }
-                          }} style={{ ...styles.btnPrimary, background: '#f59e0b', borderColor: '#f59e0b' }}>
-                            ✅ Save Deposit
-                          </button>
-                          <button onClick={() => setShowDepositPanel(null)} style={styles.btnSecondary}>Cancel</button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Panel edición fecha y hora */}
                     {editingApptInfo === appt.id && (
                       <div style={{ marginTop: 14, padding: '14px', background: '#f5f3ff', borderRadius: 12, border: '1.5px solid #7c3aed' }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', marginBottom: 12 }}>✏️ Edit appointment info</div>
@@ -4729,29 +4654,6 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 </span>
               </div>
             </div>
-
-            {/* Depósito previo */}
-            {(() => {
-              const apptDeposits = deposits.filter(d => d.appointment_id === showCobroForm.id);
-              const totalDeposited = apptDeposits.reduce((s, d) => s + parseFloat(d.amount), 0);
-              if (totalDeposited === 0) return null;
-              const serviceTotal = (showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
-              const balance = serviceTotal - totalDeposited;
-              return (
-                <div style={{ padding: '12px 16px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d', marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span style={{ color: '#92400e' }}>💵 Deposit paid</span>
-                    <span style={{ fontWeight: 700, color: '#f59e0b' }}>-${totalDeposited.toFixed(2)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginTop: 6, paddingTop: 6, borderTop: '1px solid #fcd34d' }}>
-                    <span style={{ color: '#92400e' }}>Balance due</span>
-                    <span style={{ color: balance <= 0 ? '#0f766e' : '#dc2626', fontFamily: 'Fraunces, serif' }}>
-                      {balance <= 0 ? '✅ PAID IN FULL' : `$${balance.toFixed(2)}`}
-                    </span>
-                  </div>
-                </div>
-              );
-            })()}
 
             {/* Método de pago */}
             <div style={{ marginBottom: 16 }}>
