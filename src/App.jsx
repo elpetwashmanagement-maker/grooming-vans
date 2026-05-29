@@ -2187,64 +2187,133 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const isGroomer = session?.role === 'groomer';
   const lang = 'en';
   const t = useT(lang);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const tabs = [
-    { id: 'citas',         label: t('tab_citas'),                                    icon: Plus,        show: true },
-    { id: 'clientes',      label: t('tab_clientes'),                                 icon: Plus,        show: isAdmin || isManager },
-    { id: 'razas',         label: t('tab_razas'),                                    icon: Sparkles,    show: true },
-    { id: 'registro',      label: isGroomer ? t('tab_registro') : t('tab_registro_admin'), icon: FileText, show: true },
-    { id: 'cierre',        label: isGroomer ? t('tab_cierre') : t('tab_cierre_admin'), icon: FileText,  show: true },
-    { id: 'payroll',       label: '💸 Payroll',                                         icon: DollarSign,  show: isAdmin },
-    { id: 'gastos-empresa',label: t('tab_gastos'),                                   icon: DollarSign,  show: isAdmin },
-    { id: 'inventario',    label: t('tab_inventario'),                               icon: Plus,        show: true },
-    { id: 'semana',        label: t('tab_semana'),                                   icon: TrendingUp,  show: canViewReports },
-    { id: 'dashboard',     label: t('tab_dashboard'),                                icon: TrendingUp,  show: isAdmin },
-    { id: 'auditoria',     label: t('tab_auditoria'),                                icon: FileText,    show: isAdmin },
-    { id: 'config',        label: t('tab_config'),                                   icon: SettingsIcon,show: canEditConfig },
+  const allTabs = [
+    { id: 'citas',          label: 'Schedule',      icon: '🗓️', show: true },
+    { id: 'clientes',       label: 'Clients',       icon: '👥', show: isAdmin || isManager },
+    { id: 'razas',          label: 'AI Breeds',     icon: '🐾', show: true },
+    { id: 'registro',       label: isGroomer ? 'Daily Log' : 'Daily Log', icon: '⛽', show: true },
+    { id: 'cierre',         label: isGroomer ? 'My Close' : 'Daily Close', icon: '💰', show: true },
+    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin },
+    { id: 'gastos-empresa', label: 'Expenses',      icon: '💼', show: isAdmin },
+    { id: 'inventario',     label: 'Inventory',     icon: '📦', show: true },
+    { id: 'semana',         label: 'Weekly Report', icon: '📈', show: isAdmin || isManager },
+    { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
+    { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin },
+    { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
   ].filter(t => t.show);
 
   const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
-  const roleLabels = { admin: 'Administrador', manager: 'Administradora', groomer: 'Groomer' };
-  const roleIcons = { admin: '👑', manager: '📋', groomer: '🚐' };
+  const roleLabels = { admin: 'Admin', manager: 'Manager', groomer: 'Groomer' };
+
+  const handleTabClick = (id) => {
+    setTab(id);
+    setDrawerOpen(false);
+  };
 
   return (
-    <header style={{ ...styles.header, paddingBottom: 16 }}>
-      {/* Banner offline */}
+    <>
+      {/* TOP BAR — minimalista */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 900,
+        background: '#fff', borderBottom: '1px solid #e2e8f0',
+        padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12,
+        boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
+      }}>
+        {/* Hamburger */}
+        <button onClick={() => setDrawerOpen(true)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: 8, color: '#0f172a', fontSize: 22, lineHeight: 1 }}>
+          ☰
+        </button>
+
+        {/* Logo */}
+        <img src="/Groomora.jpg" alt="Groomora" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
+
+        {/* Título */}
+        <div style={{ flex: 1 }}>
+          <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 16, color: '#0f172a', lineHeight: 1.2 }}>Groomora</div>
+          <div style={{ fontSize: 11, color: '#94a3b8' }}>
+            {isGroomer ? `${currentVan?.name || ''} · ${session?.userName}` : (activeCompany?.name || 'Group Guerrero Orejarena')}
+          </div>
+        </div>
+
+        {/* User badge + logout */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 11, padding: '4px 10px', borderRadius: 999, background: (roleColors[session?.role] || '#64748b') + '15', color: roleColors[session?.role] || '#64748b', fontWeight: 600 }}>
+            {session?.userName}
+          </div>
+          <button onClick={onLogout} style={{ background: '#fef2f2', border: 'none', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', color: '#dc2626' }}>
+            <LogOut size={15} />
+          </button>
+        </div>
+      </header>
+
+      {/* OFFLINE BANNER */}
       {!isOnline && (
-        <div style={{ background: '#f59e0b', color: '#fff', textAlign: 'center', padding: '6px 16px', fontSize: 13, fontWeight: 700 }}>
+        <div style={{ background: '#f59e0b', color: '#fff', textAlign: 'center', padding: '6px 16px', fontSize: 13, fontWeight: 700, position: 'sticky', top: 53, zIndex: 899 }}>
           📵 Offline — Showing cached data
         </div>
       )}
-      <div style={styles.headerTop}>
-        <div style={styles.brand}>
-          <div style={styles.logoBox}><img src="/Groomora.jpg" alt="Groomora" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} /></div>
-          <div>
-            <h1 style={styles.title}>{(isAdmin || isManager) ? 'Group Guerrero Orejarena' : (activeCompany?.name || 'El Pet Wash')}</h1>
-            <p style={styles.subtitle}>
-              {isGroomer ? `${currentVan?.name} · ${session?.userName}` : roleLabels[session?.role] || ''}
-            </p>
+
+      {/* DRAWER OVERLAY */}
+      {drawerOpen && (
+        <div onClick={() => setDrawerOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100 }}>
+
+          {/* DRAWER PANEL */}
+          <div onClick={e => e.stopPropagation()}
+            style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0, width: 280,
+              background: '#fff', boxShadow: '4px 0 24px rgba(0,0,0,0.15)',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}>
+
+            {/* Drawer header */}
+            <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(135deg, #0f766e, #134e4a)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <img src="/Groomora.jpg" alt="Groomora" style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover' }} />
+                <div>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>Groomora</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{roleLabels[session?.role] || ''} · {session?.userName}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs list */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {allTabs.map(t => {
+                const active = tab === t.id;
+                return (
+                  <button key={t.id} onClick={() => handleTabClick(t.id)}
+                    style={{
+                      width: '100%', padding: '13px 20px', border: 'none', textAlign: 'left',
+                      background: active ? '#f0fdfa' : 'none', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 14,
+                      borderLeft: `3px solid ${active ? '#0f766e' : 'transparent'}`,
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!active) e.currentTarget.style.background = '#f8fafc'; }}
+                    onMouseLeave={e => { if (!active) e.currentTarget.style.background = 'none'; }}>
+                    <span style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{t.icon}</span>
+                    <span style={{ fontSize: 15, fontWeight: active ? 700 : 400, color: active ? '#0f766e' : '#374151' }}>{t.label}</span>
+                    {active && <span style={{ marginLeft: 'auto', color: '#0f766e', fontSize: 18 }}>›</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Logout */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #f1f5f9' }}>
+              <button onClick={onLogout}
+                style={{ width: '100%', padding: '12px 16px', border: '1px solid #fecaca', borderRadius: 10, background: '#fef2f2', cursor: 'pointer', color: '#dc2626', fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+                <LogOut size={16} /> Sign Out
+              </button>
+            </div>
           </div>
         </div>
-        <div style={styles.userBadgeWrap}>
-          <div style={{ ...styles.userBadge, background: roleColors[session?.role] + '15', color: roleColors[session?.role], borderColor: roleColors[session?.role] + '30' }}>
-            <span>{roleIcons[session?.role]}</span>
-            {session?.userName}
-          </div>
-          <button onClick={onLogout} style={styles.logoutBtn}><LogOut size={15} /></button>
-        </div>
-      </div>
-      <nav style={styles.nav}>
-        {tabs.map(t => {
-          const Icon = t.icon;
-          const active = tab === t.id;
-          return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ ...styles.tabBtn, ...(active ? styles.tabBtnActive : {}) }}>
-              <Icon size={15} /><span>{t.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-    </header>
+      )}
+    </>
   );
 }
 
