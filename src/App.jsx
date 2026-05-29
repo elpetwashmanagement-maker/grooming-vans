@@ -996,6 +996,81 @@ const exportPLPDF = (services, expenses, vans, settings, dateStart, dateEnd) => 
   });
 };
 
+// Tax Deductible Expenses Export
+const exportTaxReportPDF = (expenses, vans, dateStart, dateEnd) => {
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.setTextColor(15, 118, 110);
+  doc.text('Groomora', 14, 18);
+  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
+  doc.text(`Tax Deductible Expenses Report`, 14, 28);
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Period: ${dateStart} to ${dateEnd} · Generated: ${new Date().toLocaleDateString()}`, 14, 36);
+
+  DEFAULT_COMPANIES.forEach((company, idx) => {
+    const compExp = expenses.filter(e => e.companyId === company.id && inRange(e.date, dateStart, dateEnd));
+    if (compExp.length === 0) return;
+
+    const byCategory = {};
+    compExp.forEach(e => {
+      if (!byCategory[e.category]) byCategory[e.category] = { items: [], total: 0, tax: 0 };
+      byCategory[e.category].items.push(e);
+      byCategory[e.category].total += e.amount;
+      byCategory[e.category].tax += e.tax_amount || 0;
+    });
+
+    const rows = compExp.map(e => [
+      e.date, e.category, e.description || '', `$${(e.amount - (e.tax_amount||0)).toFixed(2)}`, `$${(e.tax_amount||0).toFixed(2)}`, `$${e.amount.toFixed(2)}`
+    ]);
+    const totalAmount = compExp.reduce((s, e) => s + e.amount, 0);
+    const totalTax = compExp.reduce((s, e) => s + (e.tax_amount || 0), 0);
+    rows.push(['', '', 'TOTAL', `$${(totalAmount - totalTax).toFixed(2)}`, `$${totalTax.toFixed(2)}`, `$${totalAmount.toFixed(2)}`]);
+
+    const startY = idx === 0 ? 44 : (doc.lastAutoTable?.finalY || 44) + 16;
+    doc.setFontSize(11);
+    doc.setTextColor(15, 118, 110);
+    doc.text(`${company.logoEmoji} ${company.name}`, 14, startY);
+
+    autoTable(doc, {
+      startY: startY + 4,
+      head: [['Date', 'Category', 'Description', 'Base Amount', 'Tax', 'Total']],
+      body: rows,
+      headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold', fontSize: 8 },
+      bodyStyles: { fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [240, 253, 250] },
+    });
+  });
+
+  doc.save(`tax-expenses-${dateStart}-${dateEnd}.pdf`);
+};
+
+const exportTaxReportExcel = (expenses, vans, dateStart, dateEnd) => {
+  const wb = XLSX.utils.book_new();
+  DEFAULT_COMPANIES.forEach(company => {
+    const compExp = expenses.filter(e => e.companyId === company.id && inRange(e.date, dateStart, dateEnd));
+    if (compExp.length === 0) return;
+    const rows = [
+      ['Groomora — Tax Deductible Expenses'],
+      [`${company.name} · Period: ${dateStart} to ${dateEnd}`],
+      [],
+      ['Date', 'Category', 'Description', 'Base Amount', 'Tax', 'Total', 'Method', 'Van'],
+      ...compExp.map(e => [e.date, e.category, e.description || '', (e.amount - (e.tax_amount||0)).toFixed(2), (e.tax_amount||0).toFixed(2), e.amount.toFixed(2), e.method || '', vans.find(v => v.id === e.vanId)?.name || '']),
+      [],
+      ['', '', 'TOTAL',
+        compExp.reduce((s,e) => s + e.amount - (e.tax_amount||0), 0).toFixed(2),
+        compExp.reduce((s,e) => s + (e.tax_amount||0), 0).toFixed(2),
+        compExp.reduce((s,e) => s + e.amount, 0).toFixed(2)
+      ],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws, company.name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, `tax-expenses-${dateStart}-${dateEnd}.xlsx`);
+};
+
 // ===== FUEL LOGS =====
 const loadFuelLogs = async () => {
   const { data, error } = await supabase.from('fuel_logs').select('*').order('date', { ascending: false }).order('created_at', { ascending: false });
@@ -8045,6 +8120,16 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Administración" title="💼 Expenses de Company" />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={() => exportTaxReportPDF(companyExpenses, vans, dateStart, dateEnd)}
+          style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <FileText size={13} /> Tax Report PDF
+        </button>
+        <button onClick={() => exportTaxReportExcel(companyExpenses, vans, dateStart, dateEnd)}
+          style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <Download size={13} /> Tax Report Excel
+        </button>
+      </div>
 
       <div style={styles.card}>
         <h3 style={styles.cardH3}>Log Expense</h3>
