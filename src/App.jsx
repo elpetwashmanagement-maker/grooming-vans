@@ -4899,14 +4899,18 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Daily Close" title={title} />
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={() => exportDailyPDF(services, vans, start, end, settings)} style={{ ...styles.btnSecondary, fontSize: 12 }}>
-          <FileText size={14} /> Export PDF
-        </button>
-      </div>
 
       {/* Selector de fechas */}
       <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>📅 Period</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
+              style={{ ...styles.btnSecondary, fontSize: 12, padding: '6px 12px' }}>
+              <FileText size={13} /> PDF
+            </button>
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
             <label style={styles.lbl}>{rangeMode ? 'Date inicio' : 'Date'}</label>
