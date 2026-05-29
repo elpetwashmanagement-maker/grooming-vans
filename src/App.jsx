@@ -1466,7 +1466,7 @@ export default function App() {
       <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
         onLogout={() => setSession(null)}
-        activeCompany={activeCompany} />
+        activeCompany={activeCompany} isOnline={isOnline} />
       <main style={styles.main}>
         {tab === 'citas' && (
           <CitasTab
@@ -2061,7 +2061,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
 }
 
 // ===== HEADER =====
-function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange }) {
+function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange, isOnline = true }) {
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
