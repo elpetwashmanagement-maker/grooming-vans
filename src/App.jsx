@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -772,6 +772,109 @@ const saveGroomingPhoto = async (photo) => {
 const deleteGroomingPhoto = async (id) => {
   await supabase.from('grooming_photos').delete().eq('id', id);
 };
+
+// ===== ADDRESS AUTOCOMPLETE =====
+const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
+
+function AddressAutocomplete({ value, onChange, placeholder = 'Start typing address...', style = {} }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef(null);
+
+  const fetchSuggestions = async (input) => {
+    if (!input || input.length < 3) { setSuggestions([]); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&components=country:us&key=${GOOGLE_PLACES_KEY}`
+      );
+      const data = await res.json();
+      setSuggestions(data.predictions || []);
+    } catch (err) {
+      console.error('Places API error:', err);
+    }
+    setLoading(false);
+  };
+
+  const getPlaceDetails = async (placeId) => {
+    try {
+      const res = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,address_components&key=${GOOGLE_PLACES_KEY}`
+      );
+      const data = await res.json();
+      const result = data.result;
+      if (!result) return null;
+
+      const components = result.address_components || [];
+      const get = (type) => components.find(c => c.types.includes(type))?.long_name || '';
+      const getShort = (type) => components.find(c => c.types.includes(type))?.short_name || '';
+
+      return {
+        address: result.formatted_address,
+        zip: get('postal_code'),
+        city: get('locality') || get('sublocality'),
+        state: getShort('administrative_area_level_1'),
+      };
+    } catch (err) {
+      console.error('Place details error:', err);
+      return null;
+    }
+  };
+
+  const handleInput = (val) => {
+    onChange({ address: val });
+    setShowSuggestions(true);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchSuggestions(val), 350);
+  };
+
+  const handleSelect = async (prediction) => {
+    setShowSuggestions(false);
+    setSuggestions([]);
+    const details = await getPlaceDetails(prediction.place_id);
+    if (details) {
+      onChange(details);
+    } else {
+      onChange({ address: prediction.description });
+    }
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative' }}>
+        <input
+          value={value}
+          onChange={e => handleInput(e.target.value)}
+          onFocus={() => value?.length >= 3 && setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          placeholder={placeholder}
+          style={{ ...styles.input, paddingRight: 32, ...style }}
+          autoComplete="off"
+        />
+        {loading && (
+          <div style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>
+            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+          </div>
+        )}
+      </div>
+      {showSuggestions && suggestions.length > 0 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 9999, maxHeight: 240, overflowY: 'auto' }}>
+          {suggestions.map(s => (
+            <div key={s.place_id}
+              onMouseDown={() => handleSelect(s)}
+              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}
+              onMouseEnter={e => e.currentTarget.style.background = '#f0fdfa'}
+              onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
+              <div style={{ fontWeight: 600, color: '#0f172a' }}>📍 {s.structured_formatting?.main_text || s.description}</div>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.structured_formatting?.secondary_text || ''}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ===== FUEL LOGS =====
 const loadFuelLogs = async () => {
@@ -2238,7 +2341,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
   const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
-  const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '' });
+  const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -3013,7 +3116,21 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
           <div style={styles.formGrid}>
             <div><label style={styles.lbl}>Nombre *</label><input value={newClientForm.name} onChange={e => setNewClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
             <div><label style={styles.lbl}>Teléfono</label><input value={newClientForm.phone} onChange={e => setNewClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
-            <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={newClientForm.address} onChange={e => setNewClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Address</label>
+              <AddressAutocomplete
+                value={newClientForm.address}
+                onChange={details => setNewClientForm(f => ({...f, address: details.address, zip: details.zip || f.zip, city: details.city || f.city, state: details.state || f.state}))}
+                placeholder="Start typing address..."
+              />
+              {newClientForm.zip && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <div style={{ flex: 1, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                    📍 {newClientForm.city}, {newClientForm.state} {newClientForm.zip}
+                  </div>
+                </div>
+              )}
+            </div>
             <div><label style={styles.lbl}>Email</label><input value={newClientForm.email} onChange={e => setNewClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
           </div>
           {isGroomer && <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', margin: '8px 0 0' }}>El teléfono y email solo serán visibles para el administrador.</p>}
@@ -5872,7 +5989,19 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
             <div style={styles.formGrid}>
               <div><label style={styles.lbl}>Nombre *</label><input value={clientForm.name} onChange={e => setClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Nombre completo" /></div>
               <div><label style={styles.lbl}>Teléfono</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
-              <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={clientForm.address} onChange={e => setClientForm(f => ({...f, address: e.target.value}))} style={styles.input} placeholder="Dirección completa" /></div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>Address</label>
+                <AddressAutocomplete
+                  value={clientForm.address}
+                  onChange={details => setClientForm(f => ({...f, address: details.address, zip: details.zip || f.zip, city: details.city || f.city, state: details.state || f.state}))}
+                  placeholder="Start typing address..."
+                />
+                {clientForm.zip && (
+                  <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                    📍 {clientForm.city}, {clientForm.state} {clientForm.zip}
+                  </div>
+                )}
+              </div>
               <div><label style={styles.lbl}>Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
               <div><label style={styles.lbl}>Notas internas (solo admin)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Notas privadas..." /></div>
             </div>
@@ -6165,7 +6294,19 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                 <div style={styles.formGrid}>
                   <div><label style={styles.lbl}>Nombre *</label><input value={editClientForm.name} onChange={e => setEditClientForm(f => ({...f, name: e.target.value}))} style={styles.input} /></div>
                   <div><label style={styles.lbl}>Teléfono</label><input value={editClientForm.phone} onChange={e => setEditClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} /></div>
-                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Dirección</label><input value={editClientForm.address} onChange={e => setEditClientForm(f => ({...f, address: e.target.value}))} style={styles.input} /></div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={styles.lbl}>Address</label>
+                    <AddressAutocomplete
+                      value={editClientForm.address}
+                      onChange={details => setEditClientForm(f => ({...f, address: details.address, zip: details.zip || f.zip, city: details.city || f.city, state: details.state || f.state}))}
+                      placeholder="Start typing address..."
+                    />
+                    {editClientForm.zip && (
+                      <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                        📍 {editClientForm.city}, {editClientForm.state} {editClientForm.zip}
+                      </div>
+                    )}
+                  </div>
                   <div><label style={styles.lbl}>Email</label><input value={editClientForm.email} onChange={e => setEditClientForm(f => ({...f, email: e.target.value}))} style={styles.input} /></div>
                   <div><label style={styles.lbl}>Notas internas</label><input value={editClientForm.notes} onChange={e => setEditClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} /></div>
                 </div>
