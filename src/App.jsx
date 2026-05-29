@@ -774,29 +774,7 @@ const deleteGroomingPhoto = async (id) => {
 };
 
 // ===== ADDRESS AUTOCOMPLETE =====
-const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY || 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
-
-// Cargar Google Maps script una sola vez
-let googleMapsLoaded = false;
-let googleMapsLoading = false;
-const googleMapsCallbacks = [];
-
-const loadGoogleMaps = () => {
-  return new Promise((resolve) => {
-    if (window.google?.maps?.places) { resolve(); return; }
-    googleMapsCallbacks.push(resolve);
-    if (googleMapsLoading) return;
-    googleMapsLoading = true;
-    window.__googleMapsReady = () => {
-      googleMapsLoaded = true;
-      googleMapsCallbacks.forEach(cb => cb());
-    };
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_PLACES_KEY}&libraries=places&callback=__googleMapsReady`;
-    script.async = true;
-    document.head.appendChild(script);
-  });
-};
+const GOOGLE_PLACES_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
 function AddressAutocomplete({ value, onChange, placeholder = 'Start typing address...', style = {} }) {
   const inputRef = useRef(null);
@@ -806,9 +784,9 @@ function AddressAutocomplete({ value, onChange, placeholder = 'Start typing addr
   useEffect(() => { setInputValue(value || ''); }, [value]);
 
   useEffect(() => {
-    if (!GOOGLE_PLACES_KEY) return;
-    loadGoogleMaps().then(() => {
+    const initAutocomplete = () => {
       if (!inputRef.current || autocompleteRef.current) return;
+      if (!window.google?.maps?.places) return;
       const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ['address'],
         componentRestrictions: { country: 'us' },
@@ -827,7 +805,20 @@ function AddressAutocomplete({ value, onChange, placeholder = 'Start typing addr
         setInputValue(address);
         onChange({ address, zip, city, state });
       });
-    });
+    };
+
+    if (window.google?.maps?.places) {
+      initAutocomplete();
+    } else {
+      // Esperar a que Google Maps cargue
+      const interval = setInterval(() => {
+        if (window.google?.maps?.places) {
+          clearInterval(interval);
+          initAutocomplete();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
   }, []);
 
   return (
