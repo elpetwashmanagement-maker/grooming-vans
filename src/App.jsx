@@ -5126,7 +5126,7 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Weekly Report" title={`${formatDateNice(start)} — ${formatDateNice(end)}`} />
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-        <button onClick={downloadCSV} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+        <button onClick={exportCSV} style={{ ...styles.btnSecondary, fontSize: 12 }}>
           <Download size={14} /> CSV
         </button>
         <button onClick={handleExportPDF} style={{ ...styles.btnSecondary, fontSize: 12 }}>
