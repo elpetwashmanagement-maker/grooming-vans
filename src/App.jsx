@@ -7539,7 +7539,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
       {section === 'pl' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => exportPLPDF(filteredServices, filteredExpenses, vans, settings, startDate, endDate)} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+            <button onClick={() => exportPLPDF(filteredServices, filteredExpenses, vans, settings, start, end)} style={{ ...styles.btnSecondary, fontSize: 12 }}>
               <FileText size={14} /> Export P&L PDF
             </button>
           </div>
