@@ -1213,6 +1213,14 @@ const markRequestDelivered = async (requestId) => {
 export default function App() {
   const [tab, setTab] = useState('registro');
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setIsOnline(true);
+    const down = () => setIsOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', down);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
+  }, []);
   const [vans, setVans] = useState(DEFAULT_VANS);
   const [services, setServices] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -2077,6 +2085,12 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 
   return (
     <header style={styles.header}>
+      {/* Banner offline */}
+      {!isOnline && (
+        <div style={{ background: '#f59e0b', color: '#fff', textAlign: 'center', padding: '6px 16px', fontSize: 13, fontWeight: 700 }}>
+          📵 Offline — Showing cached data
+        </div>
+      )}
       <div style={styles.headerTop}>
         <div style={styles.brand}>
           <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
