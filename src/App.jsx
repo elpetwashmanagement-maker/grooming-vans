@@ -1945,11 +1945,11 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: step === 'select' ? 40 : 32 }}>
         <div style={{
-          width: 72, height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.15)',
-          backdropFilter: 'blur(10px)', border: '1.5px solid rgba(255,255,255,0.25)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 16px', fontSize: 36,
-        }}>🐾</div>
+          width: 72, height: 72, borderRadius: 20, overflow: 'hidden',
+          margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+        }}>
+          <img src="/Groomora.jpg" alt="Groomora" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
         <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
           Groomora
         </div>
@@ -2165,7 +2165,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
       )}
       <div style={styles.headerTop}>
         <div style={styles.brand}>
-          <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
+          <div style={styles.logoBox}><img src="/Groomora.jpg" alt="Groomora" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover' }} /></div>
           <div>
             <h1 style={styles.title}>{(isAdmin || isManager) ? 'Group Guerrero Orejarena' : (activeCompany?.name || 'El Pet Wash')}</h1>
             <p style={styles.subtitle}>
