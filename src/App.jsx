@@ -735,6 +735,46 @@ const saveInvoice = async (invoice) => {
   return !error;
 };
 
+// ===== DEPOSITS =====
+const loadDeposits = async () => {
+  const { data, error } = await supabase.from('deposits').select('*').order('date', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+
+const saveDeposit = async (deposit) => {
+  const { error } = await supabase.from('deposits').insert({
+    id: deposit.id, appointment_id: deposit.appointmentId,
+    client_id: deposit.clientId, amount: deposit.amount,
+    method: deposit.method, date: deposit.date,
+    notes: deposit.notes || '', created_by: deposit.createdBy || '',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+// ===== CARDS ON FILE =====
+const loadCardsOnFile = async () => {
+  const { data, error } = await supabase.from('cards_on_file').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+
+const saveCardOnFile = async (card) => {
+  const { error } = await supabase.from('cards_on_file').insert({
+    id: card.id, client_id: card.clientId, last4: card.last4,
+    brand: card.brand || 'Visa', exp_month: card.expMonth || '',
+    exp_year: card.expYear || '', square_card_id: card.squareCardId || '',
+    nickname: card.nickname || '', is_default: card.isDefault || false,
+  });
+  if (error) console.error(error);
+  return !error;
+};
+
+const deleteCardOnFile = async (id) => {
+  await supabase.from('cards_on_file').delete().eq('id', id);
+};
+
 // ===== GROOMER PAYMENTS =====
 const loadGroomerPayments = async () => {
   const { data, error } = await supabase.from('groomer_payments').select('*').order('date', { ascending: false });
@@ -1048,9 +1088,9 @@ const exportTaxReportPDF = (expenses, vans, dateStart, dateEnd) => {
 
 const exportTaxReportExcel = (expenses, vans, dateStart, dateEnd) => {
   const wb = XLSX.utils.book_new();
+  let hasData = false;
   DEFAULT_COMPANIES.forEach(company => {
     const compExp = expenses.filter(e => e.companyId === company.id && inRange(e.date, dateStart, dateEnd));
-    if (compExp.length === 0) return;
     const rows = [
       ['Groomora — Tax Deductible Expenses'],
       [`${company.name} · Period: ${dateStart} to ${dateEnd}`],
@@ -1067,7 +1107,12 @@ const exportTaxReportExcel = (expenses, vans, dateStart, dateEnd) => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 25 }, { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws, company.name.slice(0, 31));
+    hasData = true;
   });
+  if (!hasData) {
+    const ws = XLSX.utils.aoa_to_sheet([['No expenses found for this period']]);
+    XLSX.utils.book_append_sheet(wb, ws, 'No Data');
+  }
   XLSX.writeFile(wb, `tax-expenses-${dateStart}-${dateEnd}.xlsx`);
 };
 
@@ -1187,22 +1232,25 @@ export default function App() {
   const [companyExpenses, setCompanyExpenses] = useState([]);
   const [fuelLogs, setFuelLogs] = useState([]);
   const [groomerPayments, setGroomerPayments] = useState([]);
+  const [deposits, setDeposits] = useState([]);
+  const [cardsOnFile, setCardsOnFile] = useState([]);
   const lang = 'en';
   const t = useT(lang);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp, fuel, payments] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp, fuel, payments, deps, cards] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
         loadServicePrices(), loadGroomers(), loadCompanies(),
-        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses(), loadFuelLogs(), loadGroomerPayments()
+        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses(), loadFuelLogs(), loadGroomerPayments(), loadDeposits(), loadCardsOnFile()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
       setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
       setCompanies(cos); setInventoryItems(invItems); setInventoryRequests(invReqs);
       setCompanyExpenses(compExp); setFuelLogs(fuel); setGroomerPayments(payments);
+      setDeposits(deps); setCardsOnFile(cards);
       setSession(loadSession());
       setLoading(false);
     })();
@@ -1415,7 +1463,8 @@ export default function App() {
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={addAppointment} addClient={addClient} addPet={addPet}
             refreshAppointments={refreshAppointments} deleteAppt={deleteAppt}
-            servicePrices={servicePrices}
+            servicePrices={servicePrices} deposits={deposits} setDeposits={setDeposits}
+            groomers={groomers}
           />
         )}
         {tab === 'clientes' && (
@@ -1427,6 +1476,7 @@ export default function App() {
             servicePrices={servicePrices} addAppointment={addAppointment} vans={visibleVans}
             settings={{ ...settings, companies, groomersList: groomers }}
             refreshAppointments={refreshAppointments}
+            cardsOnFile={cardsOnFile} setCardsOnFile={setCardsOnFile}
           />
         )}
         {tab === 'razas' && <RazasTab session={session} />}
@@ -2518,7 +2568,7 @@ const HAIR_TYPES = ['Short Hair','Long Hair'];
 const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirmed: t('status_confirmed'), in_progress: t('status_in_progress'), completed: t('status_completed'), cancelled: t('status_cancelled') });
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
 
-function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices }) {
+function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices, deposits = [], setDeposits = () => {}, groomers = [] }) {
   const t = useT('en');
   const STATUS_LABELS = getStatusLabels(t);
   const [date, setDate] = useState(todayISO());
@@ -2549,8 +2599,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [showSignature, setShowSignature] = useState(null); // appt
   const [reasignando, setReasignando] = useState(null); // appt id
   const [editingPets, setEditingPets] = useState(null);
-  const [editingApptInfo, setEditingApptInfo] = useState(null); // appt id
+  const [editingApptInfo, setEditingApptInfo] = useState(null);
   const [editApptInfoForm, setEditApptInfoForm] = useState({});
+  const [showDepositPanel, setShowDepositPanel] = useState(null);
+  const [depositForm, setDepositForm] = useState({ amount: '', method: 'Cash', date: todayISO(), notes: '' });
+  const [showCardPanel, setShowCardPanel] = useState(null);
+  const [cardForm, setCardForm] = useState({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
   const [apptPhotos, setApptPhotos] = useState({}); // { apptId: [photos] }
   const [showPhotos, setShowPhotos] = useState(null); // appt id
   const [viewingPhoto, setViewingPhoto] = useState(null);
@@ -3678,6 +3732,12 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                       {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                        <button onClick={() => setShowDepositPanel(showDepositPanel === appt.id ? null : appt.id)}
+                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: showDepositPanel === appt.id ? '#f59e0b' : '#e2e8f0', color: showDepositPanel === appt.id ? '#92400e' : '#64748b', background: showDepositPanel === appt.id ? '#fffbeb' : '#fff' }}>
+                          💵 {showDepositPanel === appt.id ? 'Hide deposit' : 'Add Deposit'}
+                        </button>
+                      )}
+                      {isAdmin && appt.status !== 'completed' && appt.status !== 'cancelled' && (
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
@@ -3712,6 +3772,72 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                         </button>
                       )}
                     </div>
+
+                    {/* Panel de depósito */}
+                    {showDepositPanel === appt.id && (
+                      <div style={{ marginTop: 14, padding: '14px', background: '#fffbeb', borderRadius: 12, border: '1.5px solid #f59e0b' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>💵 Add Deposit</div>
+                        {/* Depósitos existentes */}
+                        {deposits.filter(d => d.appointment_id === appt.id).length > 0 && (
+                          <div style={{ marginBottom: 12 }}>
+                            {deposits.filter(d => d.appointment_id === appt.id).map(d => (
+                              <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: '#fff', borderRadius: 8, marginBottom: 4 }}>
+                                <div style={{ fontSize: 12 }}>{formatDateNice(d.date)} · {d.method} {d.notes ? `· ${d.notes}` : ''}</div>
+                                <div style={{ fontWeight: 700, color: '#f59e0b' }}>${parseFloat(d.amount).toFixed(2)}</div>
+                              </div>
+                            ))}
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', textAlign: 'right', marginTop: 4 }}>
+                              Total deposited: ${deposits.filter(d => d.appointment_id === appt.id).reduce((s, d) => s + parseFloat(d.amount), 0).toFixed(2)}
+                            </div>
+                          </div>
+                        )}
+                        <div style={styles.formGrid}>
+                          <div>
+                            <label style={styles.lbl}>Amount</label>
+                            <input type="number" step="0.01" value={depositForm.amount}
+                              onChange={e => setDepositForm(f => ({...f, amount: e.target.value}))}
+                              style={styles.input} placeholder="0.00" />
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Method</label>
+                            <select value={depositForm.method} onChange={e => setDepositForm(f => ({...f, method: e.target.value}))} style={styles.input}>
+                              <option value="Cash">💵 Cash</option>
+                              <option value="Zelle">📱 Zelle</option>
+                              <option value="Credit Card">💳 Credit Card</option>
+                              <option value="Check">📄 Check</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Date</label>
+                            <input type="date" value={depositForm.date} onChange={e => setDepositForm(f => ({...f, date: e.target.value}))} style={styles.input} />
+                          </div>
+                          <div>
+                            <label style={styles.lbl}>Notes</label>
+                            <input value={depositForm.notes} onChange={e => setDepositForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Optional" />
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                          <button onClick={async () => {
+                            if (!depositForm.amount) { alert('Enter amount'); return; }
+                            const deposit = {
+                              id: uid(), appointmentId: appt.id, clientId: appt.clientId,
+                              amount: parseFloat(depositForm.amount), method: depositForm.method,
+                              date: depositForm.date, notes: depositForm.notes,
+                              createdBy: session?.userName || '',
+                            };
+                            const ok = await saveDeposit(deposit);
+                            if (ok) {
+                              setDeposits(prev => [deposit, ...prev]);
+                              setDepositForm({ amount: '', method: 'Cash', date: todayISO(), notes: '' });
+                              alert(`✅ Deposit of $${deposit.amount.toFixed(2)} recorded!`);
+                            }
+                          }} style={{ ...styles.btnPrimary, background: '#f59e0b', borderColor: '#f59e0b' }}>
+                            ✅ Save Deposit
+                          </button>
+                          <button onClick={() => setShowDepositPanel(null)} style={styles.btnSecondary}>Cancel</button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Panel edición fecha y hora */}
                     {editingApptInfo === appt.id && (
@@ -4603,6 +4729,29 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                 </span>
               </div>
             </div>
+
+            {/* Depósito previo */}
+            {(() => {
+              const apptDeposits = deposits.filter(d => d.appointment_id === showCobroForm.id);
+              const totalDeposited = apptDeposits.reduce((s, d) => s + parseFloat(d.amount), 0);
+              if (totalDeposited === 0) return null;
+              const serviceTotal = (showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
+              const balance = serviceTotal - totalDeposited;
+              return (
+                <div style={{ padding: '12px 16px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d', marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                    <span style={{ color: '#92400e' }}>💵 Deposit paid</span>
+                    <span style={{ fontWeight: 700, color: '#f59e0b' }}>-${totalDeposited.toFixed(2)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, marginTop: 6, paddingTop: 6, borderTop: '1px solid #fcd34d' }}>
+                    <span style={{ color: '#92400e' }}>Balance due</span>
+                    <span style={{ color: balance <= 0 ? '#0f766e' : '#dc2626', fontFamily: 'Fraunces, serif' }}>
+                      {balance <= 0 ? '✅ PAID IN FULL' : `$${balance.toFixed(2)}`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Método de pago */}
             <div style={{ marginBottom: 16 }}>
@@ -5958,7 +6107,7 @@ function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir 
 }
 
 // ===== CLIENTES TAB =====
-function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments }) {
+function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments, cardsOnFile = [], setCardsOnFile = () => {} }) {
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
@@ -6670,6 +6819,86 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                 </div>
               )}
             </div>
+
+            {/* Cards on File */}
+            {isAdmin && (
+              <div style={{ ...styles.card, marginTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h3 style={{ ...styles.cardH3, margin: 0 }}>💳 Cards on File</h3>
+                  <button onClick={() => setShowCardPanel(showCardPanel === selectedClient.id ? null : selectedClient.id)}
+                    style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+                    <Plus size={13} /> Add Card
+                  </button>
+                </div>
+                {cardsOnFile.filter(c => c.client_id === selectedClient.id).length === 0 ? (
+                  <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: '8px 0' }}>No cards on file</div>
+                ) : (
+                  cardsOnFile.filter(c => c.client_id === selectedClient.id).map(card => (
+                    <div key={card.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 6 }}>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>💳 {card.brand} ···· {card.last4}</div>
+                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{card.nickname || ''} {card.exp_month}/{card.exp_year}</div>
+                      </div>
+                      <button onClick={async () => {
+                        await deleteCardOnFile(card.id);
+                        setCardsOnFile(prev => prev.filter(c => c.id !== card.id));
+                      }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={14} /></button>
+                    </div>
+                  ))
+                )}
+                {showCardPanel === selectedClient.id && (
+                  <div style={{ marginTop: 10, padding: '12px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1' }}>
+                    <div style={styles.formGrid}>
+                      <div>
+                        <label style={styles.lbl}>Card Brand</label>
+                        <select value={cardForm.brand} onChange={e => setCardForm(f => ({...f, brand: e.target.value}))} style={styles.input}>
+                          <option value="Visa">Visa</option>
+                          <option value="Mastercard">Mastercard</option>
+                          <option value="Amex">Amex</option>
+                          <option value="Discover">Discover</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Last 4 digits</label>
+                        <input type="text" maxLength="4" value={cardForm.last4}
+                          onChange={e => setCardForm(f => ({...f, last4: e.target.value.replace(/\D/g,'').slice(0,4)}))}
+                          style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }}
+                          placeholder="1234" />
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Exp Month</label>
+                        <input type="text" maxLength="2" value={cardForm.expMonth}
+                          onChange={e => setCardForm(f => ({...f, expMonth: e.target.value.replace(/\D/g,'').slice(0,2)}))}
+                          style={styles.input} placeholder="MM" />
+                      </div>
+                      <div>
+                        <label style={styles.lbl}>Exp Year</label>
+                        <input type="text" maxLength="4" value={cardForm.expYear}
+                          onChange={e => setCardForm(f => ({...f, expYear: e.target.value.replace(/\D/g,'').slice(0,4)}))}
+                          style={styles.input} placeholder="YYYY" />
+                      </div>
+                      <div style={{ gridColumn: 'span 2' }}>
+                        <label style={styles.lbl}>Nickname (optional)</label>
+                        <input value={cardForm.nickname} onChange={e => setCardForm(f => ({...f, nickname: e.target.value}))} style={styles.input} placeholder="e.g. Personal Visa" />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button onClick={async () => {
+                        if (!cardForm.last4 || cardForm.last4.length !== 4) { alert('Enter 4 digits'); return; }
+                        const card = { id: uid(), clientId: selectedClient.id, last4: cardForm.last4, brand: cardForm.brand, expMonth: cardForm.expMonth, expYear: cardForm.expYear, nickname: cardForm.nickname, isDefault: false };
+                        const ok = await saveCardOnFile(card);
+                        if (ok) {
+                          setCardsOnFile(prev => [card, ...prev]);
+                          setCardForm({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
+                          setShowCardPanel(null);
+                        }
+                      }} style={styles.btnPrimary}><Plus size={14} /> Save Card</button>
+                      <button onClick={() => setShowCardPanel(null)} style={styles.btnSecondary}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Historial de citas */}
             {clientHistory.length > 0 && (
