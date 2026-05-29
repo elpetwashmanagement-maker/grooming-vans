@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 // ===== TRADUCCIONES =====
 const TRANSLATIONS = {
@@ -877,6 +880,121 @@ function AddressAutocomplete({ value, onChange, placeholder = 'Start typing addr
   );
 }
 
+
+// ===== EXPORT FUNCTIONS =====
+const exportToPDF = (title, columns, rows, filename) => {
+  const doc = new jsPDF();
+  doc.setFontSize(18);
+  doc.setTextColor(15, 118, 110);
+  doc.text('Groomora', 14, 18);
+  doc.setFontSize(13);
+  doc.setTextColor(0, 0, 0);
+  doc.text(title, 14, 28);
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 36);
+  autoTable(doc, {
+    startY: 42,
+    head: [columns],
+    body: rows,
+    headStyles: { fillColor: [15, 118, 110], textColor: 255, fontStyle: 'bold', fontSize: 9 },
+    bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
+    alternateRowStyles: { fillColor: [240, 253, 250] },
+    styles: { cellPadding: 3 },
+  });
+  doc.save(`${filename}.pdf`);
+};
+
+const exportToExcel = (title, columns, rows, filename) => {
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['Groomora — ' + title],
+    [`Generated: ${new Date().toLocaleDateString()}`],
+    [],
+    columns,
+    ...rows,
+  ]);
+  ws['!cols'] = columns.map(() => ({ wch: 18 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, title.slice(0, 31));
+  XLSX.writeFile(wb, `${filename}.xlsx`);
+};
+
+// Weekly Report Export
+const exportWeeklyPDF = (groomers, vans, services, settings, dateStart, dateEnd) => {
+  const rows = groomers.filter(g => g.active !== false).map(g => {
+    const van = vans.find(v => v.id === g.vanId);
+    const groomerSvcs = services.filter(s => inRange(s.date, dateStart, dateEnd) && s.vanId === g.vanId);
+    const sales = groomerSvcs.reduce((sum, s) => sum + s.amount, 0);
+    const tips = groomerSvcs.reduce((sum, s) => sum + (s.tip || 0), 0);
+    const commission = sales * (g.commissionPct || 45) / 100;
+    return [g.name, van?.name || '', groomerSvcs.length, `$${sales.toFixed(2)}`, `$${tips.toFixed(2)}`, `${g.commissionPct || 45}%`, `$${commission.toFixed(2)}`];
+  });
+  exportToPDF(
+    `Weekly Report: ${dateStart} to ${dateEnd}`,
+    ['Groomer', 'Van', 'Services', 'Sales', 'Tips', 'Commission %', 'Commission $'],
+    rows,
+    `weekly-report-${dateStart}`
+  );
+};
+
+const exportWeeklyExcel = (groomers, vans, services, settings, dateStart, dateEnd) => {
+  const rows = groomers.filter(g => g.active !== false).map(g => {
+    const van = vans.find(v => v.id === g.vanId);
+    const groomerSvcs = services.filter(s => inRange(s.date, dateStart, dateEnd) && s.vanId === g.vanId);
+    const sales = groomerSvcs.reduce((sum, s) => sum + s.amount, 0);
+    const tips = groomerSvcs.reduce((sum, s) => sum + (s.tip || 0), 0);
+    const commission = sales * (g.commissionPct || 45) / 100;
+    return [g.name, van?.name || '', groomerSvcs.length, sales.toFixed(2), tips.toFixed(2), `${g.commissionPct || 45}%`, commission.toFixed(2)];
+  });
+  exportToExcel(
+    `Weekly Report ${dateStart}`,
+    ['Groomer', 'Van', 'Services', 'Sales', 'Tips', 'Commission %', 'Commission $'],
+    rows,
+    `weekly-report-${dateStart}`
+  );
+};
+
+// Daily Close Export
+const exportDailyPDF = (services, vans, dateStart, dateEnd, settings) => {
+  const rows = services.filter(s => inRange(s.date, dateStart, dateEnd)).map(s => {
+    const van = vans.find(v => v.id === s.vanId);
+    return [s.date, van?.name || '', s.clientName || '', s.amount?.toFixed(2) || '0', s.tip?.toFixed(2) || '0', s.method || '', s.gasFee?.toFixed(2) || '0'];
+  });
+  const total = services.filter(s => inRange(s.date, dateStart, dateEnd)).reduce((sum, s) => sum + s.amount, 0);
+  rows.push(['', '', 'TOTAL', `$${total.toFixed(2)}`, '', '', '']);
+  exportToPDF(
+    `Daily Close: ${dateStart}${dateStart !== dateEnd ? ` to ${dateEnd}` : ''}`,
+    ['Date', 'Van', 'Client', 'Amount', 'Tip', 'Method', 'Gas Fee'],
+    rows,
+    `daily-close-${dateStart}`
+  );
+};
+
+// P&L Export
+const exportPLPDF = (services, expenses, vans, settings, dateStart, dateEnd) => {
+  DEFAULT_COMPANIES.forEach(company => {
+    const compSvcs = services.filter(s => inRange(s.date, dateStart, dateEnd) && vans.find(v => v.id === s.vanId)?.companyId === company.id);
+    const compExp = expenses.filter(e => inRange(e.date, dateStart, dateEnd) && vans.find(v => v.id === e.vanId)?.companyId === company.id);
+    const revenue = compSvcs.reduce((s, i) => s + i.amount, 0);
+    const gasFees = compSvcs.length * (settings?.gasFee || 7);
+    const companyIncome = revenue * 0.55 + gasFees;
+    const totalExp = compExp.reduce((s, e) => s + e.amount, 0);
+    const netProfit = companyIncome - totalExp;
+    exportToPDF(
+      `P&L — ${company.name}: ${dateStart} to ${dateEnd}`,
+      ['Item', 'Amount'],
+      [
+        ['Gross Sales', `$${revenue.toFixed(2)}`],
+        ['Company Revenue (55%)', `$${(revenue * 0.55).toFixed(2)}`],
+        ['Gas Fee Income', `$${gasFees.toFixed(2)}`],
+        ['Total Revenue', `$${companyIncome.toFixed(2)}`],
+        ['Operating Expenses', `-$${totalExp.toFixed(2)}`],
+        ['NET PROFIT', `$${netProfit.toFixed(2)}`],
+      ],
+      `pl-${company.id}-${dateStart}`
+    );
+  });
+};
 
 // ===== FUEL LOGS =====
 const loadFuelLogs = async () => {
@@ -4781,6 +4899,11 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Daily Close" title={title} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={() => exportDailyPDF(services, vans, start, end, settings)} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <FileText size={14} /> Export PDF
+        </button>
+      </div>
 
       {/* Selector de fechas */}
       <div style={styles.card}>
@@ -4891,8 +5014,11 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 // ===== REPORTE SEMANAL =====
 function WeekTab({ vans, services, expenses, settings, appointments, groomers }) {
   const [refDate, setRefDate] = useState(todayISO());
-  const [reportMode, setReportMode] = useState('groomer'); // 'groomer' o 'van'
+  const [reportMode, setReportMode] = useState('groomer');
   const { start, end } = getWeekRange(refDate);
+
+  const handleExportPDF = () => exportWeeklyPDF(groomers, vans, services, settings, start, end);
+  const handleExportExcel = () => exportWeeklyExcel(groomers, vans, services, settings, start, end);
 
   // Reporte por GROOMER + EMPRESA (nuevo)
   const groomerReport = useMemo(() => {
@@ -4989,6 +5115,14 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Weekly Report" title={`${formatDateNice(start)} — ${formatDateNice(end)}`} />
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={handleExportPDF} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <FileText size={14} /> Export PDF
+        </button>
+        <button onClick={handleExportExcel} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <Download size={14} /> Export Excel
+        </button>
+      </div>
       <div style={styles.card}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 200 }}>
@@ -7392,6 +7526,11 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
       {/* ===== P&L ===== */}
       {section === 'pl' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => exportPLPDF(filteredServices, filteredExpenses, vans, settings, startDate, endDate)} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+              <FileText size={14} /> Export P&L PDF
+            </button>
+          </div>
           {DEFAULT_COMPANIES.map(company => {
             const compSvcs = filteredServices.filter(s => vans.find(v => v.id === s.vanId)?.companyId === company.id);
             const compExp = filteredExpenses.filter(e => vans.find(v => v.id === e.vanId)?.companyId === company.id);
