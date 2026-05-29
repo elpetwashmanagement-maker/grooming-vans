@@ -6137,12 +6137,12 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
   const clientPets = useMemo(() => {
     if (!selectedClient) return [];
-    return pets.filter(p => p.client_id === selectedClient.id);
+    return pets.filter(p => String(p.client_id) === String(selectedClient.id));
   }, [pets, selectedClient]);
 
   const clientHistory = useMemo(() => {
     if (!selectedClient) return [];
-    return appointments.filter(a => a.clientId === selectedClient.id).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
+    return appointments.filter(a => String(a.clientId) === String(selectedClient.id)).sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
   }, [appointments, selectedClient]);
 
   const loadPetHistory = async (petId) => {
@@ -6647,7 +6647,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                   </div>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-background-secondary)', padding: '2px 6px', borderRadius: 999 }}>
-                      {pets.filter(p => p.client_id === c.id).length} 🐾
+                      {pets.filter(p => String(p.client_id) === String(c.id)).length} 🐾
                     </span>
                     {isAdmin && <button onClick={e => { e.stopPropagation(); removeClient(c.id); setSelectedClient(null); }} style={{ ...styles.iconBtn, color: 'var(--color-text-danger)' }}><Trash2 size={13} /></button>}
                   </div>
