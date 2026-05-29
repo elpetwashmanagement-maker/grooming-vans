@@ -4926,6 +4926,10 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
             style={{ ...styles.btnSecondary, padding: '9px 14px', fontSize: 13, borderColor: rangeMode ? '#0f766e' : '#e2e8f0', color: rangeMode ? '#0f766e' : '#64748b' }}>
             {rangeMode ? '📅 Ver un día' : '📅 Ver rango'}
           </button>
+          <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
+            style={{ ...styles.btnPrimary, padding: '9px 14px', fontSize: 13 }}>
+            <FileText size={13} /> Export PDF
+          </button>
         </div>
       </div>
 
