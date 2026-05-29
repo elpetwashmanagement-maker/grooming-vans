@@ -483,6 +483,8 @@ const loadAppointments = async () => {
     agreementSigned: a.agreement_signed || false,
     groomerId: a.groomer_id || null,
     companyId: a.company_id || 'epw',
+    recurrenceWeeks: a.recurrence_weeks || 0,
+    recurrenceParentId: a.recurrence_parent_id || null,
     client: clientMap[a.client_id] ? { id: clientMap[a.client_id].id, name: clientMap[a.client_id].name, phone: clientMap[a.client_id].phone, address: clientMap[a.client_id].address } : null,
     pets: (a.appointment_pets || []).map(ap => ({
       id: ap.id, petId: ap.pet_id, service: ap.service || '', amount: parseFloat(ap.amount) || 0,
@@ -502,6 +504,8 @@ const saveAppointment = async (appt) => {
     agreement_signed: appt.agreementSigned || false,
     groomer_id: appt.groomerId || null,
     company_id: appt.companyId || 'epw',
+    recurrence_weeks: appt.recurrenceWeeks || 0,
+    recurrence_parent_id: appt.recurrenceParentId || null,
   });
   if (error) console.error(error);
   return !error;
@@ -2599,7 +2603,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     tailTool: '', tailNotes: '',
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
-  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
+  const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -2897,6 +2901,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       servicePrice: finalPrice,
       serviceName: newApptForm.serviceName,
       discountPct: newApptForm.discountPct,
+      recurrenceWeeks: newApptForm.recurrenceWeeks || 0,
       client: clients.find(c => c.id === newApptForm.clientId) || null,
       pets: petsList,
     };
@@ -2908,7 +2913,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
     }
     setSaving(false);
     setShowNewAppt(false);
-    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [] });
+    setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
     setClientSearch('');
   };
 
@@ -2940,6 +2945,11 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <button onClick={() => setViewMode('calendario')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'calendario' ? 600 : 400, background: viewMode === 'calendario' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'calendario' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
                 🚐 Vans
               </button>
+              {isAdmin && (
+                <button onClick={() => setViewMode('recurrentes')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'recurrentes' ? 600 : 400, background: viewMode === 'recurrentes' ? '#fef3c7' : 'transparent', color: viewMode === 'recurrentes' ? '#92400e' : 'var(--color-text-secondary)' }}>
+                  🔄 Due
+                </button>
+              )}
             </div>
             <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> {t('new_appt')}</button>
           </div>
@@ -3300,6 +3310,18 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>⚠️ Notas de alerta (privado)</label>
               <input value={newApptForm.alertNotes} onChange={e => setNewApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo, cliente difícil..." />
+            </div>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>🔄 Recurrence</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                {[0, 2, 4, 6, 8].map(w => (
+                  <button key={w} type="button"
+                    onClick={() => setNewApptForm(f => ({...f, recurrenceWeeks: w}))}
+                    style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${newApptForm.recurrenceWeeks === w ? '#0f766e' : '#e2e8f0'}`, background: newApptForm.recurrenceWeeks === w ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newApptForm.recurrenceWeeks === w ? 700 : 400, color: newApptForm.recurrenceWeeks === w ? '#0f766e' : '#64748b' }}>
+                    {w === 0 ? 'No repeat' : `Every ${w}w`}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -4593,7 +4615,103 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         );
       })()}
 
-      {/* Modal de firma */}
+      {/* ===== VISTA RECURRENTES / DUE ===== */}
+      {viewMode === 'recurrentes' && (() => {
+        // Citas con recurrencia que ya se completaron
+        const recurringAppts = appointments.filter(a => 
+          a.recurrenceWeeks > 0 && a.status === 'completed'
+        );
+
+        // Calcular próxima fecha para cada cita
+        const dueItems = recurringAppts.map(a => {
+          const lastDate = new Date(a.date + 'T12:00:00');
+          const nextDate = new Date(lastDate);
+          nextDate.setDate(lastDate.getDate() + (a.recurrenceWeeks * 7));
+          const tz = nextDate.getTimezoneOffset() * 60000;
+          const nextISO = new Date(nextDate - tz).toISOString().slice(0,10);
+          const today = todayISO();
+          const daysUntil = Math.round((new Date(nextISO) - new Date(today)) / (1000 * 60 * 60 * 24));
+          
+          // Verificar si ya hay una cita agendada cerca de esa fecha
+          const alreadyScheduled = appointments.some(b =>
+            String(b.clientId) === String(a.clientId) &&
+            b.status !== 'cancelled' && b.status !== 'completed' &&
+            Math.abs(new Date(b.date) - new Date(nextISO)) < 14 * 24 * 60 * 60 * 1000
+          );
+
+          return { ...a, nextDate: nextISO, daysUntil, alreadyScheduled };
+        }).filter(a => !a.alreadyScheduled)
+          .sort((a, b) => a.daysUntil - b.daysUntil);
+
+        return (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#0f172a' }}>🔄 Recurring clients not yet scheduled</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>Based on completed appointments with recurrence set</div>
+            </div>
+
+            {dueItems.length === 0 ? (
+              <div style={{ ...styles.card, textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                ✅ All recurring clients are scheduled!
+              </div>
+            ) : dueItems.map(item => {
+              const isOverdue = item.daysUntil < 0;
+              const isDueSoon = item.daysUntil <= 7 && item.daysUntil >= 0;
+              const van = vans.find(v => v.id === item.vanId);
+
+              return (
+                <div key={item.id} style={{ ...styles.card, borderLeft: `4px solid ${isOverdue ? '#dc2626' : isDueSoon ? '#f59e0b' : '#0f766e'}`, marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>🐾 {item.client?.name || 'Client'}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        {van?.name} · Every {item.recurrenceWeeks} weeks · Last: {formatDateNice(item.date)}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        Pets: {item.pets?.map(p => p.pet?.name).filter(Boolean).join(', ') || '—'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: isOverdue ? '#fef2f2' : isDueSoon ? '#fffbeb' : '#f0fdfa', color: isOverdue ? '#dc2626' : isDueSoon ? '#92400e' : '#0f766e' }}>
+                        {isOverdue ? `⚠️ ${Math.abs(item.daysUntil)}d overdue` : isDueSoon ? `⏰ Due in ${item.daysUntil}d` : `📅 ${item.daysUntil}d`}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Due: {formatDateNice(item.nextDate)}</div>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <button onClick={() => {
+                      // Pre-llenar formulario con datos de la cita anterior
+                      setNewApptForm({
+                        clientId: item.clientId,
+                        vanId: item.vanId,
+                        companyId: item.companyId || 'epw',
+                        groomerId: item.groomerId || '',
+                        timeStart: item.timeStart || '08:00',
+                        timeEnd: item.timeEnd || '10:00',
+                        notes: item.notes || '',
+                        alertNotes: item.alertNotes || '',
+                        petIds: item.pets?.map(p => p.petId).filter(Boolean) || [],
+                        serviceId: '',
+                        serviceName: item.pets?.[0]?.service || '',
+                        servicePrice: item.pets?.[0]?.amount || 0,
+                        discountPct: 0,
+                        addons: [],
+                        recurrenceWeeks: item.recurrenceWeeks,
+                      });
+                      setDate(item.nextDate);
+                      setShowNewAppt(true);
+                      setViewMode('lista');
+                    }} style={{ ...styles.btnPrimary, fontSize: 13 }}>
+                      📅 Schedule Next Appointment
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* Modal de firma */}
       {showSignature && (
         <SignatureModal
