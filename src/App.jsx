@@ -6108,6 +6108,8 @@ function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir 
 
 // ===== CLIENTES TAB =====
 function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments, cardsOnFile = [], setCardsOnFile = () => {} }) {
+  const [showCardPanel, setShowCardPanel] = useState(null);
+  const [cardForm, setCardForm] = useState({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
