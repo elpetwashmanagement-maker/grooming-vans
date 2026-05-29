@@ -1542,7 +1542,59 @@ export default function App() {
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
       </main>
-      <footer style={styles.footer}><Sparkles size={12} /> El Pet Wash · Daily Close</footer>
+
+      {/* ===== BOTTOM NAVIGATION ===== */}
+      {(() => {
+        const isAdmin = session?.role === 'admin';
+        const isManager = session?.role === 'manager';
+        const isGroomer = session?.role === 'groomer';
+        const canViewFinances = isAdmin || isManager;
+        const canViewReports = isAdmin || isManager;
+
+        // Tabs principales para cada rol
+        const mainTabs = isGroomer ? [
+          { id: 'citas', icon: '🗓️', label: 'Today' },
+          { id: 'registro', icon: '⛽', label: 'Expenses' },
+          { id: 'inventario', icon: '📦', label: 'Supplies' },
+          { id: 'razas', icon: '🐾', label: 'Breeds' },
+        ] : [
+          { id: 'citas', icon: '🗓️', label: 'Schedule' },
+          { id: 'clientes', icon: '👥', label: 'Clients' },
+          { id: 'cierre', icon: '💰', label: 'Close' },
+          { id: 'dashboard', icon: '📊', label: 'Reports' },
+          { id: 'more', icon: '☰', label: 'More' },
+        ];
+
+        return (
+          <nav style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0,
+            background: '#fff', borderTop: '1px solid #e2e8f0',
+            display: 'flex', zIndex: 1000,
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            boxShadow: '0 -4px 16px rgba(0,0,0,0.08)',
+          }}>
+            {mainTabs.map(t => {
+              const active = tab === t.id;
+              return (
+                <button key={t.id} onClick={() => setTab(t.id === 'more' ? 'semana' : t.id)}
+                  style={{
+                    flex: 1, padding: '10px 4px 8px', border: 'none', background: 'none',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: 3,
+                    color: active ? '#0f766e' : '#94a3b8',
+                    borderTop: `2px solid ${active ? '#0f766e' : 'transparent'}`,
+                    transition: 'all 0.15s',
+                  }}>
+                  <span style={{ fontSize: 22 }}>{t.icon}</span>
+                  <span style={{ fontSize: 10, fontWeight: active ? 700 : 400 }}>{t.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        );
+      })()}
+
+      <footer style={{ ...styles.footer, paddingBottom: 80 }}><Sparkles size={12} /> Groomora · {session?.role === 'groomer' ? session?.userName : 'El Pet Wash'}</footer>
     </div>
   );
 }
@@ -2156,7 +2208,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const roleIcons = { admin: '👑', manager: '📋', groomer: '🚐' };
 
   return (
-    <header style={styles.header}>
+    <header style={{ ...styles.header, paddingBottom: 16 }}>
       {/* Banner offline */}
       {!isOnline && (
         <div style={{ background: '#f59e0b', color: '#fff', textAlign: 'center', padding: '6px 16px', fontSize: 13, fontWeight: 700 }}>
@@ -9050,7 +9102,7 @@ const styles = {
   nav: { display: 'flex', gap: 4, flexWrap: 'wrap' },
   tabBtn: { display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', background: 'transparent', border: 'none', fontSize: 14, fontWeight: 500, color: '#64748b', cursor: 'pointer', borderBottom: '2px solid transparent' },
   tabBtnActive: { color: '#0f766e', borderBottomColor: '#0f766e', fontWeight: 600 },
-  main: { padding: '32px 28px 80px', maxWidth: 1280, margin: '0 auto' },
+  main: { padding: '32px 28px 120px', maxWidth: 1280, margin: '0 auto' },
   footer: { textAlign: 'center', padding: '20px', fontSize: 12, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 },
   sectionTitle: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16, gap: 16, flexWrap: 'wrap' },
   eyebrow: { fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#0f766e', fontWeight: 700, marginBottom: 4 },
