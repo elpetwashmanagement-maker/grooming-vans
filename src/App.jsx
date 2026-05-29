@@ -6180,10 +6180,31 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
   }, [appointments, selectedClient]);
 
   const loadPetHistory = async (petId) => {
-    if (petGroomingHistory[petId] || loadingHistory[petId]) return;
+    if (loadingHistory[petId]) return;
     setLoadingHistory(h => ({...h, [petId]: true}));
+    
+    // Cargar grooming records
     const records = await loadGroomingRecords(petId);
-    setPetGroomingHistory(h => ({...h, [petId]: records}));
+    
+    // Cargar fotos de las citas de esta mascota
+    const petAppts = appointments.filter(a => 
+      a.pets?.some(ap => String(ap.petId) === String(petId))
+    );
+    
+    // Cargar fotos por cita
+    const photosMap = {};
+    for (const appt of petAppts) {
+      const photos = await loadGroomingPhotos(appt.id);
+      const petPhotos = photos.filter(p => !p.pet_id || String(p.pet_id) === String(petId));
+      if (petPhotos.length > 0) photosMap[appt.id] = petPhotos;
+    }
+    
+    // Combinar con historial de citas completadas
+    const completedAppts = petAppts
+      .filter(a => a.status === 'completed')
+      .sort((a, b) => b.date.localeCompare(a.date));
+    
+    setPetGroomingHistory(h => ({...h, [petId]: { records, photosMap, completedAppts }}));
     setLoadingHistory(h => ({...h, [petId]: false}));
   };
 
@@ -6821,32 +6842,70 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                         </div>
                       </div>
 
-                      {/* Historial de fichas */}
+                      {/* Historial completo */}
                       {petGroomingHistory[p.id] && (
                         <div style={{ marginTop: 10, paddingTop: 10, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                            Historial de fichas ({petGroomingHistory[p.id].length})
+                            📋 Complete History ({petGroomingHistory[p.id].completedAppts?.length || 0} visits)
                           </div>
-                          {petGroomingHistory[p.id].length === 0 ? (
-                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>Sin fichas registradas aún</div>
+
+                          {(petGroomingHistory[p.id].completedAppts?.length || 0) === 0 ? (
+                            <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>No completed visits yet</div>
                           ) : (
-                            petGroomingHistory[p.id].map(r => (
-                              <div key={r.id} style={{ marginBottom: 8, padding: '8px 10px', background: 'var(--color-background-primary)', borderRadius: 8, border: '0.5px solid var(--color-border-tertiary)' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                  <span style={{ fontSize: 12, fontWeight: 500 }}>{formatDateNice(r.date)}</span>
-                                  {r.blade && <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#E6F1FB', color: '#0C447C' }}>✂️ {r.blade}{r.combo ? ` · ${r.combo}` : ''}</span>}
-                                </div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 4 }}>
-                                  {[['Cabeza', r.head], ['Orejas', r.ears], ['Cuerpo', r.body], ['Patas', r.legs], ['Cola', r.tail]].filter(([,v]) => v).map(([label, val]) => (
-                                    <div key={label} style={{ fontSize: 11 }}>
-                                      <span style={{ color: 'var(--color-text-secondary)' }}>{label}: </span>
-                                      <span>{val}</span>
+                            petGroomingHistory[p.id].completedAppts.map(appt => {
+                              const ap = appt.pets?.find(ap => String(ap.petId) === String(p.id));
+                              const photos = petGroomingHistory[p.id].photosMap?.[appt.id] || [];
+                              const beforePhotos = photos.filter(ph => ph.type === 'before');
+                              const afterPhotos = photos.filter(ph => ph.type === 'after');
+                              const van = vans.find(v => v.id === appt.vanId);
+
+                              return (
+                                <div key={appt.id} style={{ marginBottom: 12, padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                                  {/* Header visita */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                    <div style={{ fontWeight: 700, fontSize: 13 }}>📅 {formatDateNice(appt.date)}</div>
+                                    <div style={{ fontSize: 12, color: '#64748b' }}>{van?.name} · ${ap?.amount?.toFixed(2) || '0'}</div>
+                                  </div>
+
+                                  {/* Servicio */}
+                                  {ap?.service && (
+                                    <div style={{ fontSize: 12, color: '#0f766e', fontWeight: 600, marginBottom: 6 }}>
+                                      ✂️ {ap.service}
                                     </div>
-                                  ))}
+                                  )}
+
+                                  {/* Fotos */}
+                                  {photos.length > 0 && (
+                                    <div style={{ marginBottom: 8 }}>
+                                      <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>📸 Photos</div>
+                                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                        {beforePhotos.map(ph => (
+                                          <div key={ph.id} style={{ position: 'relative' }}>
+                                            <img src={ph.photo_url} alt="before"
+                                              onClick={() => window.open(ph.photo_url, '_blank')}
+                                              style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '2px solid #fcd34d' }} />
+                                            <div style={{ position: 'absolute', bottom: 2, left: 2, background: '#f59e0b', borderRadius: 4, padding: '1px 4px', fontSize: 8, color: '#fff', fontWeight: 700 }}>B</div>
+                                          </div>
+                                        ))}
+                                        {afterPhotos.map(ph => (
+                                          <div key={ph.id} style={{ position: 'relative' }}>
+                                            <img src={ph.photo_url} alt="after"
+                                              onClick={() => window.open(ph.photo_url, '_blank')}
+                                              style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '2px solid #0f766e' }} />
+                                            <div style={{ position: 'absolute', bottom: 2, left: 2, background: '#0f766e', borderRadius: 4, padding: '1px 4px', fontSize: 8, color: '#fff', fontWeight: 700 }}>A</div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Notas */}
+                                  {appt.notes && (
+                                    <div style={{ fontSize: 11, color: '#64748b', fontStyle: 'italic' }}>📝 {appt.notes}</div>
+                                  )}
                                 </div>
-                                {r.notes && <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginTop: 4, fontStyle: 'italic' }}>📝 {r.notes}</div>}
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       )}
