@@ -4922,6 +4922,8 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
               <input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 180 }} />
             </div>
           )}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
           <button onClick={() => setRangeMode(!rangeMode)}
             style={{ ...styles.btnSecondary, padding: '9px 14px', fontSize: 13, borderColor: rangeMode ? '#0f766e' : '#e2e8f0', color: rangeMode ? '#0f766e' : '#64748b' }}>
             {rangeMode ? '📅 Ver un día' : '📅 Ver rango'}
@@ -5124,11 +5126,14 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Weekly Report" title={`${formatDateNice(start)} — ${formatDateNice(end)}`} />
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button onClick={downloadCSV} style={{ ...styles.btnSecondary, fontSize: 12 }}>
+          <Download size={14} /> CSV
+        </button>
         <button onClick={handleExportPDF} style={{ ...styles.btnSecondary, fontSize: 12 }}>
-          <FileText size={14} /> Export PDF
+          <FileText size={14} /> PDF
         </button>
         <button onClick={handleExportExcel} style={{ ...styles.btnSecondary, fontSize: 12 }}>
-          <Download size={14} /> Export Excel
+          <Download size={14} /> Excel
         </button>
       </div>
       <div style={styles.card}>
