@@ -1868,12 +1868,13 @@ function SignatureModal({ appt, companyId, onSave, onClose }) {
 }
 
 // ===== LOGIN =====
+
 function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, loadingUsers }) {
   const [step, setStep] = useState('select');
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
   const [error, setError] = useState(false);
-  const [showPin, setShowPin] = useState(false);
+  const [shaking, setShaking] = useState(false);
 
   const admins = users.filter(u => u.role === 'admin');
   const managers = users.filter(u => u.role === 'manager');
@@ -1920,146 +1921,213 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
         }
       });
     } else {
+      setShaking(true);
       setError(true);
-      setTimeout(() => { setPinInput(''); setError(false); }, 600);
+      setTimeout(() => { setPinInput(''); setError(false); setShaking(false); }, 700);
     }
   };
 
-  const getRoleLabel = (role) => ({ admin: 'Administrador', manager: 'Administradora', groomer: 'Groomer' }[role] || role);
   const getRoleColor = (role) => ({ admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' }[role] || '#64748b');
-  const getRoleIcon = (role) => ({ admin: '👑', manager: '📋', groomer: '🚐' }[role] || '👤');
+  const getRoleIcon = (role) => ({ admin: '👑', manager: '📋', groomer: '✂️' }[role] || '👤');
+  const getRoleBg = (role) => ({ admin: '#f0f4ff', manager: '#f5f3ff', groomer: '#f0fdfa' }[role] || '#f8fafc');
+  const getRoleBorder = (role) => ({ admin: '#e0e7ff', manager: '#ede9fe', groomer: '#ccfbf1' }[role] || '#e2e8f0');
+
+  const allUsers = [...admins, ...managers, ...groomers];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--color-background-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ ...styles.loginCard, maxWidth: step === 'select' ? 560 : 400 }}>
-        <div style={styles.loginHeader}>
-          <div style={styles.logoBox}><Truck size={20} color="#fff" /></div>
-          <div>
-            <h1 style={styles.title}>Group Guerrero Orejarena</h1>
-            <p style={styles.subtitle}>{step === 'select' ? 'Selecciona tu usuario' : `Hola, ${selectedUser?.name}`}</p>
-          </div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0f172a 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      padding: '20px', fontFamily: 'Inter, system-ui, sans-serif',
+    }}>
+
+      {/* Logo */}
+      <div style={{ textAlign: 'center', marginBottom: step === 'select' ? 40 : 32 }}>
+        <div style={{
+          width: 72, height: 72, borderRadius: 20, background: 'rgba(255,255,255,0.15)',
+          backdropFilter: 'blur(10px)', border: '1.5px solid rgba(255,255,255,0.25)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          margin: '0 auto 16px', fontSize: 36,
+        }}>🐾</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
+          Groomora
         </div>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
+          {step === 'select' ? 'Select your profile' : `Welcome, ${selectedUser?.name}`}
+        </div>
+      </div>
 
-        {step === 'select' ? (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
-            {/* Admin */}
-            {admins.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Administración</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {admins.map(u => (
-                    <button key={u.id} onClick={() => handleSelect(u)} className="user-tile"
-                      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>👑</div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{u.name}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>Acceso total al sistema</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
+      {/* Panel principal */}
+      <div style={{
+        width: '100%', maxWidth: 440,
+        background: 'rgba(255,255,255,0.97)',
+        borderRadius: 24, padding: '28px 24px',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.3)',
+      }}>
+
+        {/* STEP 1 — Seleccionar usuario */}
+        {step === 'select' && (
+          <div>
+            {loadingUsers ? (
+              <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
+                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
+                <div style={{ marginTop: 8, fontSize: 13 }}>Loading...</div>
               </div>
-            )}
-
-            {/* Administradoras */}
-            {managers.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Administradoras</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {managers.map(u => (
-                    <button key={u.id} onClick={() => handleSelect(u)} className="user-tile"
-                      style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '14px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', transition: 'all 0.2s' }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 10, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</div>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0f172a' }}>{u.name}</div>
-                      <div style={{ fontSize: 10, color: '#94a3b8' }}>Administradora</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Groomers */}
-            {groomers.length > 0 && (
+            ) : (
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Groomers</div>
-                <div style={styles.vanTilesGrid}>
-                  {groomers.map(u => (
-                    <button key={u.id} onClick={() => handleSelect(u)} className="user-tile"
-                      style={{ ...styles.vanTile }}>
-                      <div style={{ ...styles.vanTileIcon }}><Truck size={20} color="#0f766e" /></div>
-                      <div style={styles.vanTileName}>{u.name}</div>
-                      <div style={styles.vanTileSub}>{vans.find ? (vans.find(v => v.id === u.van_id)?.name || 'Groomer') : 'Groomer'}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                {/* Admins y managers */}
+                {[...admins, ...managers].length > 0 && (
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Management</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {[...admins, ...managers].map(u => (
+                        <button key={u.id} onClick={() => handleSelect(u)}
+                          style={{
+                            width: '100%', padding: '14px 18px',
+                            background: getRoleBg(u.role), border: `1.5px solid ${getRoleBorder(u.role)}`,
+                            borderRadius: 14, cursor: 'pointer', textAlign: 'left',
+                            display: 'flex', alignItems: 'center', gap: 14,
+                            transition: 'transform 0.1s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.01)'}
+                          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                          <div style={{
+                            width: 46, height: 46, borderRadius: 12,
+                            background: getRoleColor(u.role),
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 22, flexShrink: 0,
+                          }}>{getRoleIcon(u.role)}</div>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{u.name}</div>
+                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>
+                              {u.role === 'admin' ? 'Full access' : 'Manager access'}
+                            </div>
+                          </div>
+                          <div style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 18 }}>›</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {users.length === 0 && !loadingUsers && (
-              // Fallback con vans si Supabase no carga los usuarios
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Groomers</div>
-                <div style={styles.vanTilesGrid}>
-                  {vans.map(v => (
-                    <button key={v.id} onClick={() => handleSelect({
-                      id: v.id, name: v.groomer || v.name, role: 'groomer', pin: v.pin, van_id: v.id,
-                      can_create_clients: true, can_view_clients: false, can_schedule: true,
-                      can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
-                    })} className="user-tile" style={styles.vanTile}>
-                      <div style={styles.vanTileIcon}><Truck size={20} color="#0f766e" /></div>
-                      <div style={styles.vanTileName}>{v.groomer || v.name}</div>
-                      <div style={styles.vanTileSub}>{v.name}</div>
-                    </button>
-                  ))}
-                </div>
-                <div style={styles.loginDivider}><span>o</span></div>
-                <button onClick={() => handleSelect({
-                  id: 'admin', name: 'Admin', role: 'admin', pin: '2019', van_id: null,
-                  can_create_clients: true, can_view_clients: true, can_schedule: true,
-                  can_view_all_schedule: true, can_view_finances: true, can_view_reports: true, can_edit_config: true,
-                })} style={styles.adminAccessBtn}><Lock size={15} />Acceso administrador</button>
+                {/* Groomers */}
+                {groomers.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Groomers</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                      {groomers.map(u => {
+                        const van = vans?.find(v => v.id === u.vanId);
+                        const company = companies?.find(c => c.id === (van?.companyId || u.companyId));
+                        return (
+                          <button key={u.id} onClick={() => handleSelect(u)}
+                            style={{
+                              padding: '16px 14px', background: '#f0fdfa',
+                              border: '1.5px solid #ccfbf1', borderRadius: 14,
+                              cursor: 'pointer', textAlign: 'center',
+                              transition: 'transform 0.1s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                            <div style={{
+                              width: 50, height: 50, borderRadius: '50%', margin: '0 auto 10px',
+                              background: '#0f766e', display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 800,
+                            }}>{u.name.charAt(0)}</div>
+                            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{u.name}</div>
+                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
+                              {company?.logoEmoji} {van?.name || ''}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
-            {loadingUsers && (
-              <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-                <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#0f766e', display: 'block', margin: '0 auto 12px' }} />
-                Loading usuarios...
-              </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ animation: 'fadeIn 0.3s ease' }}>
-            <div style={{ textAlign: 'center', marginBottom: 16 }}>
-              <div style={{ fontSize: 32, marginBottom: 4 }}>{getRoleIcon(selectedUser?.role)}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: getRoleColor(selectedUser?.role) }}>{getRoleLabel(selectedUser?.role)}</div>
-            </div>
-            <p style={styles.pinPrompt}>Ingresa tu PIN de 4 dígitos</p>
-            <div style={{ ...styles.pinDots, animation: error ? 'shake 0.4s' : 'none' }}>
-              {[0,1,2,3].map(i => (
-                <div key={i} style={{ ...styles.pinDot, ...(i < pinInput.length ? styles.pinDotFilled : {}), ...(error ? styles.pinDotError : {}) }}>
-                  {showPin && i < pinInput.length ? pinInput[i] : ''}
-                </div>
-              ))}
-            </div>
-            {error && <p style={styles.pinError}>PIN incorrecto, intenta de nuevo</p>}
-            <div style={styles.pinPad}>
-              {['1','2','3','4','5','6','7','8','9'].map(d => (
-                <button key={d} onClick={() => handleDigit(d)} className="pin-btn" style={styles.pinBtn}>{d}</button>
-              ))}
-              <button onClick={() => setShowPin(!showPin)} className="pin-btn" style={styles.pinBtn}>
-                {showPin ? <EyeOff size={20} /> : <Eye size={20} />}
-              </button>
-              <button onClick={() => handleDigit('0')} className="pin-btn" style={styles.pinBtn}>0</button>
-              <button onClick={handleDelete} className="pin-btn" style={styles.pinBtn}>⌫</button>
-            </div>
-            <button onClick={() => { setStep('select'); setPinInput(''); setError(false); }} style={styles.pinBackBtn}>← Volver</button>
           </div>
         )}
+
+        {/* STEP 2 — PIN */}
+        {step === 'pin' && selectedUser && (
+          <div style={{ textAlign: 'center' }}>
+            {/* Avatar */}
+            <div style={{
+              width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px',
+              background: getRoleColor(selectedUser.role),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 30,
+            }}>{getRoleIcon(selectedUser.role)}</div>
+            <div style={{ fontWeight: 700, fontSize: 20, color: '#0f172a', marginBottom: 4 }}>{selectedUser.name}</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Enter your 4-digit PIN</div>
+
+            {/* Puntos del PIN */}
+            <div style={{
+              display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 28,
+              animation: shaking ? 'shake 0.5s ease' : 'none',
+            }}>
+              {[0,1,2,3].map(i => (
+                <div key={i} style={{
+                  width: 18, height: 18, borderRadius: '50%',
+                  background: i < pinInput.length ? (error ? '#dc2626' : '#0f766e') : '#e2e8f0',
+                  transition: 'all 0.15s',
+                  transform: i < pinInput.length ? 'scale(1.2)' : 'scale(1)',
+                }} />
+              ))}
+            </div>
+
+            {error && (
+              <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
+                ❌ Incorrect PIN — try again
+              </div>
+            )}
+
+            {/* Teclado numérico */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 280, margin: '0 auto' }}>
+              {['1','2','3','4','5','6','7','8','9'].map(d => (
+                <button key={d} onClick={() => handleDigit(d)}
+                  style={{
+                    height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0',
+                    background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a',
+                    transition: 'all 0.1s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#0f766e'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}>
+                  {d}
+                </button>
+              ))}
+              <button onClick={() => { setStep('select'); setPinInput(''); setError(false); }}
+                style={{ height: 64, borderRadius: 14, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8' }}>
+                Back
+              </button>
+              <button key="0" onClick={() => handleDigit('0')}
+                style={{
+                  height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0',
+                  background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a',
+                  transition: 'all 0.1s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#0f766e'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}>
+                0
+              </button>
+              <button onClick={handleDelete}
+                style={{ height: 64, borderRadius: 14, border: 'none', background: '#fef2f2', cursor: 'pointer', fontSize: 20, color: '#dc2626' }}>
+                ⌫
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+        Groomora © 2026 · Group Guerrero Orejarena International LLC
       </div>
     </div>
   );
 }
 
+// ===== HEADER =====
 // ===== HEADER =====
 function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange, isOnline = true }) {
   const isAdmin = session?.role === 'admin';
@@ -5162,12 +5230,14 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
       <div style={styles.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <div style={{ fontWeight: 700, fontSize: 14 }}>📅 Period</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
-              style={{ ...styles.btnSecondary, fontSize: 12, padding: '6px 12px' }}>
-              <FileText size={13} /> PDF
-            </button>
-          </div>
+          {isAdmin && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
+                style={{ ...styles.btnSecondary, fontSize: 12, padding: '6px 12px' }}>
+                <FileText size={13} /> PDF
+              </button>
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
@@ -5186,10 +5256,12 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
             style={{ ...styles.btnSecondary, padding: '9px 14px', fontSize: 13, borderColor: rangeMode ? '#0f766e' : '#e2e8f0', color: rangeMode ? '#0f766e' : '#64748b' }}>
             {rangeMode ? '📅 Ver un día' : '📅 Ver rango'}
           </button>
-          <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
-            style={{ ...styles.btnPrimary, padding: '9px 14px', fontSize: 13 }}>
-            <FileText size={13} /> Export PDF
-          </button>
+          {isAdmin && (
+            <button onClick={() => exportDailyPDF(services, vans, start, end, settings)}
+              style={{ ...styles.btnPrimary, padding: '9px 14px', fontSize: 13 }}>
+              <FileText size={13} /> Export PDF
+            </button>
+          )}
         </div>
       </div>
 
