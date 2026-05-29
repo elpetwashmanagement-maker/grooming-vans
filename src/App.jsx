@@ -776,105 +776,72 @@ const deleteGroomingPhoto = async (id) => {
 // ===== ADDRESS AUTOCOMPLETE =====
 const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
 
+// Cargar Google Maps script una sola vez
+let googleMapsLoaded = false;
+let googleMapsLoading = false;
+const googleMapsCallbacks = [];
+
+const loadGoogleMaps = () => {
+  return new Promise((resolve) => {
+    if (window.google?.maps?.places) { resolve(); return; }
+    googleMapsCallbacks.push(resolve);
+    if (googleMapsLoading) return;
+    googleMapsLoading = true;
+    window.__googleMapsReady = () => {
+      googleMapsLoaded = true;
+      googleMapsCallbacks.forEach(cb => cb());
+    };
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_PLACES_KEY}&libraries=places&callback=__googleMapsReady`;
+    script.async = true;
+    document.head.appendChild(script);
+  });
+};
+
 function AddressAutocomplete({ value, onChange, placeholder = 'Start typing address...', style = {} }) {
-  const [suggestions, setSuggestions] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const debounceRef = useRef(null);
+  const inputRef = useRef(null);
+  const autocompleteRef = useRef(null);
+  const [inputValue, setInputValue] = useState(value || '');
 
-  const fetchSuggestions = async (input) => {
-    if (!input || input.length < 3) { setSuggestions([]); return; }
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&types=address&components=country:us&key=${GOOGLE_PLACES_KEY}`
-      );
-      const data = await res.json();
-      setSuggestions(data.predictions || []);
-    } catch (err) {
-      console.error('Places API error:', err);
-    }
-    setLoading(false);
-  };
+  useEffect(() => { setInputValue(value || ''); }, [value]);
 
-  const getPlaceDetails = async (placeId) => {
-    try {
-      const res = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,address_components&key=${GOOGLE_PLACES_KEY}`
-      );
-      const data = await res.json();
-      const result = data.result;
-      if (!result) return null;
-
-      const components = result.address_components || [];
-      const get = (type) => components.find(c => c.types.includes(type))?.long_name || '';
-      const getShort = (type) => components.find(c => c.types.includes(type))?.short_name || '';
-
-      return {
-        address: result.formatted_address,
-        zip: get('postal_code'),
-        city: get('locality') || get('sublocality'),
-        state: getShort('administrative_area_level_1'),
-      };
-    } catch (err) {
-      console.error('Place details error:', err);
-      return null;
-    }
-  };
-
-  const handleInput = (val) => {
-    onChange({ address: val });
-    setShowSuggestions(true);
-    clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchSuggestions(val), 350);
-  };
-
-  const handleSelect = async (prediction) => {
-    setShowSuggestions(false);
-    setSuggestions([]);
-    const details = await getPlaceDetails(prediction.place_id);
-    if (details) {
-      onChange(details);
-    } else {
-      onChange({ address: prediction.description });
-    }
-  };
+  useEffect(() => {
+    if (!GOOGLE_PLACES_KEY) return;
+    loadGoogleMaps().then(() => {
+      if (!inputRef.current || autocompleteRef.current) return;
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'us' },
+        fields: ['formatted_address', 'address_components'],
+      });
+      autocompleteRef.current = autocomplete;
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.address_components) return;
+        const get = (type) => place.address_components.find(c => c.types.includes(type))?.long_name || '';
+        const getShort = (type) => place.address_components.find(c => c.types.includes(type))?.short_name || '';
+        const zip = get('postal_code');
+        const city = get('locality') || get('sublocality') || get('neighborhood');
+        const state = getShort('administrative_area_level_1');
+        const address = place.formatted_address;
+        setInputValue(address);
+        onChange({ address, zip, city, state });
+      });
+    });
+  }, []);
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ position: 'relative' }}>
-        <input
-          value={value}
-          onChange={e => handleInput(e.target.value)}
-          onFocus={() => value?.length >= 3 && setShowSuggestions(true)}
-          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-          placeholder={placeholder}
-          style={{ ...styles.input, paddingRight: 32, ...style }}
-          autoComplete="off"
-        />
-        {loading && (
-          <div style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>
-            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
-          </div>
-        )}
-      </div>
-      {showSuggestions && suggestions.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 9999, maxHeight: 240, overflowY: 'auto' }}>
-          {suggestions.map(s => (
-            <div key={s.place_id}
-              onMouseDown={() => handleSelect(s)}
-              style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 13 }}
-              onMouseEnter={e => e.currentTarget.style.background = '#f0fdfa'}
-              onMouseLeave={e => e.currentTarget.style.background = '#fff'}>
-              <div style={{ fontWeight: 600, color: '#0f172a' }}>📍 {s.structured_formatting?.main_text || s.description}</div>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{s.structured_formatting?.secondary_text || ''}</div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    <input
+      ref={inputRef}
+      value={inputValue}
+      onChange={e => { setInputValue(e.target.value); onChange({ address: e.target.value }); }}
+      placeholder={placeholder}
+      style={{ ...styles.input, ...style }}
+      autoComplete="off"
+    />
   );
 }
+
 
 // ===== FUEL LOGS =====
 const loadFuelLogs = async () => {
@@ -5909,10 +5876,12 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
     setSaving(true);
 
+    try {
     // 1. Crear cliente
     const clientId = uid();
     const client = { id: clientId, ...clientForm, name: clientForm.name.trim(), active: true };
-    await addClient(client);
+    const clientOk = await addClient(client);
+    if (!clientOk) { alert('❌ Error saving client. Check console.'); setSaving(false); return; }
 
     // 2. Crear mascotas y cita
     const apptId = uid();
@@ -5963,6 +5932,11 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
     setPetForms([emptyPet()]);
     setApptForm({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
     alert(`✅ ${clientForm.name} creado con ${petForms.length} mascota(s) y su cita`);
+    } catch(err) {
+      console.error('Error creating client:', err);
+      alert(`❌ Error: ${err.message}`);
+      setSaving(false);
+    }
   };
 
   return (
