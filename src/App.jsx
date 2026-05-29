@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -775,7 +774,7 @@ const deleteGroomingPhoto = async (id) => {
 };
 
 // ===== ADDRESS AUTOCOMPLETE =====
-const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY;
+const GOOGLE_PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY || 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
 // Cargar Google Maps script una sola vez
 let googleMapsLoaded = false;
