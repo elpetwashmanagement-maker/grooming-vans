@@ -6144,6 +6144,8 @@ function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir 
 function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments, cardsOnFile = [], setCardsOnFile = () => {} }) {
   const [showCardPanel, setShowCardPanel] = useState(null);
   const [cardForm, setCardForm] = useState({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
+  const [showNewPetForm, setShowNewPetForm] = useState(false);
+  const [newPetFormData, setNewPetFormData] = useState({ name: '', breed: '', species: 'dog', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', weight: '', color: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
@@ -6818,9 +6820,102 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
             {/* Mascotas */}
             <div style={{ ...styles.card, marginTop: 12 }}>
-              <h3 style={{ ...styles.cardH3, marginBottom: 12 }}>Mascotas</h3>
-              {clientPets.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 16, color: 'var(--color-text-secondary)', fontSize: 13 }}>Sin mascotas registradas</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <h3 style={{ ...styles.cardH3, margin: 0 }}>🐾 Pets</h3>
+                {isAdmin && (
+                  <button onClick={() => {
+                    setShowNewPetForm(prev => !prev);
+                    setNewPetFormData({ name: '', breed: '', species: 'dog', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', weight: '', color: '', allergies: '', medicalNotes: '', behaviorNotes: '' });
+                  }} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
+                    <Plus size={13} /> Add Pet
+                  </button>
+                )}
+              </div>
+
+              {/* Formulario nueva mascota */}
+              {showNewPetForm && (
+                <div style={{ padding: '12px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0f766e', marginBottom: 10 }}>➕ New Pet</div>
+                  <div style={styles.formGrid}>
+                    <div>
+                      <label style={styles.lbl}>Name *</label>
+                      <input value={newPetFormData.name} onChange={e => setNewPetFormData(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Pet name" />
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Species</label>
+                      <select value={newPetFormData.species} onChange={e => setNewPetFormData(f => ({...f, species: e.target.value}))} style={styles.input}>
+                        <option value="dog">🐶 Dog</option>
+                        <option value="cat">🐱 Cat</option>
+                        <option value="other">🐾 Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Breed</label>
+                      <input value={newPetFormData.breed} onChange={e => setNewPetFormData(f => ({...f, breed: e.target.value}))} style={styles.input} placeholder="e.g. Golden Retriever" />
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Size</label>
+                      <select value={newPetFormData.size} onChange={e => setNewPetFormData(f => ({...f, size: e.target.value}))} style={styles.input}>
+                        <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
+                        <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
+                        <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
+                        <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Hair type</label>
+                      <select value={newPetFormData.hairType} onChange={e => setNewPetFormData(f => ({...f, hairType: e.target.value}))} style={styles.input}>
+                        <option value="Short Hair">Short Hair</option>
+                        <option value="Long Hair">Long Hair</option>
+                        <option value="Double Coat">Double Coat</option>
+                        <option value="Curly">Curly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Age</label>
+                      <input value={newPetFormData.age} onChange={e => setNewPetFormData(f => ({...f, age: e.target.value}))} style={styles.input} placeholder="e.g. 3 years" />
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Weight (lbs)</label>
+                      <input type="number" value={newPetFormData.weight} onChange={e => setNewPetFormData(f => ({...f, weight: e.target.value}))} style={styles.input} />
+                    </div>
+                    <div>
+                      <label style={styles.lbl}>Color</label>
+                      <input value={newPetFormData.color} onChange={e => setNewPetFormData(f => ({...f, color: e.target.value}))} style={styles.input} placeholder="e.g. Golden" />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={styles.lbl}>⚠️ Allergies / Medical notes</label>
+                      <input value={newPetFormData.allergies} onChange={e => setNewPetFormData(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="e.g. allergic to lavender" />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
+                      <label style={styles.lbl}>🔔 Behavior notes</label>
+                      <input value={newPetFormData.behaviorNotes} onChange={e => setNewPetFormData(f => ({...f, behaviorNotes: e.target.value}))} style={styles.input} placeholder="e.g. nervous with strangers" />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button onClick={async () => {
+                      if (!newPetFormData.name.trim()) { alert('Enter pet name'); return; }
+                      const pet = {
+                        id: uid(), clientId: selectedClient.id, name: newPetFormData.name.trim(),
+                        breed: newPetFormData.breed, species: newPetFormData.species,
+                        size: newPetFormData.size, hairType: newPetFormData.hairType,
+                        age: newPetFormData.age, weight: newPetFormData.weight,
+                        color: newPetFormData.color, allergies: newPetFormData.allergies,
+                        medicalNotes: newPetFormData.medicalNotes, behaviorNotes: newPetFormData.behaviorNotes,
+                      };
+                      const ok = await addPet(pet);
+                      if (ok) {
+                        setShowNewPetForm(false);
+                        alert(`✅ ${pet.name} added!`);
+                      }
+                    }} style={styles.btnPrimary}><Plus size={14} /> Save Pet</button>
+                    <button onClick={() => setShowNewPetForm(false)} style={styles.btnSecondary}>Cancel</button>
+                  </div>
+                </div>
+              )}
+
+              {clientPets.length === 0 && !showNewPetForm ? (
+                <div style={{ textAlign: 'center', padding: 16, color: 'var(--color-text-secondary)', fontSize: 13 }}>No pets registered yet</div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {clientPets.map(p => (
