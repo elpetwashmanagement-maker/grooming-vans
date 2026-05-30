@@ -1642,6 +1642,10 @@ export default function App() {
           }}>
             {mainTabs.map(t => {
               const active = tab === t.id;
+              // Count pending_review appointments for badge
+              const pendingCount = t.id === 'appointments' && !isGroomer
+                ? appointments.filter(a => a.status === 'pending_review').length
+                : 0;
               return (
                 <button key={t.id} onClick={() => setTab(t.id === 'more' ? 'week' : t.id)}
                   style={{
@@ -1650,9 +1654,21 @@ export default function App() {
                     alignItems: 'center', gap: 3,
                     color: active ? '#0f766e' : '#94a3b8',
                     borderTop: `2px solid ${active ? '#0f766e' : 'transparent'}`,
-                    transition: 'all 0.15s',
+                    transition: 'all 0.15s', position: 'relative',
                   }}>
-                  <span style={{ fontSize: 22 }}>{t.icon}</span>
+                  <span style={{ fontSize: 22, position: 'relative' }}>
+                    {t.icon}
+                    {pendingCount > 0 && (
+                      <span style={{
+                        position: 'absolute', top: -4, right: -8,
+                        background: '#dc2626', color: '#fff',
+                        borderRadius: '50%', width: 18, height: 18,
+                        fontSize: 10, fontWeight: 700,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        border: '2px solid #fff',
+                      }}>{pendingCount}</span>
+                    )}
+                  </span>
                   <span style={{ fontSize: 10, fontWeight: active ? 700 : 400 }}>{t.label}</span>
                 </button>
               );
@@ -2968,8 +2984,8 @@ const COMBOS = ['#0 (5/8")','#1 (1/2")','#2 (3/8")','#4 (1/4")','#5 (1/8")','#A 
 const SIZES = ['Small (1-20 lbs)','Medium (21-40 lbs)','Large (41-60 lbs)','Big (61-80 lbs)','Extra Large (81-100 lbs)','Giant (100-120 lbs)','Extra Giant (+120 lbs)'];
 const HAIR_TYPES = ['Short Hair','Long Hair'];
 const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirmed: t('status_confirmed'), in_progress: t('status_in_progress'), completed: t('status_completed'), cancelled: t('status_cancelled') });
-const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
-const STATUS_LABELS = { unconfirmed: 'Unconfirmed', confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' };
+const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' }, pending_review: { bg: '#fdf2f8', text: '#86198f', border: '#d946ef' } };
+const STATUS_LABELS = { unconfirmed: 'Unconfirmed', confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled', pending_review: '🔔 Needs Review' };
 
 function AppointmentsTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices, deposits = [], setDeposits = () => {}, groomers = [] }) {
   const t = useT('en');
@@ -3272,7 +3288,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       vanId: newApptForm.vanId, clientId: newApptForm.clientId,
       groomerId: newApptForm.groomerId || null,
       companyId: newApptForm.companyId || van?.companyId || 'epw',
-      status: 'unconfirmed',
+      status: isGroomer ? 'pending_review' : 'unconfirmed',
       notes: `${newApptForm.serviceName ? `Service: ${newApptForm.serviceName}` : ''}${addonsNamonth ? ` + ${addonsNamonth}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
       alertNotes: newApptForm.alertNotes,
       agreementSigned: false,
@@ -3446,6 +3462,58 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       )}
 
       {/* Formulario new appointment */}
+      {/* ===== NEEDS REVIEW PANEL (admin/manager) ===== */}
+      {!isGroomer && (() => {
+        const pendingAppts = appointments.filter(a => a.status === 'pending_review');
+        if (!pendingAppts.length) return null;
+        return (
+          <div style={{ background: '#fdf2f8', border: '2px solid #d946ef', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20 }}>🔔</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#86198f' }}>Needs Review</div>
+                <div style={{ fontSize: 12, color: '#a21caf' }}>{pendingAppts.length} appointment{pendingAppts.length !== 1 ? 's' : ''} created by groomers</div>
+              </div>
+            </div>
+            {pendingAppts.map(appt => {
+              const client = clients.find(c => String(c.id) === String(appt.clientId));
+              const van = vans.find(v => v.id === appt.vanId);
+              const petNames = (appt.pets || []).map(p => p.pet?.name || p.petName).filter(Boolean).join(', ');
+              return (
+                <div key={appt.id} style={{ background: '#fff', borderRadius: 12, padding: '10px 14px', marginBottom: 8, border: '1px solid #f0abfc' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{client?.name || 'Unknown client'}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        📅 {formatDateNice(appt.date)} · ⏰ {appt.timeStart}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>
+                        🚐 {van?.name} {petNames && `· 🐾 ${petNames}`}
+                      </div>
+                      {appt.notes && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>📝 {appt.notes}</div>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={async () => {
+                        await updateApptStatus(appt.id, 'confirmed');
+                        await refreshAppointments();
+                      }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                        ✅ Confirm
+                      </button>
+                      <button onClick={async () => {
+                        await updateApptStatus(appt.id, 'cancelled');
+                        await refreshAppointments();
+                      }} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {showNewAppt && (
         <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
