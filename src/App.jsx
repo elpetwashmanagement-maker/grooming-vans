@@ -3524,7 +3524,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
           </div>
 
           {/* STEP 4: Smart Scheduling → Van */}
-          {newApptForm.clientId && !isGroomer && (() => {
+          {newApptForm.clientId && !isGroomer && newApptForm.companyId && (() => {
             const client = clients.find(c => String(c.id) === String(newApptForm.clientId));
             const companyVans = vans.filter(v => v.active !== false && (!newApptForm.companyId || v.companyId === newApptForm.companyId));
             const vanOptions = companyVans.map(v => {
