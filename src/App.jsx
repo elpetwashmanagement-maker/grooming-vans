@@ -260,6 +260,17 @@ const DEFAULT_COMPANIES = [
   { id: 'atw', name: 'All Tails Wag', logoEmoji: '🐕', gasFee: 7, cardFeePct: 5.5, active: true, sortOrder: 2 },
 ];
 
+const INVOICE_FOOTERS = {
+  epw: `Thank you for choosing El Pet Wash LLC!
+We love your furry family member. 🐾
+Questions? Call us anytime.
+www.elpetwash.com`,
+  atw: `Thank you for choosing All Tails Wag Grooming LLC!
+We love your furry family member. 🐾
+Questions? Call us anytime.
+www.alltailswag.com`,
+};
+
 const AGREEMENTS = {
   epw: `GROOMING SERVICE AGREEMENT — El Pet Wash LLC
 
@@ -6420,32 +6431,36 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       {/* Agreement por empresa */}
       {DEFAULT_COMPANIES.map(company => {
         const key = company.id === 'epw' ? 'agreementEpw' : 'agreementAtw';
+        const footerKey = company.id === 'epw' ? 'footerEpw' : 'footerAtw';
         const defaultText = AGREEMENTS[company.id] || '';
+        const defaultFooter = INVOICE_FOOTERS[company.id] || '';
         const currentText = localSettings[key] !== undefined ? localSettings[key] : defaultText;
+        const currentFooter = localSettings[footerKey] !== undefined ? localSettings[footerKey] : defaultFooter;
         return (
-          <div key={company.id} style={cardStyle}>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
-              {company.logoEmoji} {company.name} — Service Agreement
+          <div key={company.id} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+              {company.logoEmoji} {company.name}
             </div>
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
-              Shown to clients before grooming. They sign digitally.
+            <div style={cardStyle}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>📄 Service Agreement</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>Shown to clients before grooming. They sign digitally.</div>
+              <textarea value={currentText}
+                onChange={e => setLocalSettings(s => ({...s, [key]: e.target.value}))}
+                style={{ width: '100%', minHeight: 180, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 12, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: 1.6 }} />
             </div>
-            <textarea value={currentText}
-              onChange={e => setLocalSettings(s => ({...s, [key]: e.target.value}))}
-              style={{ width: '100%', minHeight: 200, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 12, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: 1.6 }} />
+            <div style={cardStyle}>
+              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>🧾 Invoice Footer</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>Text shown at the bottom of every invoice.</div>
+              <textarea value={currentFooter}
+                onChange={e => setLocalSettings(s => ({...s, [footerKey]: e.target.value}))}
+                style={{ width: '100%', minHeight: 80, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+            </div>
           </div>
         );
       })}
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>🧾 Invoice Footer</div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Text shown at the bottom of every invoice.</div>
-        <textarea value={invoiceFooter} onChange={e => setInvoiceFooter(e.target.value)}
-          style={{ width: '100%', minHeight: 80, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-          placeholder="e.g. Thank you for trusting us with your pet!" />
-      </div>
       <button onClick={async () => {
         setSaving(true);
-        await updateSettings({ ...settings, ...localSettings, invoiceFooter });
+        await updateSettings({ ...settings, ...localSettings });
         setSaving(false);
         alert('✅ Documents saved!');
       }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
