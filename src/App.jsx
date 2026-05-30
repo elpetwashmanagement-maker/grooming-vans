@@ -6643,9 +6643,9 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                               style={{ padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }}>
                               <option value="">Any</option>
                               <option value="Small (1-20 lbs)">Small</option>
-                              <option value="Medium (21-50 lbs)">Medium</option>
-                              <option value="Large (51-90 lbs)">Large</option>
-                              <option value="XLarge (90+ lbs)">XLarge</option>
+                              <option value="Medium (21-40 lbs)">Medium</option>
+                              <option value="Large (41-60 lbs)">Large</option>
+                              <option value="Extra Large (81-100 lbs)">XLarge</option>
                             </select>
                           )}
 
@@ -6744,9 +6744,9 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                             style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
                             <option value="">Any size</option>
                             <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
-                            <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
-                            <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
-                            <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
+                            <option value="Medium (21-40 lbs)">Medium (21-40 lbs)</option>
+                            <option value="Large (41-60 lbs)">Large (41-60 lbs)</option>
+                            <option value="Extra Large (81-100 lbs)">Extra Large (81-100 lbs)</option>
                           </select>
                         </div>
                         <div>
@@ -7608,9 +7608,9 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                       <label style={styles.lbl}>Size</label>
                       <select value={newPetFormData.size} onChange={e => setNewPetFormData(f => ({...f, size: e.target.value}))} style={styles.input}>
                         <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
-                        <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
-                        <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
-                        <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
+                        <option value="Medium (21-40 lbs)">Medium (21-40 lbs)</option>
+                        <option value="Large (41-60 lbs)">Large (41-60 lbs)</option>
+                        <option value="Extra Large (81-100 lbs)">Extra Large (81-100 lbs)</option>
                       </select>
                     </div>
                     <div>
