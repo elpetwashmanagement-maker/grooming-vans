@@ -3128,9 +3128,6 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
               <button onClick={() => setViewMode('mes')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'mes' ? 600 : 400, background: viewMode === 'mes' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'mes' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
                 🗓️ Month
               </button>
-              <button onClick={() => setViewMode('agenda')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'agenda' ? 600 : 400, background: viewMode === 'agenda' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'agenda' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
-                👤 Agenda
-              </button>
               <button onClick={() => setViewMode('calendario')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'calendario' ? 600 : 400, background: viewMode === 'calendario' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'calendario' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
                 🚐 Vans
               </button>
