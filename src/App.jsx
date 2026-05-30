@@ -6417,13 +6417,25 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   // ── DOCUMENTS ──
   const documentsSection = (
     <div>
-      <div style={cardStyle}>
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>📄 Service Agreement Text</div>
-        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Text shown to clients before grooming. They sign this digitally.</div>
-        <textarea value={agreementText} onChange={e => setAgreementText(e.target.value)}
-          style={{ width: '100%', minHeight: 160, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
-          placeholder="Enter your service agreement text..." />
-      </div>
+      {/* Agreement por empresa */}
+      {DEFAULT_COMPANIES.map(company => {
+        const key = company.id === 'epw' ? 'agreementEpw' : 'agreementAtw';
+        const defaultText = AGREEMENTS[company.id] || '';
+        const currentText = localSettings[key] !== undefined ? localSettings[key] : defaultText;
+        return (
+          <div key={company.id} style={cardStyle}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>
+              {company.logoEmoji} {company.name} — Service Agreement
+            </div>
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+              Shown to clients before grooming. They sign digitally.
+            </div>
+            <textarea value={currentText}
+              onChange={e => setLocalSettings(s => ({...s, [key]: e.target.value}))}
+              style={{ width: '100%', minHeight: 200, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 12, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit', lineHeight: 1.6 }} />
+          </div>
+        );
+      })}
       <div style={cardStyle}>
         <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>🧾 Invoice Footer</div>
         <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Text shown at the bottom of every invoice.</div>
@@ -6433,7 +6445,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
       </div>
       <button onClick={async () => {
         setSaving(true);
-        await updateSettings({ ...settings, agreementText, invoiceFooter });
+        await updateSettings({ ...settings, ...localSettings, invoiceFooter });
         setSaving(false);
         alert('✅ Documents saved!');
       }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
