@@ -439,6 +439,8 @@ const saveClient = async (client) => {
     id: client.id, name: client.name, phone: client.phone || '',
     email: client.email || '', address: client.address || '',
     notes: client.notes || '', active: client.active !== false,
+    notify_sms: client.notifySms || false,
+    notify_email: client.notifyEmail || false,
   });
   if (error) console.error(error);
   return !error;
@@ -458,6 +460,7 @@ const savePet = async (pet) => {
     color: pet.color || '', age: pet.age || '', allergies: pet.allergies || '',
     medical_notes: pet.medicalNotes || '', behavior_notes: pet.behaviorNotes || '',
     last_blade: pet.lastBlade || '', last_combo: pet.lastCombo || '',
+    gender: pet.gender || '',
   });
   if (error) console.error(error);
   return !error;
@@ -3495,6 +3498,27 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   ✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name} — {clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}
                 </div>
               )}
+            </div>
+
+            {/* Hora — antes del Smart Scheduling */}
+            <div style={{ gridColumn: 'span 2' }}>
+              <label style={styles.lbl}>Start Time *</label>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <input type="time" value={newApptForm.timeStart}
+                  onChange={e => {
+                    const start = e.target.value;
+                    const numPets = newApptForm.petIds.length || 1;
+                    const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                    const [h, m] = start.split(':').map(Number);
+                    const endH = h + duration;
+                    const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                    setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime, duration}));
+                  }}
+                  style={{ ...styles.input, width: 160 }} />
+                <div style={{ padding: '9px 14px', background: '#f0fdfa', borderRadius: 8, fontSize: 13, color: '#0f766e', fontWeight: 600, border: '1px solid #ccfbf1' }}>
+                  ⏱ {newApptForm.petIds.length <= 1 ? '2' : newApptForm.petIds.length === 2 ? '3' : '4'} hrs → End: {newApptForm.timeEnd || '—'}
+                </div>
+              </div>
             </div>
 
             {!isGroomer && (
@@ -7179,31 +7203,49 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
           {/* PASO 1: Client */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 1 — Datos del client</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Step 1 — Client Info</div>
             <div style={styles.formGrid}>
-              <div><label style={styles.lbl}>Name *</label><input value={clientForm.name} onChange={e => setClientForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Name completo" /></div>
-              <div><label style={styles.lbl}>Phone</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
+              <div><label style={styles.lbl}>First Name *</label><input value={clientForm.firstName || clientForm.name?.split(' ')[0] || ''} onChange={e => setClientForm(f => ({...f, firstName: e.target.value, name: `${e.target.value} ${f.lastName || ''}`.trim()}))} style={styles.input} placeholder="First name" /></div>
+              <div><label style={styles.lbl}>Last Name *</label><input value={clientForm.lastName || clientForm.name?.split(' ').slice(1).join(' ') || ''} onChange={e => setClientForm(f => ({...f, lastName: e.target.value, name: `${f.firstName || ''} ${e.target.value}`.trim()}))} style={styles.input} placeholder="Last name" /></div>
+              <div><label style={styles.lbl}>📞 Phone</label><input value={clientForm.phone} onChange={e => setClientForm(f => ({...f, phone: e.target.value}))} style={styles.input} placeholder="(305) 000-0000" /></div>
+              <div><label style={styles.lbl}>📧 Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@example.com" /></div>
               <div style={{ gridColumn: 'span 2' }}>
-                <label style={styles.lbl}>Address</label>
+                <label style={styles.lbl}>📍 Address</label>
                 <AddressAutocomplete
                   value={clientForm.address}
                   onChange={details => setClientForm(f => ({...f, address: details.address, zip: details.zip || f.zip, city: details.city || f.city, state: details.state || f.state}))}
                   placeholder="Start typing address..."
                 />
                 {clientForm.zip && (
-                  <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
-                    📍 {clientForm.city}, {clientForm.state} {clientForm.zip}
+                  <div style={{ marginTop: 6, padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, fontSize: 12, color: '#0f766e', fontWeight: 600, display: 'flex', gap: 12 }}>
+                    <span>📍 {clientForm.city}, {clientForm.state}</span>
+                    <span>🔢 ZIP: {clientForm.zip} ✅</span>
                   </div>
                 )}
               </div>
-              <div><label style={styles.lbl}>Email</label><input value={clientForm.email} onChange={e => setClientForm(f => ({...f, email: e.target.value}))} style={styles.input} placeholder="email@ejemplo.com" /></div>
-              <div><label style={styles.lbl}>Notes internas (solo admin)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Notes privadas..." /></div>
+
+              {/* Notification preferences */}
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>🔔 Notification Preferences</label>
+                <div style={{ display: 'flex', gap: 12, marginTop: 6, flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: clientForm.notifySms ? '#f0fdfa' : '#f8fafc', border: `1.5px solid ${clientForm.notifySms ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: clientForm.notifySms ? 600 : 400 }}>
+                    <input type="checkbox" checked={clientForm.notifySms || false} onChange={e => setClientForm(f => ({...f, notifySms: e.target.checked}))} style={{ display: 'none' }} />
+                    📱 SMS notifications {clientForm.notifySms ? '✅' : ''}
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: clientForm.notifyEmail ? '#f0fdfa' : '#f8fafc', border: `1.5px solid ${clientForm.notifyEmail ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: clientForm.notifyEmail ? 600 : 400 }}>
+                    <input type="checkbox" checked={clientForm.notifyEmail || false} onChange={e => setClientForm(f => ({...f, notifyEmail: e.target.checked}))} style={{ display: 'none' }} />
+                    📧 Email notifications {clientForm.notifyEmail ? '✅' : ''}
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>📝 Internal notes (admin only)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Private notes..." /></div>
             </div>
           </div>
 
           {/* PASO 2: Pets con service y ficha */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 2 — Pet(s)</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Step 2 — Pet(s)</div>
             {petForms.map((pf, idx) => (
               <div key={pf.id} style={{ background: 'var(--color-background-primary)', border: '0.5px solid var(--color-border-tertiary)', borderRadius: 12, padding: 14, marginBottom: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -7215,9 +7257,9 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
                 {/* Datos de la pet */}
                 <div style={styles.formGrid}>
-                  {/* Selector de especie */}
+                  {/* Type */}
                   <div style={{ gridColumn: 'span 2' }}>
-                    <label style={styles.lbl}>Especie</label>
+                    <label style={styles.lbl}>Pet Type</label>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
                       {SPECIES.map(sp => (
                         <button key={sp.id} type="button" onClick={() => updatePetForm(idx, 'species', sp.id)}
@@ -7227,8 +7269,22 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                       ))}
                     </div>
                   </div>
-                  <div><label style={styles.lbl}>Name *</label><input value={pf.name} onChange={e => updatePetForm(idx, 'name', e.target.value)} style={styles.input} placeholder="Name" /></div>
+                  <div><label style={styles.lbl}>Pet Name *</label><input value={pf.name} onChange={e => updatePetForm(idx, 'name', e.target.value)} style={styles.input} placeholder="Pet name" /></div>
                   <div><label style={styles.lbl}>Breed</label><BreedInput value={pf.breed} onChange={v => updatePetForm(idx, 'breed', v)} species={pf.species || 'dog'} /></div>
+                  
+                  {/* Gender */}
+                  <div>
+                    <label style={styles.lbl}>Gender</label>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                      {['Male', 'Female'].map(g => (
+                        <button key={g} type="button" onClick={() => updatePetForm(idx, 'gender', g)}
+                          style={{ flex: 1, padding: '8px', borderRadius: 8, border: `1.5px solid ${pf.gender === g ? '#0f766e' : '#e2e8f0'}`, background: pf.gender === g ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: pf.gender === g ? 700 : 400, color: pf.gender === g ? '#0f766e' : '#374151' }}>
+                          {g === 'Male' ? '♂️' : '♀️'} {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div>
                     <label style={styles.lbl}>Weight (lbs) *</label>
                     <input type="number" value={pf.weight} onChange={e => updatePetForm(idx, 'weight', e.target.value)} style={styles.input} placeholder="0" />
@@ -7238,12 +7294,13 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                       </div>
                     )}
                   </div>
+
                   <div><label style={styles.lbl}>Hair type *</label><select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
-                  <div><label style={styles.lbl}>Age</label><input value={pf.age} onChange={e => updatePetForm(idx, 'age', e.target.value)} style={styles.input} placeholder="Ej: 3 años" /></div>
-                  <div><label style={styles.lbl}>Color</label><input value={pf.color} onChange={e => updatePetForm(idx, 'color', e.target.value)} style={styles.input} placeholder="Ej: Blanco y negro" /></div>
-                  <div><label style={styles.lbl}>Allergies</label><input value={pf.allergies} onChange={e => updatePetForm(idx, 'allergies', e.target.value)} style={styles.input} placeholder="Ninguna" /></div>
-                  <div><label style={styles.lbl}>Notes médicas</label><input value={pf.medicalNotes} onChange={e => updatePetForm(idx, 'medicalNotes', e.target.value)} style={styles.input} placeholder="Ninguna" /></div>
-                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>Notes de behavior</label><input value={pf.behaviorNotes} onChange={e => updatePetForm(idx, 'behaviorNotes', e.target.value)} style={styles.input} placeholder="Ej: Ansioso con tijeras, mordió en visita previous..." /></div>
+                  <div><label style={styles.lbl}>Age</label><input value={pf.age} onChange={e => updatePetForm(idx, 'age', e.target.value)} style={styles.input} placeholder="e.g. 3 years" /></div>
+                  <div><label style={styles.lbl}>Color</label><input value={pf.color} onChange={e => updatePetForm(idx, 'color', e.target.value)} style={styles.input} placeholder="e.g. White and black" /></div>
+                  <div><label style={styles.lbl}>⚠️ Allergies</label><input value={pf.allergies} onChange={e => updatePetForm(idx, 'allergies', e.target.value)} style={styles.input} placeholder="None" /></div>
+                  <div><label style={styles.lbl}>💊 Medical notes</label><input value={pf.medicalNotes} onChange={e => updatePetForm(idx, 'medicalNotes', e.target.value)} style={styles.input} placeholder="None" /></div>
+                  <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>🔔 Behavior notes</label><input value={pf.behaviorNotes} onChange={e => updatePetForm(idx, 'behaviorNotes', e.target.value)} style={styles.input} placeholder="e.g. Nervous with scissors, bit on previous visit..." /></div>
                 </div>
 
                 {/* Service y price */}
