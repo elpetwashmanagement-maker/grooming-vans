@@ -1247,10 +1247,7 @@ export default function App() {
   const [tab, setTab] = useState('registro');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [vanLocations, setVanLocations] = useState([]);
-  const gpsWatchRef = useRef(null);
 
-  // GPS tracking — solo cuando es groomer y app está abierta
   useEffect(() => {
     if (!session || session.role !== 'groomer' || !session.vanId) return;
     if (!navigator.geolocation) return;
@@ -1313,6 +1310,8 @@ export default function App() {
   const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
   const [settings, setSettings] = useState({ commissionPct: 45, tipsToGroomer: 100, adminPin: DEFAULT_ADMIN_PIN, cardFeePct: 5.5, gasFee: 7.00, taxRate: 7.0 });
   const [session, setSession] = useState(null);
+  const [vanLocations, setVanLocations] = useState([]);
+  const gpsWatchRef = useRef(null);
   const [users, setUsers] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [clients, setClients] = useState([]);
