@@ -1249,61 +1249,13 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
-    if (!session || session.role !== 'groomer' || !session.vanId) return;
-    if (!navigator.geolocation) return;
-
-    const updateLocation = (pos) => {
-      saveVanLocation({
-        vanId: session.vanId,
-        groomerId: session.userId,
-        groomerName: session.userName,
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude,
-        accuracy: pos.coords.accuracy,
-      });
-    };
-
-    // Iniciar tracking
-    gpsWatchRef.current = navigator.geolocation.watchPosition(
-      updateLocation,
-      (err) => console.log('GPS error:', err.message),
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
-    );
-
-    // Cargar ubicaciones de vans para admin
-    const loadLocations = async () => {
-      const locs = await loadVanLocations();
-      setVanLocations(locs);
-    };
-    loadLocations();
-
-    // Limpiar cuando se cierra/desloguea
-    return () => {
-      if (gpsWatchRef.current) {
-        navigator.geolocation.clearWatch(gpsWatchRef.current);
-        deactivateVanLocation(session.vanId);
-      }
-    };
-  }, [session?.vanId]);
-  useEffect(() => {
-    if (!session || session.role === 'groomer') return;
-    // Admin/Manager — cargar ubicaciones cada 30 segundos
-    const loadLocs = async () => {
-      const locs = await loadVanLocations();
-      setVanLocations(locs);
-    };
-    loadLocs();
-    const interval = setInterval(loadLocs, 30000);
-    return () => clearInterval(interval);
-  }, [session?.role]);
-
-  useEffect(() => {
     const up = () => setIsOnline(true);
     const down = () => setIsOnline(false);
     window.addEventListener('online', up);
     window.addEventListener('offline', down);
     return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
   }, []);
+
   const [vans, setVans] = useState(DEFAULT_VANS);
   const [services, setServices] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -1350,6 +1302,26 @@ export default function App() {
   }, []);
 
   useEffect(() => { if (!loading) saveSessionLocal(session); }, [session, loading]);
+
+  // GPS — Groomer comparte ubicación cuando app está abierta
+  useEffect(() => {
+    if (!session || session.role !== 'groomer' || !session.vanId) return;
+    if (!navigator.geolocation) return;
+    const updateLocation = (pos) => {
+      saveVanLocation({ vanId: session.vanId, groomerId: session.userId, groomerName: session.userName, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy });
+    };
+    gpsWatchRef.current = navigator.geolocation.watchPosition(updateLocation, (err) => console.log('GPS:', err.message), { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 });
+    return () => { if (gpsWatchRef.current) { navigator.geolocation.clearWatch(gpsWatchRef.current); deactivateVanLocation(session.vanId); } };
+  }, [session?.vanId]);
+
+  // GPS — Admin carga ubicaciones cada 30s
+  useEffect(() => {
+    if (!session || session.role === 'groomer') return;
+    const loadLocs = async () => { const locs = await loadVanLocations(); setVanLocations(locs); };
+    loadLocs();
+    const interval = setInterval(loadLocs, 30000);
+    return () => clearInterval(interval);
+  }, [session?.role]);
 
   useEffect(() => {
     if (loading || !session) return;
