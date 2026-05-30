@@ -6569,11 +6569,114 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             {sections.find(s => s.id === section)?.icon} {sections.find(s => s.id === section)?.label}
           </div>
           {section === 'services' ? (
-            // Services tiene su propia lógica compleja — mantener la existente
-            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: 12, color: '#64748b', textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🐾</div>
-              <div style={{ fontWeight: 600 }}>Services & Prices</div>
-              <div style={{ fontSize: 13, marginTop: 4 }}>Manage service pricing by size and hair type</div>
+            <div>
+              {/* Agrupar por categoría */}
+              {[...new Set((servicePrices || []).map(p => p.category))].map(cat => (
+                <div key={cat} style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
+                  {(servicePrices || []).filter(p => p.category === cat).map(price => (
+                    <div key={price.id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{price.name || price.service_name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          {price.size && `📏 ${price.size}`} {price.hair_type && `· 💇 ${price.hair_type}`}
+                          {price.duration_minutes && ` · ⏱️ ${price.duration_minutes}min`}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 15, color: '#64748b' }}>$</span>
+                        <input type="number" step="0.01"
+                          value={editingPrice[price.id] !== undefined ? editingPrice[price.id] : (price.price || price.base_price || '')}
+                          onChange={e => setEditingPrice(ep => ({...ep, [price.id]: e.target.value}))}
+                          style={{ width: 80, padding: '8px', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 15, fontWeight: 700, textAlign: 'center' }} />
+                        {editingPrice[price.id] !== undefined && (
+                          <button onClick={async () => {
+                            const newPrice = parseFloat(editingPrice[price.id]);
+                            if (isNaN(newPrice)) return;
+                            await updateServicePrice({...price, price: newPrice, base_price: newPrice});
+                            setEditingPrice(ep => { const n = {...ep}; delete n[price.id]; return n; });
+                          }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 12px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>✓</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+
+              {/* Agregar nuevo servicio */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, marginTop: 20 }}>➕ Add New Service</div>
+              {showNewService ? (
+                <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Category</label>
+                      <select value={newService.category} onChange={e => setNewService(s => ({...s, category: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                        <option value="Signature Bath">Signature Bath</option>
+                        <option value="Full Groom">Full Groom</option>
+                        <option value="Add-on">Add-on</option>
+                        <option value="Cat">Cat</option>
+                        <option value="Exotic">Exotic</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Service Name</label>
+                      <input value={newService.name} onChange={e => setNewService(s => ({...s, name: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="e.g. Full Groom" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
+                      <select value={newService.size} onChange={e => setNewService(s => ({...s, size: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                        <option value="">Any size</option>
+                        <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
+                        <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
+                        <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
+                        <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
+                      <select value={newService.hair_type} onChange={e => setNewService(s => ({...s, hair_type: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                        <option value="">Any type</option>
+                        <option value="Short Hair">Short Hair</option>
+                        <option value="Long Hair">Long Hair</option>
+                        <option value="Double Coat">Double Coat</option>
+                        <option value="Curly">Curly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Price ($)</label>
+                      <input type="number" step="0.01" value={newService.price} onChange={e => setNewService(s => ({...s, price: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="45.00" />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Duration (min)</label>
+                      <input type="number" value={newService.duration_minutes} onChange={e => setNewService(s => ({...s, duration_minutes: parseInt(e.target.value)}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={async () => {
+                      if (!newService.name || !newService.price) { alert('Name and price required'); return; }
+                      setSaving(true);
+                      await addServicePrice({ id: uid(), ...newService, price: parseFloat(newService.price), base_price: parseFloat(newService.price) });
+                      setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
+                      setShowNewService(false);
+                      setSaving(false);
+                    }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '10px 18px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
+                      ✅ Add Service
+                    </button>
+                    <button onClick={() => setShowNewService(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowNewService(true)}
+                  style={{ width: '100%', padding: '12px', background: 'none', border: '1.5px dashed #cbd5e1', borderRadius: 12, cursor: 'pointer', color: '#64748b', fontSize: 14 }}>
+                  + Add New Service / Price
+                </button>
+              )}
             </div>
           ) : (
             sectionContent[section]
