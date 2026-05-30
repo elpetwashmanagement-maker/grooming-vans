@@ -753,7 +753,7 @@ const saveVanLocation = async (location) => {
     latitude: location.latitude,
     longitude: location.longitude,
     accuracy: location.accuracy || 0,
-    timonthtamp: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
     is_active: true,
   });
   if (error) console.error('GPS error:', error);
@@ -762,7 +762,7 @@ const saveVanLocation = async (location) => {
 const loadVanLocations = async () => {
   const { data, error } = await supabase.from('van_locations')
     .select('*').eq('is_active', true)
-    .gte('timonthtamp', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // últimos 30 min
+    .gte('timestamp', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // últimos 30 min
   if (error) { console.error(error); return []; }
   return data || [];
 };
@@ -2318,7 +2318,7 @@ function VanTrackerTab({ vans, vanLocations, groomers }) {
           const loc = vanLocations.find(l => l.van_id === van.id);
           const groomer = groomers.find(g => g.vanId === van.id);
           const company = DEFAULT_COMPANIES.find(c => c.id === van.companyId);
-          const minsAgo = loc ? Math.round((Date.now() - new Date(loc.timonthtamp)) / 60000) : null;
+          const minsAgo = loc ? Math.round((Date.now() - new Date(loc.timestamp)) / 60000) : null;
           const isVanOnline = loc && minsAgo <= 10;
           return (
             <div key={van.id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2356,7 +2356,7 @@ function VanTrackerTab({ vans, vanLocations, groomers }) {
       {vanLocations.length > 0 && (
         <div style={{ marginTop: 16, padding: '12px 16px', background: '#f0fdfa', borderRadius: 12, border: '1px solid #ccfbf1' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>
-            🟢 {vanLocations.filter(l => Math.round((Date.now() - new Date(l.timonthtamp)) / 60000) <= 10).length} van(s) active right now
+            🟢 {vanLocations.filter(l => Math.round((Date.now() - new Date(l.timestamp)) / 60000) <= 10).length} van(s) active right now
           </div>
           <a href={`https://www.google.com/maps/dir/${vanLocations.map(l => `${l.latitude},${l.longitude}`).join('/')}`} target="_blank" rel="noreferrer"
             style={{ fontSize: 12, color: '#0f766e', textDecoration: 'none', fontWeight: 600 }}>
@@ -3251,9 +3251,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     // Si no pets seleccionadas pero hay service, crear un pet genérico
     const petsList = newApptForm.petIds.length > 0
       ? newApptForm.petIds.map(pid => {
-          const p = pets.find(pt => pt.id === pid);
+          const p = pets.find(pt => String(pt.id) === String(pid));
           return {
-            id: uid(), petId: pid,
+            id: uid(), petId: String(pid),
             service: newApptForm.serviceName || '',
             amount: finalPrice, tip: 0, cardFee: 0,
             method: 'Cash', status: 'pending',
@@ -3261,14 +3261,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
             pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size, allergies: p.allergies, behavior_notes: p.behavior_notes } : null,
           };
         })
-      : [{
-          id: uid(), petId: null,
-          service: newApptForm.serviceName || '',
-          amount: finalPrice, tip: 0, cardFee: 0,
-          method: 'Cash', status: 'pending',
-          checkinTime: '', checkoutTime: '',
-          pet: null,
-        }];
+      : [];
 
     const appt = {
       id: uid(), date, timeStart: newApptForm.timeStart, timeEnd: newApptForm.timeEnd,
