@@ -740,6 +740,34 @@ const saveInvoice = async (invoice) => {
   return !error;
 };
 
+// ===== GPS TRACKING =====
+const saveVanLocation = async (location) => {
+  const { error } = await supabase.from('van_locations').upsert({
+    id: location.vanId, // usa vanId como primary key para upsert
+    van_id: location.vanId,
+    groomer_id: location.groomerId || null,
+    groomer_name: location.groomerName || '',
+    latitude: location.latitude,
+    longitude: location.longitude,
+    accuracy: location.accuracy || 0,
+    timestamp: new Date().toISOString(),
+    is_active: true,
+  });
+  if (error) console.error('GPS error:', error);
+};
+
+const loadVanLocations = async () => {
+  const { data, error } = await supabase.from('van_locations')
+    .select('*').eq('is_active', true)
+    .gte('timestamp', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // últimos 30 min
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+
+const deactivateVanLocation = async (vanId) => {
+  await supabase.from('van_locations').update({ is_active: false }).eq('van_id', vanId);
+};
+
 // ===== DEPOSITS =====
 const loadDeposits = async () => {
   const { data, error } = await supabase.from('deposits').select('*').order('date', { ascending: false });
@@ -1219,6 +1247,59 @@ export default function App() {
   const [tab, setTab] = useState('registro');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [vanLocations, setVanLocations] = useState([]);
+  const gpsWatchRef = useRef(null);
+
+  // GPS tracking — solo cuando es groomer y app está abierta
+  useEffect(() => {
+    if (!session || session.role !== 'groomer' || !session.vanId) return;
+    if (!navigator.geolocation) return;
+
+    const updateLocation = (pos) => {
+      saveVanLocation({
+        vanId: session.vanId,
+        groomerId: session.userId,
+        groomerName: session.userName,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        accuracy: pos.coords.accuracy,
+      });
+    };
+
+    // Iniciar tracking
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      updateLocation,
+      (err) => console.log('GPS error:', err.message),
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 }
+    );
+
+    // Cargar ubicaciones de vans para admin
+    const loadLocations = async () => {
+      const locs = await loadVanLocations();
+      setVanLocations(locs);
+    };
+    loadLocations();
+
+    // Limpiar cuando se cierra/desloguea
+    return () => {
+      if (gpsWatchRef.current) {
+        navigator.geolocation.clearWatch(gpsWatchRef.current);
+        deactivateVanLocation(session.vanId);
+      }
+    };
+  }, [session?.vanId]);
+  useEffect(() => {
+    if (!session || session.role === 'groomer') return;
+    // Admin/Manager — cargar ubicaciones cada 30 segundos
+    const loadLocs = async () => {
+      const locs = await loadVanLocations();
+      setVanLocations(locs);
+    };
+    loadLocs();
+    const interval = setInterval(loadLocs, 30000);
+    return () => clearInterval(interval);
+  }, [session?.role]);
+
   useEffect(() => {
     const up = () => setIsOnline(true);
     const down = () => setIsOnline(false);
@@ -1506,7 +1587,7 @@ export default function App() {
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'semana' && canViewReports && <WeekTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
-        {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} />}
+        {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -7657,7 +7738,7 @@ Si no es un perro, responde: {"error": "No es un perro"}` }
 }
 
 // ===== DASHBOARD TAB =====
-function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies, companyExpenses }) {
+function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies, companyExpenses, vanLocations = [] }) {
   const [section, setSection] = useState('overview');
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState('');
@@ -7873,6 +7954,48 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
             <KPI label="Mascotas" value={totalPets} color="#f59e0b" />
             <KPI label="Fee tarjeta" value={fmt(totalCardFees)} color="#ec4899" />
             <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub="Company Income" color="#0284c7" />
+          </div>
+
+          {/* GPS Van Locations */}
+          <div style={{ ...styles.card, marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <h3 style={{ ...styles.cardH3, margin: 0 }}>📍 Van Locations — Live</h3>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>Updates every 30s · Only when app is open</div>
+            </div>
+            {vanLocations.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: 13 }}>
+                No active vans right now — groomers must have the app open to share location
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {vanLocations.map(loc => {
+                  const van = vans.find(v => v.id === loc.van_id);
+                  const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+                  const minsAgo = Math.round((Date.now() - new Date(loc.timestamp)) / 60000);
+                  const isRecent = minsAgo <= 5;
+                  return (
+                    <div key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: isRecent ? '#f0fdfa' : '#f8fafc', borderRadius: 10, border: `1px solid ${isRecent ? '#ccfbf1' : '#e2e8f0'}` }}>
+                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: isRecent ? '#0f766e' : '#94a3b8', flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>🚐 {van?.name || loc.van_id} — {loc.groomer_name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          {company?.logoEmoji} {company?.name} · {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: 11, color: isRecent ? '#0f766e' : '#94a3b8', fontWeight: 600 }}>
+                          {minsAgo === 0 ? 'Just now' : `${minsAgo}m ago`}
+                        </div>
+                        <a href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`} target="_blank" rel="noreferrer"
+                          style={{ fontSize: 11, color: '#0f766e', textDecoration: 'none' }}>
+                          📍 Open Maps
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* EPW vs ATW */}
