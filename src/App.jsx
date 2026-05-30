@@ -1244,7 +1244,7 @@ const markRequestDelivered = async (requestId) => {
 
 // ===== APP =====
 export default function App() {
-  const [tab, setTab] = useState('registro');
+  const [tab, setTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -1334,8 +1334,8 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
-    if (session.role === 'groomer') setTab('registro');
-    if (session.role === 'admin' || session.role === 'manager') setTab('registro');
+    if (session.role === 'groomer') setTab('home');
+    if (session.role === 'admin' || session.role === 'manager') setTab('home');
   }, [session?.role]);
 
   const updateVans = async (newVans) => { setVans(newVans); for (const v of newVans) await saveVan(v); };
@@ -1521,6 +1521,7 @@ export default function App() {
         onLogout={() => setSession(null)}
         activeCompany={activeCompany} isOnline={isOnline} />
       <main style={styles.main}>
+        {tab === 'home' && <HomeTab session={session} appointments={appointments} vans={vans} clients={clients} pets={pets} settings={settings} setTab={setTab} groomers={groomers} />}
         {tab === 'citas' && (
           <CitasTab
             appointments={appointments} vans={visibleVans} clients={clients} pets={pets}
@@ -1607,16 +1608,17 @@ export default function App() {
 
         // Tabs principales para cada rol
         const mainTabs = isGroomer ? [
-          { id: 'citas', icon: '🗓️', label: 'Today' },
+          { id: 'home',     icon: '🏠', label: 'Home' },
+          { id: 'citas',    icon: '🗓️', label: 'Today' },
           { id: 'registro', icon: '⛽', label: 'Expenses' },
           { id: 'inventario', icon: '📦', label: 'Supplies' },
-          { id: 'razas', icon: '🐾', label: 'Breeds' },
+          { id: 'razas',    icon: '🐾', label: 'Breeds' },
         ] : [
-          { id: 'citas', icon: '🗓️', label: 'Schedule' },
+          { id: 'home',     icon: '🏠', label: 'Home' },
+          { id: 'citas',    icon: '🗓️', label: 'Schedule' },
           { id: 'clientes', icon: '👥', label: 'Clients' },
-          { id: 'cierre', icon: '💰', label: 'Close' },
+          { id: 'cierre',   icon: '💰', label: 'Close' },
           { id: 'dashboard', icon: '📊', label: 'Reports' },
-          { id: 'more', icon: '☰', label: 'More' },
         ];
 
         return (
@@ -2164,6 +2166,135 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
   );
 }
 
+// ===== HOME TAB =====
+function HomeTab({ session, appointments, vans, clients, pets, settings, setTab, groomers }) {
+  const isGroomer = session?.role === 'groomer';
+  const isAdmin = session?.role === 'admin';
+  const today = todayISO();
+
+  // Citas de hoy
+  const todayAppts = useMemo(() => {
+    if (isGroomer) {
+      return appointments.filter(a => a.date === today && a.vanId === session?.vanId && a.status !== 'cancelled');
+    }
+    return appointments.filter(a => a.date === today && a.status !== 'cancelled');
+  }, [appointments, today, session?.vanId]);
+
+  const completedToday = todayAppts.filter(a => a.status === 'completed').length;
+  const pendingToday = todayAppts.filter(a => a.status !== 'completed').length;
+  const revenueToday = todayAppts.filter(a => a.status === 'completed').reduce((s, a) => s + (a.pets || []).reduce((ps, p) => ps + (p.amount || 0), 0), 0);
+  const firstAppt = todayAppts.filter(a => a.status !== 'completed').sort((a, b) => (a.timeStart || '').localeCompare(b.timeStart || ''))[0];
+
+  // Hora del día
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const greetingEmoji = hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙';
+
+  // Día de la semana
+  const dayName = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  // Frases motivadoras por rol
+  const motivations = isGroomer ? [
+    "Every pet deserves the best — and you deliver it! 🐾",
+    "You make tails wag every single day! 🐕",
+    "Another great day to make pets beautiful! ✨",
+    "Your passion makes all the difference! 💚",
+    "Ready to create happy pets and happy clients! 🎉",
+  ] : [
+    "Your team is ready — let's have a great day! 🚐",
+    "Another day to build something amazing! 🐾",
+    "Lead the way — your team looks up to you! 👑",
+    "Great days start with great leadership! 🌟",
+    "Let's make today count! 💪",
+  ];
+  const motivation = motivations[new Date().getDate() % motivations.length];
+
+  const van = vans.find(v => v.id === session?.vanId);
+  const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
+
+  return (
+    <div style={{ paddingBottom: 20 }}>
+      {/* Greeting card */}
+      <div style={{ background: 'linear-gradient(135deg, #0f766e, #0d9488)', borderRadius: 20, padding: '24px 20px', marginBottom: 20, color: '#fff', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', right: -20, top: -20, fontSize: 80, opacity: 0.15 }}>🐾</div>
+        <div style={{ fontSize: 14, opacity: 0.85, marginBottom: 4 }}>{greetingEmoji} {dayName}</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 28, fontWeight: 800, marginBottom: 8 }}>
+          {greeting}, {session?.userName}!
+        </div>
+        {isGroomer && van && (
+          <div style={{ fontSize: 13, opacity: 0.85, marginBottom: 12 }}>
+            🚐 {van.name} · {company?.logoEmoji} {company?.name}
+          </div>
+        )}
+        <div style={{ fontSize: 13, opacity: 0.9, fontStyle: 'italic' }}>{motivation}</div>
+      </div>
+
+      {/* Stats del día */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#0f766e', fontFamily: 'Fraunces, serif' }}>{todayAppts.length}</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Appointments today</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>{completedToday} done · {pendingToday} pending</div>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          <div style={{ fontSize: 32, fontWeight: 800, color: '#0f766e', fontFamily: 'Fraunces, serif' }}>${revenueToday.toFixed(0)}</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Revenue today</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Completed services</div>
+        </div>
+      </div>
+
+      {/* Próxima cita */}
+      {firstAppt && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: '16px', border: '1.5px solid #0f766e', marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>⏰ Next appointment</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 16 }}>🐾 {firstAppt.client?.name || 'Client'}</div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>
+                {firstAppt.timeStart} · {firstAppt.pets?.map(p => p.pet?.name || p.petName).filter(Boolean).join(', ') || 'Pet'}
+              </div>
+              <div style={{ fontSize: 12, color: '#0f766e', marginTop: 2 }}>
+                📍 {firstAppt.address || firstAppt.client?.address || ''}
+              </div>
+            </div>
+            <button onClick={() => setTab('citas')}
+              style={{ background: '#0f766e', border: 'none', borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              View →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {todayAppts.length === 0 && (
+        <div style={{ background: '#fff', borderRadius: 16, padding: '24px', border: '1px solid #e2e8f0', textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>No appointments today!</div>
+          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Enjoy your day off or add a new appointment.</div>
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Quick actions</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
+        {[
+          { icon: '🗓️', label: 'My Schedule', tab: 'citas' },
+          { icon: '👥', label: 'Clients', tab: 'clientes', hide: isGroomer },
+          { icon: '💰', label: 'Daily Close', tab: 'cierre' },
+          { icon: '⛽', label: 'Gas Log', tab: 'registro' },
+          { icon: '📦', label: 'Inventory', tab: 'inventario' },
+          { icon: '📊', label: 'Dashboard', tab: 'dashboard', hide: !isAdmin },
+        ].filter(a => !a.hide).slice(0, 4).map(action => (
+          <button key={action.tab} onClick={() => setTab(action.tab)}
+            style={{ padding: '16px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 24 }}>{action.icon}</span>
+            <span style={{ fontWeight: 600, fontSize: 14, color: '#0f172a' }}>{action.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ===== VAN TRACKER TAB =====
 function VanTrackerTab({ vans, vanLocations, groomers }) {
   const activeVans = vans.filter(v => v.active !== false);
@@ -2241,6 +2372,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const allTabs = [
+    { id: 'home',           label: 'Home',          icon: '🏠', show: true },
     { id: 'citas',          label: 'Schedule',      icon: '🗓️', show: true },
     { id: 'clientes',       label: 'Clients',       icon: '👥', show: isAdmin || isManager },
     { id: 'razas',          label: 'AI Breeds',     icon: '🐾', show: true },
