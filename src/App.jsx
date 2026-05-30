@@ -6645,7 +6645,10 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                               <option value="Small (1-20 lbs)">Small</option>
                               <option value="Medium (21-40 lbs)">Medium</option>
                               <option value="Large (41-60 lbs)">Large</option>
+                              <option value="Big (61-80 lbs)">Big</option>
                               <option value="Extra Large (81-100 lbs)">XLarge</option>
+                              <option value="Giant (100-120 lbs)">Giant</option>
+                              <option value="Extra Giant (+120 lbs)">XGiant</option>
                             </select>
                           )}
 
@@ -6746,7 +6749,10 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                             <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
                             <option value="Medium (21-40 lbs)">Medium (21-40 lbs)</option>
                             <option value="Large (41-60 lbs)">Large (41-60 lbs)</option>
+                            <option value="Big (61-80 lbs)">Big (61-80 lbs)</option>
                             <option value="Extra Large (81-100 lbs)">Extra Large (81-100 lbs)</option>
+                            <option value="Giant (100-120 lbs)">Giant (100-120 lbs)</option>
+                            <option value="Extra Giant (+120 lbs)">Extra Giant (+120 lbs)</option>
                           </select>
                         </div>
                         <div>
@@ -7607,10 +7613,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                     <div>
                       <label style={styles.lbl}>Size</label>
                       <select value={newPetFormData.size} onChange={e => setNewPetFormData(f => ({...f, size: e.target.value}))} style={styles.input}>
-                        <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
-                        <option value="Medium (21-40 lbs)">Medium (21-40 lbs)</option>
-                        <option value="Large (41-60 lbs)">Large (41-60 lbs)</option>
-                        <option value="Extra Large (81-100 lbs)">Extra Large (81-100 lbs)</option>
+                        {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                     <div>
