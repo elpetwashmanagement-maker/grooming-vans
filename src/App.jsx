@@ -7292,118 +7292,11 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                   <div><label style={styles.lbl}>💊 Medical notes</label><input value={pf.medicalNotes} onChange={e => updatePetForm(idx, 'medicalNotes', e.target.value)} style={styles.input} placeholder="None" /></div>
                   <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>🔔 Behavior notes</label><input value={pf.behaviorNotes} onChange={e => updatePetForm(idx, 'behaviorNotes', e.target.value)} style={styles.input} placeholder="e.g. Nervous with scissors, bit on previous visit..." /></div>
                 </div>
-
-                {/* Service y price */}
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '0.5px solid var(--color-border-tertiary)' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Service de esta visita</div>
-
-                  {/* Selector simplificado: tipo + pelo → price automático */}
-                  {/* Selector de service según especie */}
-                  {pf.species === 'dog' ? (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                      <div>
-                        <label style={styles.lbl}>Tipo de service</label>
-                        <select value={pf.serviceCategory || ''} onChange={e => updatePetForm(idx, 'serviceCategory', e.target.value)} style={styles.input}>
-                          <option value="">Seleccionar...</option>
-                          <option value="Signature Bath">🛁 Signature Bath</option>
-                          <option value="Full Groom">✂️ Full Groom</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={styles.lbl}>Hair type</label>
-                        <select value={pf.hairType} onChange={e => updatePetForm(idx, 'hairType', e.target.value)} style={styles.input}>
-                          {HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ marginBottom: 10 }}>
-                      <label style={styles.lbl}>Service</label>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                        {(servicePrices || []).filter(p => p.category === (pf.species === 'cat' ? 'Cat' : 'Exotic')).map(p => (
-                          <button key={p.id} type="button"
-                            onClick={() => {
-                              updatePetForm(idx, 'serviceId', p.id);
-                              updatePetForm(idx, 'serviceName', p.name);
-                              updatePetForm(idx, 'servicePrice', p.price);
-                              updatePetForm(idx, 'serviceCategory', p.category);
-                              updatePetForm(idx, 'finalPrice', p.price);
-                            }}
-                            style={{ padding: '8px 16px', borderRadius: 10, border: `1.5px solid ${pf.serviceId === p.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: pf.serviceId === p.id ? 'var(--color-background-info)' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: pf.serviceId === p.id ? 600 : 400, color: pf.serviceId === p.id ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
-                            {p.name}
-                            <span style={{ marginLeft: 8, fontWeight: 700, color: pf.serviceId === p.id ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>${p.price}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Price calculado */}
-                  {pf.servicePrice > 0 ? (
-                    <div style={{ padding: '10px 14px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)', marginBottom: 10 }}>
-                      <div style={{ fontSize: 12, color: 'var(--color-text-success)', marginBottom: 4 }}>
-                        {pf.serviceName}
-                        {pf.species === 'dog' && ` · ${getSizeByWeight(pf.weight)} · ${pf.hairType}`}
-                      </div>
-                      {pf.discountPct > 0 ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <span style={{ fontSize: 14, textDecoration: 'line-through', opacity: 0.6, color: 'var(--color-text-success)' }}>${pf.servicePrice}</span>
-                          <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${getPetTotal(pf).toFixed(2)}</span>
-                          <span style={{ fontSize: 11, color: 'var(--color-text-success)' }}>-{pf.discountPct}%{getAddonsTotal(pf) > 0 ? ` +$${getAddonsTotal(pf)} add-ons` : ''}</span>
-                        </div>
-                      ) : (
-                        <div>
-                          <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text-success)' }}>💰 ${getPetTotal(pf).toFixed(2)}</div>
-                          {getAddonsTotal(pf) > 0 && <div style={{ fontSize: 11, color: 'var(--color-text-success)' }}>Service ${pf.servicePrice} + Add-ons ${getAddonsTotal(pf)}</div>}
-                        </div>
-                      )}
-                    </div>
-                  ) : pf.species === 'dog' && pf.serviceCategory && !pf.weight ? (
-                    <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                      ⚠️ Ingresa el weight para calcular el price automáticamente
-                    </div>
-                  ) : pf.species === 'dog' && pf.serviceCategory && pf.weight && !pf.servicePrice ? (
-                    <div style={{ padding: '8px 12px', background: 'var(--color-background-warning)', borderRadius: 8, fontSize: 12, color: 'var(--color-text-warning)' }}>
-                      ⚠️ No se encontró price para esta combinación
-                    </div>
-                  ) : null}
-
-                  {/* Add-ons */}
-                  <div>
-                    <label style={styles.lbl}>Add-ons (opcional)</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                      {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => {
-                        const selected = (pf.addons || []).includes(addon.id);
-                        return (
-                          <button key={addon.id} type="button"
-                            onClick={() => updatePetForm(idx, 'addons', selected ? (pf.addons || []).filter(id => id !== addon.id) : [...(pf.addons || []), addon.id])}
-                            style={{ padding: '5px 12px', background: selected ? 'var(--color-background-info)' : 'var(--color-background-secondary)', border: `1px solid ${selected ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-info)' : 'var(--color-text-secondary)', transition: 'all 0.15s' }}>
-                            {selected ? '✅ ' : ''}{addon.name} +${addon.price}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {/* Total add-ons */}
-                  </div>
-
-                  {/* Descuento — solo admin */}
-                  {pf.servicePrice > 0 && isAdmin && (
-                    <div style={{ marginTop: 10 }}>
-                      <label style={styles.lbl}>Descuento % (solo admin)</label>
-                      <div style={{ position: 'relative', maxWidth: 150 }}>
-                        <input type="number" min="0" max="100" step="5" value={pf.discountPct}
-                          onChange={e => updatePetForm(idx, 'discountPct', e.target.value)}
-                          style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
-                        <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             ))}
 
             <button onClick={addPetForm} style={{ ...styles.btnSecondary, width: '100%', justifyContent: 'center' }}>
-              <Plus size={14} /> Add otra pet
+              <Plus size={14} /> + Add another pet
             </button>
           </div>
 
