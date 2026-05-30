@@ -7329,7 +7329,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
               </button>
               <button onClick={() => {
                 setShowSchedulePrompt(null);
-                if (addAppointment) setTab('citas');
+                if (addAppointment) setTab('appointments');
               }}
                 style={{ flex: 2, padding: '12px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 📅 Schedule Now →
