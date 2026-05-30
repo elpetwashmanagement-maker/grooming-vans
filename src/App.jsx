@@ -3794,21 +3794,59 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   const selected = newApptForm.petIds.includes(p.id);
                   return (
                     <button key={p.id} type="button"
-                      onClick={() => setNewApptForm(f => {
-                        const newPetIds = selected ? f.petIds.filter(id => id !== p.id) : [...f.petIds, p.id];
+                      onClick={() => {
+                        const newPetIds = selected
+                          ? newApptForm.petIds.filter(id => id !== p.id)
+                          : [...newApptForm.petIds, p.id];
                         const numPets = newPetIds.length || 1;
                         const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
-                        const [h, m] = (f.timeStart || '09:00').split(':').map(Number);
+                        const [h, m] = (newApptForm.timeStart || '09:00').split(':').map(Number);
                         const endH = h + duration;
                         const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-                        return { ...f, petIds: newPetIds, timeEnd: endTime, duration };
-                      })}
+                        setNewApptForm(f => ({ ...f, petIds: newPetIds, timeEnd: endTime, duration }));
+                      }}
                       style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: selected ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: `1.5px solid ${selected ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
-                      {selected ? '✅ ' : '🐾 '}{p.name} {p.breed ? `(${p.breed})` : ''}
+                      {selected ? '✅ ' : '🐾 '}{p.name} {p.size ? `· ${p.size.split(' ')[0]}` : ''} {p.hairType ? `· ${p.hairType.split(' ')[0]}` : ''}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Smart Pricing — sugerencia de precio por mascota */}
+              {newApptForm.petIds.length > 0 && newApptForm.serviceName && (
+                <div style={{ marginTop: 10, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>💡 Smart Pricing — {newApptForm.serviceName}</div>
+                  {newApptForm.petIds.map(petId => {
+                    const pet = clientPets.find(p => String(p.id) === String(petId));
+                    if (!pet) return null;
+                    // Buscar precio que coincida con size y hair_type de la mascota
+                    const matchedPrice = servicePrices?.find(sp => {
+                      const nameMatch = sp.category === newApptForm.serviceName || sp.name === newApptForm.serviceName || sp.service_name === newApptForm.serviceName;
+                      const sizeMatch = !sp.size || sp.size === pet.size || sp.size.toLowerCase().includes((pet.size || '').split(' ')[0].toLowerCase());
+                      const hairMatch = !sp.hair_type || sp.hair_type === pet.hairType || sp.hair_type.toLowerCase().includes((pet.hairType || '').split(' ')[0].toLowerCase());
+                      return nameMatch && sizeMatch && hairMatch;
+                    });
+                    return (
+                      <div key={petId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <div style={{ fontSize: 12 }}>
+                          🐾 <strong>{pet.name}</strong> — {pet.size?.split(' ')[0] || '?'} · {pet.hairType?.split(' ')[0] || '?'}
+                        </div>
+                        {matchedPrice ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f766e' }}>${matchedPrice.price?.toFixed(2) || matchedPrice.base_price?.toFixed(2)}</span>
+                            <button onClick={() => setNewApptForm(f => ({...f, servicePrice: matchedPrice.price || matchedPrice.base_price}))}
+                              style={{ fontSize: 10, padding: '3px 8px', background: '#0f766e', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+                              Use
+                            </button>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>No match found</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -6570,41 +6608,115 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
           </div>
           {section === 'services' ? (
             <div>
-              {/* Agrupar por categoría */}
-              {[...new Set((servicePrices || []).map(p => p.category))].map(cat => (
-                <div key={cat} style={{ marginBottom: 20 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
-                  {(servicePrices || []).filter(p => p.category === cat).map(price => (
-                    <div key={price.id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{price.name || price.service_name}</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                          {price.size && `📏 ${price.size}`} {price.hair_type && `· 💇 ${price.hair_type}`}
-                          {price.duration_minutes && ` · ⏱️ ${price.duration_minutes}min`}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 15, color: '#64748b' }}>$</span>
-                        <input type="number" step="0.01"
-                          value={editingPrice[price.id] !== undefined ? editingPrice[price.id] : (price.price || price.base_price || '')}
-                          onChange={e => setEditingPrice(ep => ({...ep, [price.id]: e.target.value}))}
-                          style={{ width: 80, padding: '8px', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 15, fontWeight: 700, textAlign: 'center' }} />
-                        {editingPrice[price.id] !== undefined && (
-                          <button onClick={async () => {
-                            const newPrice = parseFloat(editingPrice[price.id]);
-                            if (isNaN(newPrice)) return;
-                            await updateServicePrice({...price, price: newPrice, base_price: newPrice});
-                            setEditingPrice(ep => { const n = {...ep}; delete n[price.id]; return n; });
-                          }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 12px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>✓</button>
-                        )}
-                      </div>
+              {/* Tabla por categoría */}
+              {[...new Set((servicePrices || []).map(p => p.category))].map(cat => {
+                const isAddon = cat === 'Add-on' || cat === 'Add-ons' || cat === 'Addon';
+                const catPrices = (servicePrices || []).filter(p => p.category === cat);
+                return (
+                  <div key={cat} style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
+                    
+                    {/* Header */}
+                    <div style={{ display: 'grid', gridTemplateColumns: isAddon ? '1fr 80px 32px' : '1fr 100px 100px 70px 80px 32px', gap: 6, padding: '6px 10px', background: '#f1f5f9', borderRadius: 8, marginBottom: 4 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Name</div>
+                      {!isAddon && <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Size</div>}
+                      {!isAddon && <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Hair Type</div>}
+                      {!isAddon && <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Time</div>}
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b' }}>Price</div>
+                      <div />
                     </div>
-                  ))}
-                </div>
-              ))}
 
-              {/* Agregar nuevo servicio */}
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, marginTop: 20 }}>➕ Add New Service</div>
+                    {/* Rows */}
+                    {catPrices.map(price => {
+                      const isEditing = editingPrice[price.id] !== undefined;
+                      return (
+                        <div key={price.id} style={{ display: 'grid', gridTemplateColumns: isAddon ? '1fr 80px 32px' : '1fr 100px 100px 70px 80px 32px', gap: 6, padding: '6px 10px', background: isEditing ? '#f0fdfa' : '#fff', borderRadius: 8, marginBottom: 3, border: `1px solid ${isEditing ? '#0f766e' : '#e2e8f0'}`, alignItems: 'center' }}>
+                          {/* Name */}
+                          <input value={editingPrice[`${price.id}_name`] !== undefined ? editingPrice[`${price.id}_name`] : (price.name || price.service_name || '')}
+                            onChange={e => setEditingPrice(ep => ({...ep, [`${price.id}_name`]: e.target.value, [price.id]: ep[price.id] !== undefined ? ep[price.id] : (price.price || price.base_price || 0)}))}
+                            style={{ padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, width: '100%', boxSizing: 'border-box' }} />
+
+                          {/* Size — solo para no addons */}
+                          {!isAddon && (
+                            <select value={editingPrice[`${price.id}_size`] !== undefined ? editingPrice[`${price.id}_size`] : (price.size || '')}
+                              onChange={e => setEditingPrice(ep => ({...ep, [`${price.id}_size`]: e.target.value, [price.id]: ep[price.id] !== undefined ? ep[price.id] : (price.price || 0)}))}
+                              style={{ padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }}>
+                              <option value="">Any</option>
+                              <option value="Small (1-20 lbs)">Small</option>
+                              <option value="Medium (21-50 lbs)">Medium</option>
+                              <option value="Large (51-90 lbs)">Large</option>
+                              <option value="XLarge (90+ lbs)">XLarge</option>
+                            </select>
+                          )}
+
+                          {/* Hair Type — solo para no addons */}
+                          {!isAddon && (
+                            <select value={editingPrice[`${price.id}_hair`] !== undefined ? editingPrice[`${price.id}_hair`] : (price.hair_type || '')}
+                              onChange={e => setEditingPrice(ep => ({...ep, [`${price.id}_hair`]: e.target.value, [price.id]: ep[price.id] !== undefined ? ep[price.id] : (price.price || 0)}))}
+                              style={{ padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 11 }}>
+                              <option value="">Any</option>
+                              <option value="Short Hair">Short</option>
+                              <option value="Long Hair">Long</option>
+                              <option value="Double Coat">Double</option>
+                              <option value="Curly">Curly</option>
+                            </select>
+                          )}
+
+                          {/* Duration — solo para no addons */}
+                          {!isAddon && (
+                            <input type="number" value={editingPrice[`${price.id}_dur`] !== undefined ? editingPrice[`${price.id}_dur`] : (price.duration_minutes || 60)}
+                              onChange={e => setEditingPrice(ep => ({...ep, [`${price.id}_dur`]: e.target.value, [price.id]: ep[price.id] !== undefined ? ep[price.id] : (price.price || 0)}))}
+                              style={{ padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 12, textAlign: 'center' }}
+                              placeholder="60" />
+                          )}
+
+                          {/* Price */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>$</span>
+                            <input type="number" step="0.01"
+                              value={editingPrice[price.id] !== undefined ? editingPrice[price.id] : (price.price || price.base_price || '')}
+                              onChange={e => setEditingPrice(ep => ({...ep, [price.id]: e.target.value}))}
+                              style={{ width: '100%', padding: '6px 4px', border: '1px solid #e2e8f0', borderRadius: 6, fontSize: 13, fontWeight: 700, textAlign: 'center', boxSizing: 'border-box' }} />
+                          </div>
+
+                          {/* Save/Delete */}
+                          <div style={{ display: 'flex', gap: 3 }}>
+                            {Object.keys(editingPrice).some(k => k.startsWith(price.id)) && (
+                              <button onClick={async () => {
+                                const updated = {
+                                  ...price,
+                                  name: editingPrice[`${price.id}_name`] !== undefined ? editingPrice[`${price.id}_name`] : (price.name || price.service_name),
+                                  service_name: editingPrice[`${price.id}_name`] !== undefined ? editingPrice[`${price.id}_name`] : (price.name || price.service_name),
+                                  size: editingPrice[`${price.id}_size`] !== undefined ? editingPrice[`${price.id}_size`] : price.size,
+                                  hair_type: editingPrice[`${price.id}_hair`] !== undefined ? editingPrice[`${price.id}_hair`] : price.hair_type,
+                                  duration_minutes: editingPrice[`${price.id}_dur`] !== undefined ? parseInt(editingPrice[`${price.id}_dur`]) : price.duration_minutes,
+                                  price: parseFloat(editingPrice[price.id] !== undefined ? editingPrice[price.id] : price.price),
+                                  base_price: parseFloat(editingPrice[price.id] !== undefined ? editingPrice[price.id] : price.price),
+                                };
+                                await updateServicePrice(updated);
+                                setEditingPrice(ep => {
+                                  const n = {...ep};
+                                  delete n[price.id]; delete n[`${price.id}_name`]; delete n[`${price.id}_size`]; delete n[`${price.id}_hair`]; delete n[`${price.id}_dur`];
+                                  return n;
+                                });
+                              }} style={{ background: '#0f766e', border: 'none', borderRadius: 6, padding: '4px 6px', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>✓</button>
+                            )}
+                            <button onClick={async () => {
+                              if (window.confirm('Delete this service?')) {
+                                await supabase.from('service_prices').delete().eq('id', price.id);
+                                await addServicePrice(null); // trigger refresh
+                              }
+                            }} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: '#dc2626', fontSize: 11 }}>✕</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* Agregar nuevo */}
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, marginTop: 8 }}>➕ Add New</div>
               {showNewService ? (
                 <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
@@ -6620,41 +6732,45 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                       </select>
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Service Name</label>
+                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Name</label>
                       <input value={newService.name} onChange={e => setNewService(s => ({...s, name: e.target.value}))}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="e.g. Full Groom" />
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="Service name" />
                     </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
-                      <select value={newService.size} onChange={e => setNewService(s => ({...s, size: e.target.value}))}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
-                        <option value="">Any size</option>
-                        <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
-                        <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
-                        <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
-                        <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
-                      <select value={newService.hair_type} onChange={e => setNewService(s => ({...s, hair_type: e.target.value}))}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
-                        <option value="">Any type</option>
-                        <option value="Short Hair">Short Hair</option>
-                        <option value="Long Hair">Long Hair</option>
-                        <option value="Double Coat">Double Coat</option>
-                        <option value="Curly">Curly</option>
-                      </select>
-                    </div>
+                    {newService.category !== 'Add-on' && (
+                      <>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
+                          <select value={newService.size} onChange={e => setNewService(s => ({...s, size: e.target.value}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                            <option value="">Any size</option>
+                            <option value="Small (1-20 lbs)">Small (1-20 lbs)</option>
+                            <option value="Medium (21-50 lbs)">Medium (21-50 lbs)</option>
+                            <option value="Large (51-90 lbs)">Large (51-90 lbs)</option>
+                            <option value="XLarge (90+ lbs)">XLarge (90+ lbs)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
+                          <select value={newService.hair_type} onChange={e => setNewService(s => ({...s, hair_type: e.target.value}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                            <option value="">Any</option>
+                            <option value="Short Hair">Short Hair</option>
+                            <option value="Long Hair">Long Hair</option>
+                            <option value="Double Coat">Double Coat</option>
+                            <option value="Curly">Curly</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Duration (min)</label>
+                          <input type="number" value={newService.duration_minutes} onChange={e => setNewService(s => ({...s, duration_minutes: parseInt(e.target.value)}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                        </div>
+                      </>
+                    )}
                     <div>
                       <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Price ($)</label>
                       <input type="number" step="0.01" value={newService.price} onChange={e => setNewService(s => ({...s, price: e.target.value}))}
                         style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="45.00" />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Duration (min)</label>
-                      <input type="number" value={newService.duration_minutes} onChange={e => setNewService(s => ({...s, duration_minutes: parseInt(e.target.value)}))}
-                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -6665,16 +6781,14 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                       setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
                       setShowNewService(false);
                       setSaving(false);
-                    }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '10px 18px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
-                      ✅ Add Service
-                    </button>
+                    }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '10px 18px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>✅ Add</button>
                     <button onClick={() => setShowNewService(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '10px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                   </div>
                 </div>
               ) : (
                 <button onClick={() => setShowNewService(true)}
                   style={{ width: '100%', padding: '12px', background: 'none', border: '1.5px dashed #cbd5e1', borderRadius: 12, cursor: 'pointer', color: '#64748b', fontSize: 14 }}>
-                  + Add New Service / Price
+                  + Add New Service / Add-on
                 </button>
               )}
             </div>
