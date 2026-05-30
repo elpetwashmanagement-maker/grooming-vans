@@ -1353,6 +1353,7 @@ export default function App() {
     if (!session) return;
     if (session.role === 'groomer') setTab('home');
     if (session.role === 'admin' || session.role === 'manager') setTab('home');
+    if (session.role === 'viewer') setTab('appointments');
   }, [session?.role]);
 
   const updateVans = async (newVans) => { setVans(newVans); for (const v of newVans) await saveVan(v); };
@@ -1550,10 +1551,11 @@ export default function App() {
         {tab === 'home' && <HomeTab session={session} appointments={appointments} vans={vans} clients={clients} pets={pets} settings={settings} setTab={setTab} groomers={groomers} />}
         {tab === 'appointments' && (
           <AppointmentsTab
-            appointments={appointments} vans={visibleVans} clients={clients} pets={pets}
+            appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
+            vans={visibleVans} clients={clients} pets={pets}
             session={{ ...session, groomers }} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
-            addAppointment={addAppointment} addClient={addClient} addPet={addPet}
+            addAppointment={isViewer ? () => {} : addAppointment} addClient={addClient} addPet={addPet}
             refreshAppointments={refreshAppointments} deleteAppt={deleteAppt}
             servicePrices={servicePrices} deposits={deposits} setDeposits={setDeposits}
             groomers={groomers}
