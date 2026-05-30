@@ -1,4 +1,4 @@
-const CACHE_NAME = 'groomora-v5';
+const CACHE_NAME = 'groomora-v6';
 
 // Instalar — sin precachear nada agresivamente
 self.addEventListener('install', event => {
