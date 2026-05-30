@@ -1,5 +1,4 @@
 // Groomora v2.2 - Van Tracker
-   → // Groomora v2.3 - Van Tracker
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -2853,7 +2852,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
   const [clientSearch, setClientSearch] = useState('');
 
   const [showCobroForm, setShowCobroForm] = useState(null);
-  const [cobroForm, setCobroForm] = useState({ method: 'Cash', tip: '' });
+  const [cobroForm, setCobroForm] = useState({ method: 'Cash', tip: '', step: 1 });
   const [viewMode, setViewMode] = useState('lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
   const [filterVanId, setFilterVanId] = useState('todos');
@@ -2931,7 +2930,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
   const handleComplete = (appt) => {
     setShowCobroForm(appt);
-    setCobroForm({ method: 'Cash', tip: '' });
+    setCobroForm({ method: 'Cash', tip: '', step: 1 });
   };
 
   const handleConfirmarCobro = async () => {
@@ -5051,151 +5050,180 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
         />
       )}
 
-      {/* Modal de cobro */}
-      {showCobroForm && (
-        <div onClick={() => setShowCobroForm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#FFFFFF', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', maxWidth: 460, width: '100%', boxShadow: '0 -10px 40px rgba(0,0,0,0.3)', maxHeight: '92vh', overflowY: 'auto' }}>
-            <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 999, margin: '0 auto 16px' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Collect Payment</div>
-                <h3 style={{ fontSize: 20, fontWeight: 700, color: '#0f172a', margin: '4px 0 0', fontFamily: 'Fraunces, serif' }}>💰 {showCobroForm.client?.name}</h3>
-              </div>
-              <button onClick={() => setShowCobroForm(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b' }}><X size={18} /></button>
-            </div>
 
-            {/* Resumen mascotas con desglose */}
-            <div style={{ background: '#f8fafc', borderRadius: 12, padding: '12px 16px', marginBottom: 18, border: '1px solid #e2e8f0' }}>
-              {(showCobroForm.pets || []).length > 0 ? (
-                (showCobroForm.pets || []).map((ap, i) => {
-                  const petName = ap.pet?.name || ap.petName || 'Mascota';
-                  const parts = (ap.service || '').split(' + ');
-                  const baseService = parts[0];
-                  const addons = parts.slice(1);
-                  return (
-                    <div key={i} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: i < (showCobroForm.pets?.length || 0) - 1 ? '1px solid #e2e8f0' : 'none' }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 6 }}>🐾 {petName}</div>
-                      {baseService && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 3 }}>
-                          <span style={{ color: '#1e293b' }}>✂️ {baseService}</span>
-                          <span style={{ fontWeight: 600, color: '#0f766e' }}>
-                            ${(() => {
-                              const addonsTotal = addons.reduce((s, n) => {
-                                const a = (servicePrices || []).find(p => p.name === n && p.category === 'Add-on');
-                                return s + (a?.price || 0);
-                              }, 0);
-                              return Math.max(0, (ap.amount || 0) - addonsTotal).toFixed(2);
-                            })()}
-                          </span>
-                        </div>
-                      )}
-                      {addons.map((name, j) => {
-                        const addon = (servicePrices || []).find(p => p.name === name && p.category === 'Add-on');
-                        return (
-                          <div key={j} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 2, paddingLeft: 12 }}>
-                            <span>+ {name}</span>
-                            <span>${(addon?.price || 0).toFixed(2)}</span>
-                          </div>
-                        );
-                      })}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 700, color: '#0f766e', marginTop: 6 }}>
-                        <span>Subtotal</span>
-                        <span>${(ap.amount || 0).toFixed(2)}</span>
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div style={{ fontSize: 15, color: '#64748b' }}>Sin mascotas registradas</div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 6, borderTop: '2px solid #e2e8f0', fontSize: 18, fontWeight: 800 }}>
-                <span style={{ color: '#0f172a' }}>TOTAL SERVICIOS</span>
-                <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif', fontSize: 22 }}>
-                  ${(showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0).toFixed(2)}
-                </span>
-              </div>
-            </div>
+      {/* ===== MODAL COBRO WIZARD ===== */}
+      {showCobroForm && (() => {
+        const appt = showCobroForm;
+        const pets = appt.pets || [];
+        const subtotal = pets.reduce((s, ap) => s + (ap.amount || 0), 0);
+        const gasFee = parseFloat(settings.gasFee || 7);
+        const cardFeePct = parseFloat(settings.cardFeePct || 5.5);
+        const isCard = cobroForm.method === 'Credit Card';
+        const isGuarantee = cobroForm.method === 'Guarantee';
+        const cardFee = isCard ? subtotal * (cardFeePct / 100) : 0;
+        const tip = parseFloat(cobroForm.tip || 0);
+        const total = isGuarantee ? 0 : subtotal + (isCard ? cardFee : 0) + tip;
+        const step = cobroForm.step || 1;
 
-            {/* Método de pago */}
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Método de pago</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                {PAYMENT_METHODS.map(m => (
-                  <button key={m} onClick={async () => {
-                    setCobroForm(f => ({...f, method: m}));
-                    if (m === 'Credit Card') {
-                      setTimeout(async () => {
-                        try { await processSquarePayment(0); } catch(e) {}
-                      }, 300);
-                    }
-                  }}
-                    style={{ padding: '12px 8px', borderRadius: 10, border: `2px solid ${cobroForm.method === m ? '#0f766e' : '#e2e8f0'}`, background: cobroForm.method === m ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 15, fontWeight: cobroForm.method === m ? 700 : 500, color: cobroForm.method === m ? '#0f766e' : '#475569' }}>
-                    {m}
-                  </button>
+        return (
+          <div onClick={() => setShowCobroForm(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+            <div onClick={e => e.stopPropagation()}
+              style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 36px', maxWidth: 460, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+
+              {/* Handle */}
+              <div style={{ width: 40, height: 4, background: '#e2e8f0', borderRadius: 999, margin: '0 auto 16px' }} />
+
+              {/* Progress steps */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
+                {[1,2,3].map(s => (
+                  <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, background: step >= s ? '#0f766e' : '#f1f5f9', color: step >= s ? '#fff' : '#94a3b8' }}>{s}</div>
+                    {s < 3 && <div style={{ width: 32, height: 2, background: step > s ? '#0f766e' : '#e2e8f0' }} />}
+                  </div>
                 ))}
               </div>
-              {cobroForm.method === 'Credit Card' && (
-                <div style={{ marginTop: 10 }}>
-                  <div style={{ padding: '8px 12px', background: '#fffbeb', borderRadius: 8, fontSize: 13, color: '#92400e', border: '1px solid #fcd34d', marginBottom: 10 }}>
-                    ⚠️ {settings?.cardFeePct || 5.5}% card fee will be added
-                  </div>
-                  {/* Square Card Container */}
-                  <div style={{ padding: '14px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 10 }}>
-                      💳 Enter card details or use Tap to Pay
+
+              {/* PASO 1 — Resumen */}
+              {step === 1 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Step 1 of 3</div>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>💰 {appt.client?.name}</div>
+
+                  <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 16px', marginBottom: 16, border: '1px solid #e2e8f0' }}>
+                    {pets.map((ap, i) => (
+                      <div key={i} style={{ paddingBottom: 10, marginBottom: 10, borderBottom: i < pets.length - 1 ? '1px solid #e2e8f0' : 'none' }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>🐾 {ap.pet?.name || ap.petName || 'Pet'}</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                          <span style={{ color: '#64748b' }}>{ap.service || 'Service'}</span>
+                          <span style={{ fontWeight: 600 }}>${(ap.amount || 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div style={{ borderTop: '1.5px dashed #e2e8f0', paddingTop: 10, marginTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                        <span style={{ color: '#64748b' }}>Subtotal</span>
+                        <span>${subtotal.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
+                        <span style={{ color: '#64748b' }}>⛽ Gas fee</span>
+                        <span style={{ color: '#dc2626' }}>-${gasFee.toFixed(2)}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
+                        <span>Groomer earns</span>
+                        <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif' }}>${Math.max(0, (subtotal - gasFee) * ((settings.commissionPct || 45) / 100)).toFixed(2)}</span>
+                      </div>
                     </div>
-                    <div id="square-card-container" style={{ minHeight: 89 }}></div>
+                  </div>
+
+                  <button onClick={() => setCobroForm(f => ({...f, step: 2}))}
+                    style={{ width: '100%', padding: 16, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+                    Next → Choose Payment Method
+                  </button>
+                </div>
+              )}
+
+              {/* PASO 2 — Método de pago */}
+              {step === 2 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Step 2 of 3</div>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>How are they paying?</div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+                    {['Cash', 'Zelle', 'Credit Card', 'Check', 'Guarantee'].map(method => {
+                      const icons = { Cash: '💵', Zelle: '📱', 'Credit Card': '💳', Check: '📄', Guarantee: '🎁' };
+                      const selected = cobroForm.method === method;
+                      return (
+                        <button key={method} onClick={() => setCobroForm(f => ({...f, method}))}
+                          style={{ padding: '14px 10px', borderRadius: 14, border: `2px solid ${selected ? '#0f766e' : '#e2e8f0'}`, background: selected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 14, fontWeight: selected ? 700 : 400, color: selected ? '#0f766e' : '#374151', gridColumn: method === 'Guarantee' ? 'span 2' : 'auto' }}>
+                          {icons[method]} {method}
+                          {method === 'Credit Card' && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>+{cardFeePct}% fee</div>}
+                          {method === 'Guarantee' && <div style={{ fontSize: 10, color: '#94a3b8', marginTop: 2 }}>$0 — no charge</div>}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!isGuarantee && (
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>💝 Tip (optional)</label>
+                      <input type="number" step="0.01" value={cobroForm.tip}
+                        onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
+                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, boxSizing: 'border-box' }}
+                        placeholder="$0.00" />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={() => setCobroForm(f => ({...f, step: 1}))}
+                      style={{ flex: 1, padding: 14, background: '#f1f5f9', border: 'none', borderRadius: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#64748b' }}>
+                      ← Back
+                    </button>
+                    <button onClick={() => setCobroForm(f => ({...f, step: 3}))}
+                      style={{ flex: 2, padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+                      Next → Review
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* PASO 3 — Confirmar */}
+              {step === 3 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>Step 3 of 3</div>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>✅ Ready to collect</div>
+
+                  <div style={{ background: '#f0fdfa', borderRadius: 14, padding: '16px', marginBottom: 16, border: '1.5px solid #0f766e' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                      <span style={{ color: '#64748b' }}>Client</span>
+                      <span style={{ fontWeight: 600 }}>{appt.client?.name}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                      <span style={{ color: '#64748b' }}>Subtotal</span>
+                      <span>${subtotal.toFixed(2)}</span>
+                    </div>
+                    {isCard && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                        <span style={{ color: '#64748b' }}>Card fee {cardFeePct}%</span>
+                        <span>+${cardFee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    {tip > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                        <span style={{ color: '#64748b' }}>💝 Tip</span>
+                        <span>+${tip.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 8 }}>
+                      <span style={{ color: '#64748b' }}>Method</span>
+                      <span style={{ fontWeight: 600 }}>{cobroForm.method}</span>
+                    </div>
+                    <div style={{ borderTop: '1.5px solid #0f766e', paddingTop: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 800, fontSize: 18 }}>TOTAL</span>
+                      <span style={{ fontWeight: 800, fontSize: 22, color: '#0f766e', fontFamily: 'Fraunces, serif' }}>
+                        {isGuarantee ? 'FREE' : `$${total.toFixed(2)}`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button onClick={() => setCobroForm(f => ({...f, step: 2}))}
+                      style={{ flex: 1, padding: 14, background: '#f1f5f9', border: 'none', borderRadius: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#64748b' }}>
+                      ← Back
+                    </button>
+                    <button onClick={handleCobrar} disabled={saving}
+                      style={{ flex: 2, padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      {saving ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={18} />}
+                      {saving ? 'Processing...' : `✅ Collect ${isGuarantee ? 'FREE' : '$' + total.toFixed(2)}`}
+                    </button>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Propina */}
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>Propina (opcional)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
-                {[18, 20, 25].map(pct => {
-                  const total = (showCobroForm.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
-                  const tipAmt = parseFloat((total * pct / 100).toFixed(2));
-                  const isSelected = parseFloat(cobroForm.tip) === tipAmt;
-                  return (
-                    <button key={pct} onClick={() => setCobroForm(f => ({...f, tip: tipAmt}))}
-                      style={{ padding: '10px 4px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 700, color: isSelected ? '#0f766e' : '#1e293b' }}>{pct}%</div>
-                      <div style={{ fontSize: 13, color: isSelected ? '#0f766e' : '#64748b' }}>${tipAmt}</div>
-                    </button>
-                  );
-                })}
-                <button onClick={() => setCobroForm(f => ({...f, tip: ''}))}
-                  style={{ padding: '10px 4px', borderRadius: 10, border: '2px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#475569' }}>Custom</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8' }}>Otro</div>
-                </button>
-              </div>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: 14, top: 13, fontSize: 16, color: '#94a3b8', fontWeight: 600 }}>$</span>
-                <input type="number" step="1" min="0" value={cobroForm.tip}
-                  onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
-                  style={{ width: '100%', padding: '12px 16px 12px 32px', border: '2px solid #e2e8f0', borderRadius: 10, fontSize: 16, fontWeight: 600, outline: 'none', boxSizing: 'border-box', background: '#fff' }}
-                  placeholder="0.00" />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowCobroForm(null)}
-                style={{ flex: 1, padding: '14px', borderRadius: 12, border: '2px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 15, fontWeight: 600, color: '#475569' }}>
-                ✕ Cancelar
-              </button>
-              <button onClick={handleConfirmarCobro}
-                style={{ flex: 2, padding: '14px', borderRadius: 12, border: 'none', background: '#0f766e', cursor: 'pointer', fontSize: 16, fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-                disabled={saving}>
-                {saving ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : '✓'}
-                {saving ? 'Registrando...' : 'Confirmar cobro'}
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal ficha de grooming */}
       {showGroomingForm && (
