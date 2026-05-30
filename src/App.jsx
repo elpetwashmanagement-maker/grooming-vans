@@ -1921,15 +1921,18 @@ function SignatureModal({ appt, companyId, onSave, onClose }) {
 
 // ===== LOGIN =====
 
+
 function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, loadingUsers }) {
   const [step, setStep] = useState('select');
   const [selectedUser, setSelectedUser] = useState(null);
   const [pinInput, setPinInput] = useState('');
-  const [error, setError] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
   const [shaking, setShaking] = useState(false);
+  const [loggingIn, setLoggingIn] = useState(false);
 
-  const admins = users.filter(u => u.role === 'admin');
-  const managers = users.filter(u => u.role === 'manager');
   const groomers = (groomersList && groomersList.length > 0)
     ? groomersList.filter(g => g.active !== false).map(g => ({
         id: g.id, name: g.name, pin: g.pin, role: 'groomer',
@@ -1940,241 +1943,169 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       }))
     : users.filter(u => u.role === 'groomer');
 
-  const handleSelect = (user) => {
-    setSelectedUser(user); setStep('pin'); setPinInput(''); setError(false);
+  const shake = () => {
+    setShaking(true);
+    setError('Incorrect — try again');
+    setTimeout(() => { setPinInput(''); setError(''); setShaking(false); }, 700);
+  };
+
+  const handleEmailLogin = async () => {
+    if (!email || !password) { setError('Enter email and password'); return; }
+    setLoggingIn(true); setError('');
+    try {
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) { setError('Invalid email or password'); setLoggingIn(false); return; }
+      const { data: appUser } = await supabase.from('app_users').select('*').eq('id', data.user.id).single();
+      if (!appUser) { setError('User not configured'); setLoggingIn(false); return; }
+      onLogin({
+        userId: data.user.id, userName: appUser.name, role: appUser.role,
+        vanId: null, commissionPct: 0, companyId: 'epw',
+        permissions: {
+          can_create_clients: true, can_view_clients: true, can_schedule: true,
+          can_view_all_schedule: true, can_view_finances: appUser.role === 'admin',
+          can_view_reports: true, can_edit_config: appUser.role === 'admin',
+        }
+      });
+    } catch (err) { setError('Connection error'); }
+    setLoggingIn(false);
   };
 
   const handleDigit = (d) => {
     if (pinInput.length >= 4) return;
     const newPin = pinInput + d;
-    setPinInput(newPin); setError(false);
-    if (newPin.length === 4) setTimeout(() => tryLogin(newPin), 150);
+    setPinInput(newPin); setError('');
+    if (newPin.length === 4) setTimeout(() => {
+      if (newPin === selectedUser.pin) {
+        onLogin({
+          userId: selectedUser.id, userName: selectedUser.name, role: selectedUser.role,
+          vanId: selectedUser.van_id || selectedUser.vanId,
+          commissionPct: selectedUser.commissionPct, companyId: selectedUser.companyId || 'epw',
+          permissions: { can_create_clients: true, can_view_clients: false, can_schedule: true, can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false }
+        });
+      } else { shake(); }
+    }, 150);
   };
-
-  const handleDelete = () => { setPinInput(pinInput.slice(0, -1)); setError(false); };
-
-  const tryLogin = (pin) => {
-    if (pin === selectedUser.pin) {
-      onLogin({
-        userId: selectedUser.id,
-        userName: selectedUser.name,
-        role: selectedUser.role,
-        vanId: selectedUser.van_id || selectedUser.vanId,
-        commissionPct: selectedUser.commissionPct,
-        companyId: selectedUser.companyId || 'epw',
-        permissions: {
-          can_create_clients: selectedUser.can_create_clients ?? true,
-          can_view_clients: selectedUser.can_view_clients ?? false,
-          can_schedule: selectedUser.can_schedule ?? true,
-          can_view_all_schedule: selectedUser.can_view_all_schedule ?? false,
-          can_view_finances: selectedUser.can_view_finances ?? false,
-          can_view_reports: selectedUser.can_view_reports ?? false,
-          can_edit_config: selectedUser.can_edit_config ?? false,
-        }
-      });
-    } else {
-      setShaking(true);
-      setError(true);
-      setTimeout(() => { setPinInput(''); setError(false); setShaking(false); }, 700);
-    }
-  };
-
-  const getRoleColor = (role) => ({ admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' }[role] || '#64748b');
-  const getRoleIcon = (role) => ({ admin: '👑', manager: '📋', groomer: '✂️' }[role] || '👤');
-  const getRoleBg = (role) => ({ admin: '#f0f4ff', manager: '#f5f3ff', groomer: '#f0fdfa' }[role] || '#f8fafc');
-  const getRoleBorder = (role) => ({ admin: '#e0e7ff', manager: '#ede9fe', groomer: '#ccfbf1' }[role] || '#e2e8f0');
-
-  const allUsers = [...admins, ...managers, ...groomers];
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0f172a 100%)',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      padding: '20px', fontFamily: 'Inter, system-ui, sans-serif',
-    }}>
-
-      {/* Logo */}
-      <div style={{ textAlign: 'center', marginBottom: step === 'select' ? 40 : 32 }}>
-        <div style={{
-          width: 72, height: 72, borderRadius: 20, overflow: 'hidden',
-          margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-        }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0f172a 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <div style={{ width: 72, height: 72, borderRadius: 20, overflow: 'hidden', margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
           <img src="/Groomora.jpg" alt="Groomora" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
-        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
-          Groomora
-        </div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff' }}>Groomora</div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
-          {step === 'select' ? 'Select your profile' : `Welcome, ${selectedUser?.name}`}
+          {step === 'select' ? 'Select your profile' : step === 'email' ? 'Management Login' : `Welcome, ${selectedUser?.name}`}
         </div>
       </div>
 
-      {/* Panel principal */}
-      <div style={{
-        width: '100%', maxWidth: 440,
-        background: 'rgba(255,255,255,0.97)',
-        borderRadius: 24, padding: '28px 24px',
-        boxShadow: '0 32px 80px rgba(0,0,0,0.3)',
-      }}>
+      <div style={{ width: '100%', maxWidth: 440, background: 'rgba(255,255,255,0.97)', borderRadius: 24, padding: '28px 24px', boxShadow: '0 32px 80px rgba(0,0,0,0.3)' }}>
 
-        {/* STEP 1 — Seleccionar usuario */}
         {step === 'select' && (
           <div>
             {loadingUsers ? (
               <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
                 <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
-                <div style={{ marginTop: 8, fontSize: 13 }}>Loading...</div>
               </div>
             ) : (
               <div>
-                {/* Admins y managers */}
-                {[...admins, ...managers].length > 0 && (
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Management</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {[...admins, ...managers].map(u => (
-                        <button key={u.id} onClick={() => handleSelect(u)}
-                          style={{
-                            width: '100%', padding: '14px 18px',
-                            background: getRoleBg(u.role), border: `1.5px solid ${getRoleBorder(u.role)}`,
-                            borderRadius: 14, cursor: 'pointer', textAlign: 'left',
-                            display: 'flex', alignItems: 'center', gap: 14,
-                            transition: 'transform 0.1s',
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.01)'}
-                          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                          <div style={{
-                            width: 46, height: 46, borderRadius: 12,
-                            background: getRoleColor(u.role),
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 22, flexShrink: 0,
-                          }}>{getRoleIcon(u.role)}</div>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>{u.name}</div>
-                            <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>
-                              {u.role === 'admin' ? 'Full access' : 'Manager access'}
-                            </div>
-                          </div>
-                          <div style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 18 }}>›</div>
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Management</div>
+                  <button onClick={() => setStep('email')}
+                    style={{ width: '100%', padding: '14px 18px', background: '#f0f4ff', border: '1.5px solid #e0e7ff', borderRadius: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div style={{ width: 46, height: 46, borderRadius: 12, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>👑</div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>Admin & Managers</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>Login with email & password</div>
+                    </div>
+                    <div style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 18 }}>›</div>
+                  </button>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Groomers</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    {groomers.map(u => {
+                      const van = vans?.find(v => v.id === u.vanId);
+                      const company = companies?.find(c => c.id === (van?.companyId || u.companyId));
+                      return (
+                        <button key={u.id} onClick={() => { setSelectedUser(u); setStep('pin'); setPinInput(''); setError(''); }}
+                          style={{ padding: '16px 14px', background: '#f0fdfa', border: '1.5px solid #ccfbf1', borderRadius: 14, cursor: 'pointer', textAlign: 'center' }}>
+                          <div style={{ width: 50, height: 50, borderRadius: '50%', margin: '0 auto 10px', background: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 800 }}>{u.name.charAt(0)}</div>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{u.name}</div>
+                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{company?.logoEmoji} {van?.name || ''}</div>
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                )}
-
-                {/* Groomers */}
-                {groomers.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Groomers</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                      {groomers.map(u => {
-                        const van = vans?.find(v => v.id === u.vanId);
-                        const company = companies?.find(c => c.id === (van?.companyId || u.companyId));
-                        return (
-                          <button key={u.id} onClick={() => handleSelect(u)}
-                            style={{
-                              padding: '16px 14px', background: '#f0fdfa',
-                              border: '1.5px solid #ccfbf1', borderRadius: 14,
-                              cursor: 'pointer', textAlign: 'center',
-                              transition: 'transform 0.1s',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
-                            <div style={{
-                              width: 50, height: 50, borderRadius: '50%', margin: '0 auto 10px',
-                              background: '#0f766e', display: 'flex', alignItems: 'center',
-                              justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 800,
-                            }}>{u.name.charAt(0)}</div>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{u.name}</div>
-                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>
-                              {company?.logoEmoji} {van?.name || ''}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* STEP 2 — PIN */}
+        {step === 'email' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
+              <button onClick={() => { setStep('select'); setEmail(''); setPassword(''); setError(''); }}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b', fontSize: 14 }}>← Back</button>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>Management Login</div>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Email</label>
+              <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleEmailLogin()}
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+                placeholder="your@email.com" autoComplete="email" />
+            </div>
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} value={password}
+                  onChange={e => { setPassword(e.target.value); setError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && handleEmailLogin()}
+                  style={{ width: '100%', padding: '12px 42px 12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
+                  placeholder="••••••••" autoComplete="current-password" />
+                <button onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: 12, top: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+            {error && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>❌ {error}</div>}
+            <button onClick={handleEmailLogin} disabled={loggingIn}
+              style={{ width: '100%', padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              {loggingIn ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Lock size={18} />}
+              {loggingIn ? 'Signing in...' : 'Sign In'}
+            </button>
+          </div>
+        )}
+
         {step === 'pin' && selectedUser && (
           <div style={{ textAlign: 'center' }}>
-            {/* Avatar */}
-            <div style={{
-              width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px',
-              background: getRoleColor(selectedUser.role),
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 30,
-            }}>{getRoleIcon(selectedUser.role)}</div>
+            <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px', background: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, color: '#fff', fontWeight: 800 }}>{selectedUser.name.charAt(0)}</div>
             <div style={{ fontWeight: 700, fontSize: 20, color: '#0f172a', marginBottom: 4 }}>{selectedUser.name}</div>
             <div style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Enter your 4-digit PIN</div>
-
-            {/* Puntos del PIN */}
-            <div style={{
-              display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 28,
-              animation: shaking ? 'shake 0.5s ease' : 'none',
-            }}>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 28, animation: shaking ? 'shake 0.5s ease' : 'none' }}>
               {[0,1,2,3].map(i => (
-                <div key={i} style={{
-                  width: 18, height: 18, borderRadius: '50%',
-                  background: i < pinInput.length ? (error ? '#dc2626' : '#0f766e') : '#e2e8f0',
-                  transition: 'all 0.15s',
-                  transform: i < pinInput.length ? 'scale(1.2)' : 'scale(1)',
-                }} />
+                <div key={i} style={{ width: 18, height: 18, borderRadius: '50%', background: i < pinInput.length ? (error ? '#dc2626' : '#0f766e') : '#e2e8f0', transition: 'all 0.15s', transform: i < pinInput.length ? 'scale(1.2)' : 'scale(1)' }} />
               ))}
             </div>
-
-            {error && (
-              <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>
-                ❌ Incorrect PIN — try again
-              </div>
-            )}
-
-            {/* Teclado numérico */}
+            {error && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>❌ {error}</div>}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 280, margin: '0 auto' }}>
               {['1','2','3','4','5','6','7','8','9'].map(d => (
                 <button key={d} onClick={() => handleDigit(d)}
-                  style={{
-                    height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0',
-                    background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a',
-                    transition: 'all 0.1s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#0f766e'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}>
-                  {d}
-                </button>
+                  style={{ height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a' }}>{d}</button>
               ))}
-              <button onClick={() => { setStep('select'); setPinInput(''); setError(false); }}
-                style={{ height: 64, borderRadius: 14, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8' }}>
-                Back
-              </button>
-              <button key="0" onClick={() => handleDigit('0')}
-                style={{
-                  height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0',
-                  background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a',
-                  transition: 'all 0.1s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f0fdfa'; e.currentTarget.style.borderColor = '#0f766e'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.borderColor = '#e2e8f0'; }}>
-                0
-              </button>
-              <button onClick={handleDelete}
-                style={{ height: 64, borderRadius: 14, border: 'none', background: '#fef2f2', cursor: 'pointer', fontSize: 20, color: '#dc2626' }}>
-                ⌫
-              </button>
+              <button onClick={() => { setStep('select'); setPinInput(''); setError(''); }}
+                style={{ height: 64, borderRadius: 14, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8' }}>Back</button>
+              <button onClick={() => handleDigit('0')}
+                style={{ height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a' }}>0</button>
+              <button onClick={() => setPinInput(p => p.slice(0,-1))}
+                style={{ height: 64, borderRadius: 14, border: 'none', background: '#fef2f2', cursor: 'pointer', fontSize: 20, color: '#dc2626' }}>⌫</button>
             </div>
           </div>
         )}
       </div>
-
-      <div style={{ marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-        Groomora © 2026 · Group Guerrero Orejarena International LLC
-      </div>
+      <div style={{ marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Groomora © 2026 · Group Guerrero Orejarena International LLC</div>
     </div>
   );
 }
