@@ -1508,9 +1508,9 @@ export default function App() {
   // Viewer ve solo su empresa
   const viewerCompanyId = isViewer ? session.companyId : null;
   const canViewFinances = session.permissions?.can_view_finances || isAdmin;
-  const canViewReports = session.permissions?.can_view_reports || isAdmin;
+  const canViewReports = session.permissions?.can_view_reports || isAdmin || isViewer;
   const canEditConfig = session.permissions?.can_edit_config || isAdmin;
-  const canViewAllSchedule = session.permissions?.can_view_all_schedule || isAdmin;
+  const canViewAllSchedule = session.permissions?.can_view_all_schedule || isAdmin || isViewer;
 
   // Company activa
   const activeCompanyId = session.companyId || 'epw';
@@ -2127,13 +2127,18 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       if (!matchedUser) { shake(); return; }
       const expectedPin = String(matchedUser.pin);
       if (newPin === expectedPin) {
+        const isGroomerUser = matchedUser.role === 'groomer';
         onLogin({
           userId: matchedUser.id, userName: matchedUser.name,
           role: matchedUser.role,
           vanId: matchedUser.vanId || matchedUser.van_id || null,
           commissionPct: matchedUser.commissionPct || 0,
           companyId: matchedUser.companyId || 'epw',
-          permissions: matchedUser.permissions || {}
+          permissions: matchedUser.permissions || (isGroomerUser ? {
+            can_create_clients: true, can_view_clients: false, can_schedule: true,
+            can_view_all_schedule: false, can_view_finances: false,
+            can_view_reports: false, can_edit_config: false
+          } : {})
         });
       } else { shake(); }
     }, 150);
