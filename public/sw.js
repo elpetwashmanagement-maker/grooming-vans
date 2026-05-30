@@ -1,20 +1,7 @@
-const CACHE_NAME = 'groomora-v4';
-const STATIC_CACHE = 'groomora-static-v4';
-const DATA_CACHE = 'groomora-data-v4';
+const CACHE_NAME = 'groomora-v5';
 
-// Archivos estáticos a cachear
-const STATIC_FILES = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
-];
-
-// Instalar — cachear archivos estáticos
+// Instalar — sin precachear nada agresivamente
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE).then(cache => cache.addAll(STATIC_FILES))
-  );
   self.skipWaiting();
 });
 
@@ -22,43 +9,44 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(k => k !== CACHE_NAME && k !== STATIC_CACHE && k !== DATA_CACHE)
-          .map(k => caches.delete(k))
-      )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
-// Fetch — estrategia híbrida
+// Fetch — Network first SIEMPRE para HTML y JS
+// Solo cachea imágenes y fuentes estáticas
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Supabase API — network first, fallback cache
-  if (url.hostname.includes('supabase')) {
+  // HTML — siempre de red, nunca cache
+  if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request.clone())
-        .then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(DATA_CACHE).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      fetch(event.request).catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  // Assets JS/CSS — cache first
-  if (url.pathname.match(/\.(js|css|png|svg|ico|woff2?)$/)) {
+  // JS/CSS — network first, fallback cache
+  if (url.pathname.match(/\.(js|css)$/)) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Imágenes y fuentes — cache first
+  if (url.pathname.match(/\.(png|jpg|jpeg|svg|ico|woff2?)$/)) {
     event.respondWith(
       caches.match(event.request).then(cached => {
-        if (cached) return cached;
-        return fetch(event.request).then(response => {
+        return cached || fetch(event.request).then(response => {
           const clone = response.clone();
-          caches.open(STATIC_CACHE).then(cache => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
           return response;
         });
       })
@@ -66,14 +54,10 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // HTML — network first, fallback a index.html
-  event.respondWith(
-    fetch(event.request)
-      .catch(() => caches.match('/index.html'))
-  );
+  // Todo lo demás — network first
+  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
 
-// Mensaje para forzar actualización
 self.addEventListener('message', event => {
   if (event.data === 'skipWaiting') self.skipWaiting();
 });
