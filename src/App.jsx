@@ -3289,6 +3289,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       groomerId: newApptForm.groomerId || null,
       companyId: newApptForm.companyId || van?.companyId || 'epw',
       status: isGroomer ? 'pending_review' : 'unconfirmed',
+      // debug
+
       notes: `${newApptForm.serviceName ? `Service: ${newApptForm.serviceName}` : ''}${addonsNamonth ? ` + ${addonsNamonth}` : ''}${newApptForm.discountPct > 0 ? ` (${newApptForm.discountPct}% desc.)` : ''}${newApptForm.notes ? ` — ${newApptForm.notes}` : ''}`,
       alertNotes: newApptForm.alertNotes,
       agreementSigned: false,
