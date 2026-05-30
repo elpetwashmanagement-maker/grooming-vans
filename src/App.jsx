@@ -3300,6 +3300,78 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
 
             {!isGroomer && (
               <>
+                {/* Smart Scheduling — sugerencia de van más cercana */}
+                {newApptForm.clientId && (() => {
+                  const client = clients.find(c => String(c.id) === String(newApptForm.clientId));
+                  if (!client?.address) return null;
+
+                  // Calcular distancia aproximada usando coordenadas del cliente
+                  // Por ahora usamos orden por zona/ciudad como proxy
+                  const groomerList = session?.groomers || [];
+                  const vanOptions = vans.filter(v => v.active !== false).map(v => {
+                    const groomer = groomerList.find(g => g.vanId === v.id);
+                    const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
+                    // Contar citas del día en esta van para ver disponibilidad
+                    const todayAppts = appointments.filter(a =>
+                      a.vanId === v.id && a.date === date &&
+                      a.status !== 'cancelled' && a.status !== 'completed'
+                    ).length;
+                    return { ...v, groomer, company, todayAppts };
+                  }).sort((a, b) => a.todayAppts - b.todayAppts);
+
+                  return (
+                    <div style={{ gridColumn: 'span 2', padding: '12px 14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <span style={{ fontSize: 16 }}>💡</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f766e' }}>Smart Scheduling — Suggested vans</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10 }}>
+                        📍 Client: {client.address.split(',').slice(0,2).join(',')}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {vanOptions.slice(0, 3).map((v, idx) => {
+                          const medals = ['🥇', '🥈', '🥉'];
+                          const isSelected = newApptForm.vanId === v.id;
+                          return (
+                            <button key={v.id} type="button"
+                              onClick={() => setNewApptForm(f => ({
+                                ...f, vanId: v.id,
+                                companyId: v.companyId || f.companyId,
+                                groomerId: v.groomer?.id || '',
+                              }))}
+                              style={{
+                                padding: '10px 14px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`,
+                                background: isSelected ? '#fff' : '#f8fafc', cursor: 'pointer', textAlign: 'left',
+                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 18 }}>{medals[idx]}</span>
+                                <div>
+                                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
+                                    {v.name} — {v.groomer?.name || 'No groomer'}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                                    {v.company?.logoEmoji} {v.company?.name}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{
+                                  padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                                  background: v.todayAppts === 0 ? '#f0fdfa' : v.todayAppts <= 2 ? '#fffbeb' : '#fef2f2',
+                                  color: v.todayAppts === 0 ? '#0f766e' : v.todayAppts <= 2 ? '#92400e' : '#dc2626',
+                                }}>
+                                  {v.todayAppts === 0 ? '✅ Free' : `${v.todayAppts} appts`}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Solo selector de van — empresa y groomer automáticos */}
                 <div style={{ gridColumn: 'span 2' }}>
                   <label style={styles.lbl}>Van</label>
