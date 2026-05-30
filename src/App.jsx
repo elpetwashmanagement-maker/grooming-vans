@@ -2167,11 +2167,13 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
 // ===== VAN TRACKER TAB =====
 function VanTrackerTab({ vans, vanLocations, groomers }) {
   const activeVans = vans.filter(v => v.active !== false);
+  const cardStyle = { background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' };
   return (
     <div>
-      <SectionTitle eyebrow="Live Tracking" title="📍 Van Tracker" />
-      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
-        Updates every 30s · Groomers must have app open to share location
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Live Tracking</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 800, color: '#0f172a', marginTop: 4 }}>📍 Van Tracker</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Updates every 30s · Groomers must have app open</div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {activeVans.map(van => {
@@ -2181,7 +2183,7 @@ function VanTrackerTab({ vans, vanLocations, groomers }) {
           const minsAgo = loc ? Math.round((Date.now() - new Date(loc.timestamp)) / 60000) : null;
           const isVanOnline = loc && minsAgo <= 10;
           return (
-            <div key={van.id} style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: 14, padding: '16px' }}>
+            <div key={van.id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: isVanOnline ? '#0f766e' : '#e2e8f0', boxShadow: isVanOnline ? '0 0 8px #0f766e80' : 'none' }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>🚐 {van.name}</div>
