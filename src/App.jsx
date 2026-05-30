@@ -2470,6 +2470,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
+  const isViewer = session?.role === 'viewer';
   const lang = 'en';
   const t = useT(lang);
   const [drawerOpen, setDrawerOpen] = useState(false);
