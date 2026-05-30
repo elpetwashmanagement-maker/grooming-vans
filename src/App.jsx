@@ -1705,7 +1705,7 @@ export default function App() {
         );
       })()}
 
-      <footer style={{ ...styles.footer, paddingBottom: 80 }}><Sparkles size={12} /> Groomora · {session?.role === 'groomer' ? session?.userName : 'El Pet Wash'}</footer>
+      <div style={{ height: 80 }} />
     </div>
   );
 }
