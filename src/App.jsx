@@ -1559,6 +1559,7 @@ export default function App() {
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'semana' && canViewReports && <WeekTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
+        {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -2163,6 +2164,70 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
   );
 }
 
+// ===== VAN TRACKER TAB =====
+function VanTrackerTab({ vans, vanLocations, groomers }) {
+  const activeVans = vans.filter(v => v.active !== false);
+  return (
+    <div>
+      <SectionTitle eyebrow="Live Tracking" title="📍 Van Tracker" />
+      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 16 }}>
+        Updates every 30s · Groomers must have app open to share location
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {activeVans.map(van => {
+          const loc = vanLocations.find(l => l.van_id === van.id);
+          const groomer = groomers.find(g => g.vanId === van.id);
+          const company = DEFAULT_COMPANIES.find(c => c.id === van.companyId);
+          const minsAgo = loc ? Math.round((Date.now() - new Date(loc.timestamp)) / 60000) : null;
+          const isVanOnline = loc && minsAgo <= 10;
+          return (
+            <div key={van.id} style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: 14, padding: '16px' }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', flexShrink: 0, background: isVanOnline ? '#0f766e' : '#e2e8f0', boxShadow: isVanOnline ? '0 0 8px #0f766e80' : 'none' }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>🚐 {van.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  {company?.logoEmoji} {company?.name} · {groomer?.name || 'No groomer'}
+                </div>
+                {isVanOnline && loc && (
+                  <div style={{ fontSize: 11, color: '#0f766e', marginTop: 4 }}>
+                    📍 {loc.latitude.toFixed(5)}, {loc.longitude.toFixed(5)}
+                  </div>
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {isVanOnline ? (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f766e', padding: '3px 8px', background: '#f0fdfa', borderRadius: 999, marginBottom: 6 }}>
+                      🟢 {minsAgo === 0 ? 'Just now' : `${minsAgo}m ago`}
+                    </div>
+                    <a href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`} target="_blank" rel="noreferrer"
+                      style={{ display: 'block', fontSize: 12, color: '#fff', background: '#0f766e', padding: '6px 12px', borderRadius: 8, textDecoration: 'none', fontWeight: 600 }}>
+                      Open Maps 🗺️
+                    </a>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#94a3b8', padding: '3px 8px', background: '#f8fafc', borderRadius: 999 }}>⚫ Offline</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {vanLocations.length > 0 && (
+        <div style={{ marginTop: 16, padding: '12px 16px', background: '#f0fdfa', borderRadius: 12, border: '1px solid #ccfbf1' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>
+            🟢 {vanLocations.filter(l => Math.round((Date.now() - new Date(l.timestamp)) / 60000) <= 10).length} van(s) active right now
+          </div>
+          <a href={`https://www.google.com/maps/dir/${vanLocations.map(l => `${l.latitude},${l.longitude}`).join('/')}`} target="_blank" rel="noreferrer"
+            style={{ fontSize: 12, color: '#0f766e', textDecoration: 'none', fontWeight: 600 }}>
+            📍 See all vans on Google Maps →
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===== HEADER =====
 // ===== HEADER =====
 function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange, isOnline = true }) {
@@ -2183,6 +2248,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'gastos-empresa', label: 'Expenses',      icon: '💼', show: isAdmin },
     { id: 'inventario',     label: 'Inventory',     icon: '📦', show: true },
     { id: 'semana',         label: 'Weekly Report', icon: '📈', show: isAdmin || isManager },
+    { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
     { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin },
     { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
@@ -7925,48 +7991,6 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
             <KPI label="Mascotas" value={totalPets} color="#f59e0b" />
             <KPI label="Fee tarjeta" value={fmt(totalCardFees)} color="#ec4899" />
             <KPI label="Fee gasolina" value={fmt(totalGasFees)} sub="Company Income" color="#0284c7" />
-          </div>
-
-          {/* GPS Van Locations */}
-          <div style={{ ...styles.card, marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ ...styles.cardH3, margin: 0 }}>📍 Van Locations — Live</h3>
-              <div style={{ fontSize: 11, color: '#94a3b8' }}>Updates every 30s · Only when app is open</div>
-            </div>
-            {vanLocations.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '16px', color: '#94a3b8', fontSize: 13 }}>
-                No active vans right now — groomers must have the app open to share location
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {vanLocations.map(loc => {
-                  const van = vans.find(v => v.id === loc.van_id);
-                  const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
-                  const minsAgo = Math.round((Date.now() - new Date(loc.timestamp)) / 60000);
-                  const isRecent = minsAgo <= 5;
-                  return (
-                    <div key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', background: isRecent ? '#f0fdfa' : '#f8fafc', borderRadius: 10, border: `1px solid ${isRecent ? '#ccfbf1' : '#e2e8f0'}` }}>
-                      <div style={{ width: 10, height: 10, borderRadius: '50%', background: isRecent ? '#0f766e' : '#94a3b8', flexShrink: 0 }} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>🚐 {van?.name || loc.van_id} — {loc.groomer_name}</div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                          {company?.logoEmoji} {company?.name} · {loc.latitude.toFixed(4)}, {loc.longitude.toFixed(4)}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 11, color: isRecent ? '#0f766e' : '#94a3b8', fontWeight: 600 }}>
-                          {minsAgo === 0 ? 'Just now' : `${minsAgo}m ago`}
-                        </div>
-                        <a href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`} target="_blank" rel="noreferrer"
-                          style={{ fontSize: 11, color: '#0f766e', textDecoration: 'none' }}>
-                          📍 Open Maps
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
           {/* EPW vs ATW */}
