@@ -6078,7 +6078,24 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   const [editingPrice, setEditingPrice] = useState({});
   const [showNewService, setShowNewService] = useState(false);
   const [newService, setNewService] = useState({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
-  const [localSettings, setLocalSettings] = useState({ ...settings });
+  const [localSettings, setLocalSettings] = useState({ 
+    ...settings,
+    agreementEpw: settings.agreementEpw || AGREEMENTS.epw,
+    agreementAtw: settings.agreementAtw || AGREEMENTS.atw,
+    footerEpw: settings.footerEpw || INVOICE_FOOTERS.epw,
+    footerAtw: settings.footerAtw || INVOICE_FOOTERS.atw,
+  });
+
+  // Sync agreements on mount
+  useEffect(() => {
+    setLocalSettings(s => ({
+      ...s,
+      agreementEpw: s.agreementEpw || AGREEMENTS.epw,
+      agreementAtw: s.agreementAtw || AGREEMENTS.atw,
+      footerEpw: s.footerEpw || INVOICE_FOOTERS.epw,
+      footerAtw: s.footerAtw || INVOICE_FOOTERS.atw,
+    }));
+  }, []);
   const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
   const [agreementText, setAgreementText] = useState(settings.agreementText || '');
   const [invoiceFooter, setInvoiceFooter] = useState(settings.invoiceFooter || '');
@@ -6434,8 +6451,8 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
         const footerKey = company.id === 'epw' ? 'footerEpw' : 'footerAtw';
         const defaultText = AGREEMENTS[company.id] || '';
         const defaultFooter = INVOICE_FOOTERS[company.id] || '';
-        const currentText = localSettings[key] !== undefined ? localSettings[key] : defaultText;
-        const currentFooter = localSettings[footerKey] !== undefined ? localSettings[footerKey] : defaultFooter;
+        const currentText = localSettings[key] || AGREEMENTS[company.id] || '';
+        const currentFooter = localSettings[footerKey] || INVOICE_FOOTERS[company.id] || '';
         return (
           <div key={company.id} style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
