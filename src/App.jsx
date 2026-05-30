@@ -1553,6 +1553,7 @@ export default function App() {
             settings={{ ...settings, companies, groomersList: groomers }}
             refreshAppointments={refreshAppointments}
             cardsOnFile={cardsOnFile} setCardsOnFile={setCardsOnFile}
+            setTab={setTab}
           />
         )}
         {tab === 'breeds' && <BreedsTab session={session} />}
@@ -6921,7 +6922,7 @@ function BreedInput({ value, onChange, species = 'dog', placeholder = 'Escribir 
 }
 
 // ===== CLIENTES TAB =====
-function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments, cardsOnFile = [], setCardsOnFile = () => {} }) {
+function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, updateClient, removeClient, addPet, updatePet, servicePrices, addAppointment, vans, settings, refreshAppointments, cardsOnFile = [], setCardsOnFile = () => {}, setTab = () => {} }) {
   const [showCardPanel, setShowCardPanel] = useState(null);
   const [cardForm, setCardForm] = useState({ last4: '', brand: 'Visa', expMonth: '', expYear: '', nickname: '' });
   const [showNewPetForm, setShowNewPetForm] = useState(false);
@@ -6929,6 +6930,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showSchedulePrompt, setShowSchedulePrompt] = useState(null); // { clientId, clientName, pets }
   const [editingClient, setEditingClient] = useState(null);
   const [editingPet, setEditingPet] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -7123,59 +7125,47 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
     try {
     // 1. Crear client
     const clientId = uid();
-    const client = { id: clientId, ...clientForm, name: clientForm.name.trim(), active: true };
+    const client = { 
+      id: clientId, ...clientForm, 
+      name: clientForm.name.trim(), 
+      active: true,
+      notifySms: clientForm.notifySms || false,
+      notifyEmail: clientForm.notifyEmail || false,
+    };
     const clientOk = await addClient(client);
     if (!clientOk) { alert('❌ Error saving client. Check console.'); setSaving(false); return; }
 
-    // 2. Crear pets y appointment
-    const apptId = uid();
-    const apptPets = [];
-
+    // 2. Crear pets
+    const savedPets = [];
     for (const pf of petForms) {
+      if (!pf.name.trim()) continue;
       const petId = uid();
-      const pet = { id: petId, clientId, client_id: clientId, name: pf.name.trim(), breed: pf.breed, species: pf.species || 'dog', size: pf.size, hairType: pf.hairType, hair_type: pf.hairType, age: pf.age, color: pf.color, weight: pf.weight, allergies: pf.allergies, medicalNotes: pf.medicalNotes, medical_notes: pf.medicalNotes, behaviorNotes: pf.behaviorNotes, behavior_notes: pf.behaviorNotes };
+      const pet = { 
+        id: petId, clientId, client_id: clientId, 
+        name: pf.name.trim(), breed: pf.breed, species: pf.species || 'dog', 
+        size: getSizeByWeight(pf.weight) || pf.size, 
+        hairType: pf.hairType, hair_type: pf.hairType, 
+        age: pf.age, color: pf.color, weight: pf.weight, 
+        allergies: pf.allergies, medicalNotes: pf.medicalNotes, 
+        behaviorNotes: pf.behaviorNotes,
+        gender: pf.gender || '',
+      };
       await addPet(pet);
-
-      // Save ficha de grooming si tiene datos
-      const hasGrooming = pf.headTool || pf.bodyTool || pf.groomingNotes;
-      if (hasGrooming) {
-        const mainBlade = pf.bodyTool || pf.headTool || '';
-        const mainCombo = pf.legsTool || pf.bodyTool || '';
-        await saveGroomingRecord({
-          id: uid(), appointmentId: apptId, petId, vanId: apptForm.vanId, date: apptDate,
-          blade: mainBlade, combo: mainCombo,
-          head: `${pf.headTool}${pf.headNotes ? ' — ' + pf.headNotes : ''}`,
-          ears: `${pf.earsTool}${pf.earsNotes ? ' — ' + pf.earsNotes : ''}`,
-          body: `${pf.bodyTool}${pf.bodyNotes ? ' — ' + pf.bodyNotes : ''}`,
-          legs: `${pf.legsTool}${pf.legsNotes ? ' — ' + pf.legsNotes : ''}`,
-          tail: `${pf.tailTool}${pf.tailNotes ? ' — ' + pf.tailNotes : ''}`,
-          notes: pf.groomingNotes,
-          healthSkin: pf.healthSkin, healthEars: pf.healthEars,
-          healthNails: pf.healthNails, healthBehavior: pf.healthBehavior,
-        });
-        if (mainBlade) await supabase.from('pets').update({ last_blade: mainBlade, last_combo: mainCombo }).eq('id', petId);
-      }
-
-      apptPets.push({ id: uid(), petId, service: pf.serviceName, amount: getPetTotal(pf), tip: 0, cardFee: 0, method: 'Cash', status: 'pending', checkinTime: '', checkoutTime: '', pet: { id: petId, name: pf.name.trim(), breed: pf.breed, size: pf.size } });
+      savedPets.push(pet);
     }
-
-    // 3. Crear appointment
-    const appt = {
-      id: apptId, date: apptDate, timeStart: apptForm.timeStart, timeEnd: apptForm.timeEnd,
-      vanId: apptForm.vanId, clientId, status: 'unconfirmed',
-      notes: apptForm.notes, alertNotes: apptForm.alertNotes, agreementSigned: false,
-      client: { id: clientId, name: clientForm.name.trim(), address: clientForm.address },
-      pets: apptPets,
-    };
-    await addAppointment(appt);
-    for (const ap of apptPets) await saveAppointmentPet({ ...ap, appointmentId: apptId });
 
     setSaving(false);
     setShowNewForm(false);
     setClientForm(emptyClient);
     setPetForms([emptyPet()]);
-    setApptForm({ vanId: vans[0]?.id || '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '' });
-    alert(`✅ ${clientForm.name} creado con ${petForms.length} pet(s) y su appointment`);
+
+    // Mostrar popup de schedule
+    setShowSchedulePrompt({ 
+      clientId, 
+      clientName: client.name, 
+      pets: savedPets 
+    });
+
     } catch(err) {
       console.error('Error creating client:', err);
       alert(`❌ Error: ${err.monthsage}`);
@@ -7417,83 +7407,41 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
             </button>
           </div>
 
-          {/* PASO 3: Appointment */}
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-info)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Paso 3 — Appointment</div>
-            <div style={styles.formGrid}>
-              <div>
-                <label style={styles.lbl}>Date *</label>
-                <input type="date" value={apptDate} onChange={e => setApptDate(e.target.value)} style={styles.input} />
-              </div>
-              {/* Selector de company — solo admin/manager */}
-              {isAdmin && (
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={styles.lbl}>Company</label>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                    {(settings?.companies || DEFAULT_COMPANIES).map(c => (
-                      <button key={c.id} type="button"
-                        onClick={() => setApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || vans[0]?.id || '' }))}
-                        style={{ flex: 1, padding: '10px 12px', borderRadius: 10, border: `2px solid ${apptForm.companyId === c.id ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: apptForm.companyId === c.id ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: apptForm.companyId === c.id ? 700 : 400, color: apptForm.companyId === c.id ? '#0f766e' : 'var(--color-text-secondary)' }}>
-                        {c.logoEmoji} {c.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div>
-                <label style={styles.lbl}>Van asignada *</label>
-                <select value={apptForm.vanId} onChange={e => setApptForm(f => ({...f, vanId: e.target.value}))} style={styles.input}>
-                  {vans.filter(v => !apptForm.companyId || v.companyId === apptForm.companyId || !v.companyId).map(v => {
-                    const groomer = (settings?.groomersList || []).find(g => g.vanId === v.id);
-                    return <option key={v.id} value={v.id}>{v.name}{groomer ? ` — ${groomer.name}` : ''}</option>;
-                  })}
-                </select>
-              </div>
-              <div>
-                <label style={styles.lbl}>Hora inicio</label>
-                <input type="time" value={apptForm.timeStart} onChange={e => setApptForm(f => ({...f, timeStart: e.target.value}))} style={styles.input} />
-              </div>
-              <div>
-                <label style={styles.lbl}>Hora fin (estimada)</label>
-                <input type="time" value={apptForm.timeEnd} onChange={e => setApptForm(f => ({...f, timeEnd: e.target.value}))} style={styles.input} />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={styles.lbl}>Notes de la appointment</label>
-                <input value={apptForm.notes} onChange={e => setApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={styles.lbl}>⚠️ Notes de alerta (privado)</label>
-                <input value={apptForm.alertNotes} onChange={e => setApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo, client difícil..." />
-              </div>
-            </div>
-
-            {/* Total de la appointment */}
-            {totalAppointment > 0 && (
-              <div style={{ marginTop: 12, padding: '12px 16px', background: 'var(--color-background-success)', borderRadius: 10, border: '0.5px solid var(--color-border-success)' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-success)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Resumen de la appointment</div>
-                {petForms.filter(p => getPetTotal(p) > 0).map((p, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--color-text-success)', marginBottom: 4 }}>
-                    <div>
-                      <span>🐾 {p.name || `Pet ${i+1}`} — {p.serviceName}</span>
-                      {getAddonsTotal(p) > 0 && <div style={{ fontSize: 11, opacity: 0.8 }}>+ {(p.addons || []).length} add-on(s)</div>}
-                    </div>
-                    <span style={{ fontWeight: 500 }}>${getPetTotal(p).toFixed(2)}</span>
-                  </div>
-                ))}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)', paddingTop: 8, borderTop: '0.5px solid var(--color-border-success)', marginTop: 6 }}>
-                  <span>TOTAL CITA</span>
-                  <span>${totalAppointment.toFixed(2)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => setShowNewForm(false)} style={styles.btnSecondary}><X size={15} /> Cancel</button>
             <button onClick={handleCreateAll} style={styles.btnPrimary} disabled={saving}>
               {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-              {saving ? 'Creando...' : 'Crear client, pets y appointment'}
+              {saving ? 'Saving...' : '✅ Save Client & Pets'}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== POPUP: SCHEDULE NOW? ===== */}
+      {showSchedulePrompt && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 20, padding: '28px 24px', maxWidth: 380, width: '100%', textAlign: 'center', boxShadow: '0 32px 80px rgba(0,0,0,0.3)' }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 8 }}>
+              {showSchedulePrompt.clientName} saved!
+            </div>
+            <div style={{ fontSize: 14, color: '#64748b', marginBottom: 24 }}>
+              Client and {showSchedulePrompt.pets.length} pet(s) registered successfully.
+              Would you like to schedule an appointment now?
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setShowSchedulePrompt(null)}
+                style={{ flex: 1, padding: '12px', background: '#f1f5f9', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#64748b' }}>
+                Later
+              </button>
+              <button onClick={() => {
+                setShowSchedulePrompt(null);
+                if (addAppointment) setTab('citas');
+              }}
+                style={{ flex: 2, padding: '12px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                📅 Schedule Now →
+              </button>
+            </div>
           </div>
         </div>
       )}
