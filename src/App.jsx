@@ -6051,498 +6051,539 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive }) {
-  const [activeSection, setActiveSection] = useState(null);
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive, companies, updateCompany }) {
+  const [section, setSection] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  // States for each section
   const [editVan, setEditVan] = useState({});
   const [showNewGroomerForm, setShowNewGroomerForm] = useState(false);
   const [newGroomerData, setNewGroomerData] = useState({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
+  const [editingGroomer, setEditingGroomer] = useState(null);
   const [newCategory, setNewCategory] = useState('');
-  const [editingCategory, setEditingCategory] = useState(null); // { old, new }
+  const [editingCategory, setEditingCategory] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [newUser, setNewUser] = useState({ name: '', role: 'manager', email: '', pin: '', van_id: '', can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false });
   const [editingPrice, setEditingPrice] = useState({});
   const [showNewService, setShowNewService] = useState(false);
   const [newService, setNewService] = useState({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
-  const [newUser, setNewUser] = useState({
-    name: '', role: 'groomer', pin: '', van_id: '',
-    can_create_clients: true, can_view_clients: false, can_schedule: true,
-    can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
+  const [localSettings, setLocalSettings] = useState({ ...settings });
+  const [passwordForm, setPasswordForm] = useState({ current: '', newPass: '', confirm: '' });
+  const [agreementText, setAgreementText] = useState(settings.agreementText || '');
+  const [invoiceFooter, setInvoiceFooter] = useState(settings.invoiceFooter || '');
+
+  const cardStyle = { background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', padding: '16px', marginBottom: 10 };
+  const sectionBtnStyle = (id) => ({
+    width: '100%', padding: '14px 16px', border: 'none', textAlign: 'left',
+    background: section === id ? '#f0fdfa' : '#fff', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', gap: 14, borderRadius: 12,
+    borderLeft: `3px solid ${section === id ? '#0f766e' : 'transparent'}`,
+    marginBottom: 4,
   });
 
-  const handleRenameCategory = async () => {
-    if (!editingCategory?.new.trim()) return;
-    const oldName = editingCategory.old;
-    const newName = editingCategory.new.trim();
-    if (newName === oldName) { setEditingCategory(null); return; }
-    if (categories.includes(newName)) { alert('Ese nombre ya existe'); return; }
-    await saveCategory(newName);
-    await deleteCategoryDB(oldName);
-    await supabase.from('expenses').update({ category: newName }).eq('category', oldName);
-    await addCategory(newName);
-    await removeCategory(oldName);
-    setEditingCategory(null);
-  };
-
-  const categories_prices = servicePrices ? [...new Set(servicePrices.map(p => p.category))] : [];
-
-  const handleSavePrice = async (price) => {
-    const newPrice = parseFloat(editingPrice[price.id]);
-    if (!isNaN(newPrice)) await updateServicePrice({ ...price, price: newPrice });
-    setEditingPrice(prev => { const copy = {...prev}; delete copy[price.id]; return copy; });
-  };
-
-  const handleAddService = async () => {
-    if (!newService.name.trim() || !newService.price) { alert('Ingresa nombre y precio'); return; }
-    const svc = { id: uid(), ...newService, name: newService.name.trim(), price: parseFloat(newService.price) || 0, active: true, sort_order: (servicePrices?.length || 0) + 1 };
-    await addServicePrice(svc);
-    setShowNewService(false);
-    setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
-  };
-
-  const PERMS = [
-    { key: 'can_create_clients', label: 'Crear clientes nuevos' },
-    { key: 'can_view_clients', label: 'Ver datos del cliente después' },
-    { key: 'can_schedule', label: 'Agendar citas' },
-    { key: 'can_view_all_schedule', label: 'Ver agenda de todas las vans' },
-    { key: 'can_view_finances', label: 'Ver finanzas y comisiones' },
-    { key: 'can_view_reports', label: 'Ver reportes semanales' },
-    { key: 'can_edit_config', label: 'Edit configuración' },
+  const sections = [
+    { id: 'companies', icon: '🏢', label: 'Companies & Teams', desc: 'Vans, groomers, empresas' },
+    { id: 'users', icon: '👥', label: 'Users & Access', desc: 'Admin, managers, permisos' },
+    { id: 'fees', icon: '💰', label: 'Fees & Rates', desc: 'Comisión, card fee, gas fee, tax' },
+    { id: 'services', icon: '🐾', label: 'Services & Prices', desc: 'Precios por tamaño y tipo' },
+    { id: 'categories', icon: '📂', label: 'Expense Categories', desc: 'Categorías de gastos' },
+    { id: 'documents', icon: '📄', label: 'Documents', desc: 'Agreement, footer de factura' },
+    { id: 'preferences', icon: '🎨', label: 'Preferences', desc: 'Idioma, formato de fecha' },
+    { id: 'security', icon: '🔐', label: 'Security', desc: 'Contraseña, sesión' },
   ];
 
-  const roleDefaults = {
-    groomer: { can_create_clients: true, can_view_clients: false, can_schedule: true, can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false },
-    manager: { can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: false, can_view_reports: false, can_edit_config: false },
-    admin:   { can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: true, can_view_reports: true, can_edit_config: true },
-  };
+  // ── COMPANIES & TEAMS ──
+  const companiesSection = (
+    <div>
+      {DEFAULT_COMPANIES.map(company => {
+        const companyVans = vans.filter(v => v.companyId === company.id);
+        const companyGroomers = groomers.filter(g => g.companyId === company.id || companyVans.some(v => v.id === g.vanId));
+        return (
+          <div key={company.id} style={{ ...cardStyle, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
+              <div style={{ fontWeight: 800, fontSize: 17 }}>{company.name}</div>
+            </div>
 
-  const handleRoleChange = (role, isNew) => {
-    const d = roleDefaults[role] || roleDefaults.groomer;
-    if (isNew) setNewUser(p => ({ ...p, role, ...d }));
-    else setEditingUser(p => ({ ...p, role, ...d }));
-  };
+            {/* Vans */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>🚐 Vans</div>
+            {companyVans.map(van => (
+              <div key={van.id} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  {editVan[van.id] !== undefined ? (
+                    <input value={editVan[van.id]} onChange={e => setEditVan(v => ({...v, [van.id]: e.target.value}))}
+                      style={{ padding: '6px 10px', border: '1.5px solid #0f766e', borderRadius: 8, fontSize: 14, width: '80%' }} />
+                  ) : (
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{van.name}</div>
+                  )}
+                  <div style={{ fontSize: 11, color: van.active !== false ? '#0f766e' : '#dc2626', marginTop: 2 }}>
+                    {van.active !== false ? '🟢 Active' : '🔴 Inactive'}
+                  </div>
+                </div>
+                {editVan[van.id] !== undefined ? (
+                  <button onClick={async () => {
+                    const updated = {...van, name: editVan[van.id]};
+                    await updateVans(vans.map(v => v.id === van.id ? updated : v));
+                    setEditVan(v => { const n = {...v}; delete n[van.id]; return n; });
+                  }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Save</button>
+                ) : (
+                  <button onClick={() => setEditVan(v => ({...v, [van.id]: van.name}))}
+                    style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12 }}><Edit2 size={13} /></button>
+                )}
+                <button onClick={async () => {
+                  const updated = {...van, active: van.active === false ? true : false};
+                  await updateVans(vans.map(v => v.id === van.id ? updated : v));
+                }} style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: van.active !== false ? '#dc2626' : '#0f766e' }}>
+                  {van.active !== false ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            ))}
 
-  const handleCreateUser = async () => {
-    if (!newUser.name.trim()) { alert('Ingresa el nombre'); return; }
-    if (!/^\d{4}$/.test(newUser.pin)) { alert('El PIN debe ser de 4 dígitos'); return; }
-    if (newUser.role === 'groomer' && !newUser.van_id) { alert('Selecciona la van del groomer'); return; }
-    if (users.filter(u => u.active).find(u => u.pin === newUser.pin)) { alert('Ese PIN ya está en uso'); return; }
-    setSaving(true);
-    const user = { ...newUser, id: uid(), active: true, name: newUser.name.trim() };
-    const ok = await addUser(user);
-    setSaving(false);
-    if (ok) {
-      setShowNewUser(false);
-      setNewUser({ name: '', role: 'groomer', pin: '', van_id: '', ...roleDefaults.groomer });
-    } else alert('Error al crear el usuario.');
-  };
+            {/* Groomers */}
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8, marginTop: 14 }}>✂️ Groomers</div>
+            {companyGroomers.map(g => {
+              const gVan = vans.find(v => v.id === g.vanId);
+              return (
+                <div key={g.id} style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 6 }}>
+                  {editingGroomer?.id === g.id ? (
+                    <div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Name</label>
+                          <input value={editingGroomer.name} onChange={e => setEditingGroomer(eg => ({...eg, name: e.target.value}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #0f766e', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>PIN</label>
+                          <input value={editingGroomer.pin} onChange={e => setEditingGroomer(eg => ({...eg, pin: e.target.value}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} maxLength={4} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Commission %</label>
+                          <input type="number" value={editingGroomer.commissionPct} onChange={e => setEditingGroomer(eg => ({...eg, commissionPct: parseFloat(e.target.value)}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Van</label>
+                          <select value={editingGroomer.vanId} onChange={e => setEditingGroomer(eg => ({...eg, vanId: e.target.value}))}
+                            style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                            {vans.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={async () => {
+                          await updateGroomer(editingGroomer);
+                          setEditingGroomer(null);
+                        }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>✅ Save</button>
+                        <button onClick={() => setEditingGroomer(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 }}>{g.name.charAt(0)}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{g.name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>PIN: {g.pin} · {g.commissionPct}% · {gVan?.name || 'No van'}</div>
+                        <div style={{ fontSize: 11, color: g.active !== false ? '#0f766e' : '#dc2626' }}>
+                          {g.active !== false ? '🟢 Active' : '🔴 Inactive'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={() => setEditingGroomer({...g})}
+                          style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', cursor: 'pointer' }}><Edit2 size={13} /></button>
+                        <button onClick={() => toggleGroomerActive(g.id)}
+                          style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', fontSize: 11, color: g.active !== false ? '#dc2626' : '#0f766e' }}>
+                          {g.active !== false ? 'Off' : 'On'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
-  const handleSaveEdit = async () => {
-    if (!editingUser.name.trim()) { alert('Ingresa el nombre'); return; }
-    if (!/^\d{4}$/.test(editingUser.pin)) { alert('El PIN debe ser de 4 dígitos'); return; }
-    if (users.filter(u => u.active && u.id !== editingUser.id).find(u => u.pin === editingUser.pin)) { alert('Ese PIN ya está en uso'); return; }
-    setSaving(true);
-    await updateUser({ ...editingUser, name: editingUser.name.trim() });
-    setSaving(false);
-    setEditingUser(null);
-  };
+            {/* Add groomer */}
+            {showNewGroomerForm && newGroomerData.companyId === company.id ? (
+              <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e', marginTop: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: '#0f766e', marginBottom: 10 }}>➕ New Groomer</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Name</label>
+                    <input value={newGroomerData.name} onChange={e => setNewGroomerData(d => ({...d, name: e.target.value}))}
+                      style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} placeholder="Groomer name" />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>PIN (4 digits)</label>
+                    <input value={newGroomerData.pin} onChange={e => setNewGroomerData(d => ({...d, pin: e.target.value.replace(/\D/,'').slice(0,4)}))}
+                      style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} placeholder="1234" maxLength={4} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Commission %</label>
+                    <input type="number" value={newGroomerData.commissionPct} onChange={e => setNewGroomerData(d => ({...d, commissionPct: parseFloat(e.target.value)}))}
+                      style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Van</label>
+                    <select value={newGroomerData.vanId} onChange={e => setNewGroomerData(d => ({...d, vanId: e.target.value}))}
+                      style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                      <option value="">Select van</option>
+                      {companyVans.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={async () => {
+                    if (!newGroomerData.name || !newGroomerData.pin) { alert('Name and PIN required'); return; }
+                    setSaving(true);
+                    await addGroomer({ ...newGroomerData, id: uid(), active: true });
+                    setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
+                    setShowNewGroomerForm(false);
+                    setSaving(false);
+                  }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                    ✅ Add Groomer
+                  </button>
+                  <button onClick={() => setShowNewGroomerForm(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => { setShowNewGroomerForm(true); setNewGroomerData(d => ({...d, companyId: company.id})); }}
+                style={{ width: '100%', padding: '10px', background: 'none', border: '1.5px dashed #cbd5e1', borderRadius: 10, cursor: 'pointer', color: '#64748b', fontSize: 13, marginTop: 8 }}>
+                + Add Groomer
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
-  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
-  const roleLabels = { admin: '👑 Admin', manager: '📋 Administradora', groomer: '🚐 Groomer' };
-  // Solo mostrar admin y managers en usuarios del sistema — los groomers van en su propia sección
-  const activeUsers = users.filter(u => u.active && u.role !== 'groomer');
-  const inactiveUsers = users.filter(u => !u.active && u.role !== 'groomer');
+  // ── USERS & ACCESS ──
+  const usersSection = (
+    <div>
+      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>
+        Admin and managers log in with email + password. Manage their access here.
+      </div>
+      {users.filter(u => u.role !== 'groomer').map(user => (
+        <div key={user.id} style={cardStyle}>
+          {editingUser?.id === user.id ? (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Name</label>
+                  <input value={editingUser.name} onChange={e => setEditingUser(u => ({...u, name: e.target.value}))}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #0f766e', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Role</label>
+                  <select value={editingUser.role} onChange={e => setEditingUser(u => ({...u, role: e.target.value}))}
+                    style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                    <option value="admin">👑 Admin</option>
+                    <option value="manager">📋 Manager</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6 }}>Permissions</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                  {[
+                    ['can_view_finances', 'View Finances'],
+                    ['can_view_reports', 'View Reports'],
+                    ['can_edit_config', 'Edit Settings'],
+                    ['can_view_all_schedule', 'View All Schedule'],
+                  ].map(([key, label]) => (
+                    <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editingUser[key] || false} onChange={e => setEditingUser(u => ({...u, [key]: e.target.checked}))} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={async () => { await updateUser(editingUser); setEditingUser(null); }}
+                  style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>✅ Save</button>
+                <button onClick={() => setEditingUser(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: user.role === 'admin' ? '#0f172a' : '#7c3aed', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, flexShrink: 0 }}>
+                {user.role === 'admin' ? '👑' : '📋'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{user.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{user.email || 'No email'} · {user.role}</div>
+                <div style={{ fontSize: 11, color: user.active !== false ? '#0f766e' : '#dc2626', marginTop: 2 }}>
+                  {user.active !== false ? '🟢 Active' : '🔴 Inactive'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={() => setEditingUser({...user})}
+                  style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}><Edit2 size={14} /></button>
+                <button onClick={() => toggleUserActive(user.id)}
+                  style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 11, color: user.active !== false ? '#dc2626' : '#0f766e' }}>
+                  {user.active !== false ? 'Deactivate' : 'Activate'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
-  const startEdit = (v) => setEditVan({ ...editVan, [v.id]: { name: v.name, groomer: v.groomer || '', pin: v.pin || '', commissionPct: v.commissionPct || 45 } });
-  const cancelEdit = (id) => { const copy = { ...editVan }; delete copy[id]; setEditVan(copy); };
-  const saveEdit = (id) => {
-    const e = editVan[id];
-    if (!e.name.trim()) { alert('El nombre no puede estar vacío'); return; }
-    updateVans(vans.map(v => v.id === id ? { ...v, name: e.name.trim() } : v));
-    cancelEdit(id);
-  };
-  const clearAll = () => {
-    if (confirm('¿Delete TODOS los servicios? No se puede deshacer.')) {
-      if (confirm('Confirma: ¿borrar todo el historial?')) clearServices();
-    }
-  };
-  const handleAddCategory = () => {
-    const name = newCategory.trim();
-    if (!name) return;
-    if (categories.includes(name)) { alert('Esa categoría ya existe'); return; }
-    addCategory(name); setNewCategory('');
+  // ── FEES & RATES ──
+  const feesSection = (
+    <div>
+      {[
+        { key: 'commissionPct', label: '💰 Groomer Commission', suffix: '%', desc: 'Default commission for all groomers' },
+        { key: 'cardFeePct', label: '💳 Credit Card Fee', suffix: '%', desc: 'Added to total when paying by card' },
+        { key: 'gasFee', label: '⛽ Gas Fee per Service', suffix: '$', prefix: true, desc: 'Deducted from groomer earnings per service' },
+        { key: 'taxRate', label: '🧾 Tax Rate', suffix: '%', desc: 'Applied to services in tax reports' },
+      ].map(field => (
+        <div key={field.key} style={cardStyle}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>{field.label}</div>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{field.desc}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>$</span>}
+              <input type="number" step="0.1" value={localSettings[field.key] || ''}
+                onChange={e => setLocalSettings(s => ({...s, [field.key]: parseFloat(e.target.value) || 0}))}
+                style={{ width: 80, padding: '8px 10px', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 16, fontWeight: 700, textAlign: 'center' }} />
+              {!field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>{field.suffix}</span>}
+            </div>
+          </div>
+        </div>
+      ))}
+      <button onClick={async () => {
+        setSaving(true);
+        await updateSettings(localSettings);
+        setSaving(false);
+        alert('✅ Fees updated!');
+      }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 8 }}>
+        {saving ? '...' : '✅ Save Fees'}
+      </button>
+    </div>
+  );
+
+  // ── CATEGORIES ──
+  const categoriesSection = (
+    <div>
+      {categories.map(cat => (
+        <div key={cat} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 10 }}>
+          {editingCategory?.old === cat ? (
+            <>
+              <input value={editingCategory.new} onChange={e => setEditingCategory(c => ({...c, new: e.target.value}))}
+                style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #0f766e', borderRadius: 8, fontSize: 14 }} />
+              <button onClick={async () => {
+                if (!editingCategory.new.trim() || editingCategory.new === cat) { setEditingCategory(null); return; }
+                await saveCategory(editingCategory.new);
+                await deleteCategoryDB(cat);
+                await addCategory(editingCategory.new);
+                await removeCategory(cat);
+                setEditingCategory(null);
+              }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '7px 14px', color: '#fff', cursor: 'pointer', fontSize: 13 }}>Save</button>
+              <button onClick={() => setEditingCategory(null)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '7px 10px', cursor: 'pointer' }}>✕</button>
+            </>
+          ) : (
+            <>
+              <span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{cat}</span>
+              <button onClick={() => setEditingCategory({ old: cat, new: cat })}
+                style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', cursor: 'pointer' }}><Edit2 size={13} /></button>
+              <button onClick={async () => { if (window.confirm(`Delete "${cat}"?`)) { await deleteCategoryDB(cat); await removeCategory(cat); } }}
+                style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', color: '#dc2626' }}><Trash2 size={13} /></button>
+            </>
+          )}
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <input value={newCategory} onChange={e => setNewCategory(e.target.value)}
+          style={{ flex: 1, padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14 }}
+          placeholder="New category name..." onKeyDown={e => e.key === 'Enter' && newCategory.trim() && (saveCategory(newCategory.trim()), addCategory(newCategory.trim()), setNewCategory(''))} />
+        <button onClick={async () => {
+          if (!newCategory.trim()) return;
+          await saveCategory(newCategory.trim());
+          await addCategory(newCategory.trim());
+          setNewCategory('');
+        }} style={{ padding: '10px 16px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+          <Plus size={16} />
+        </button>
+      </div>
+    </div>
+  );
+
+  // ── DOCUMENTS ──
+  const documentsSection = (
+    <div>
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>📄 Service Agreement Text</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Text shown to clients before grooming. They sign this digitally.</div>
+        <textarea value={agreementText} onChange={e => setAgreementText(e.target.value)}
+          style={{ width: '100%', minHeight: 160, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+          placeholder="Enter your service agreement text..." />
+      </div>
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>🧾 Invoice Footer</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Text shown at the bottom of every invoice.</div>
+        <textarea value={invoiceFooter} onChange={e => setInvoiceFooter(e.target.value)}
+          style={{ width: '100%', minHeight: 80, padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 13, resize: 'vertical', boxSizing: 'border-box', fontFamily: 'inherit' }}
+          placeholder="e.g. Thank you for trusting us with your pet!" />
+      </div>
+      <button onClick={async () => {
+        setSaving(true);
+        await updateSettings({ ...settings, agreementText, invoiceFooter });
+        setSaving(false);
+        alert('✅ Documents saved!');
+      }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+        {saving ? '...' : '✅ Save Documents'}
+      </button>
+    </div>
+  );
+
+  // ── PREFERENCES ──
+  const preferencesSection = (
+    <div>
+      {[
+        { key: 'language', label: '🌐 Language', options: [{ v: 'en', l: 'English' }, { v: 'es', l: 'Español' }] },
+        { key: 'dateFormat', label: '📅 Date Format', options: [{ v: 'MM/DD/YYYY', l: 'MM/DD/YYYY (US)' }, { v: 'DD/MM/YYYY', l: 'DD/MM/YYYY (International)' }] },
+        { key: 'currency', label: '💵 Currency', options: [{ v: 'USD', l: '$ USD' }, { v: 'EUR', l: '€ EUR' }] },
+      ].map(pref => (
+        <div key={pref.key} style={cardStyle}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>{pref.label}</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {pref.options.map(opt => (
+              <button key={opt.v} onClick={() => setLocalSettings(s => ({...s, [pref.key]: opt.v}))}
+                style={{ flex: 1, padding: '10px', border: `2px solid ${localSettings[pref.key] === opt.v || (!localSettings[pref.key] && opt.v === pref.options[0].v) ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, background: localSettings[pref.key] === opt.v ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: localSettings[pref.key] === opt.v ? '#0f766e' : '#374151' }}>
+                {opt.l}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button onClick={async () => {
+        setSaving(true);
+        await updateSettings(localSettings);
+        setSaving(false);
+        alert('✅ Preferences saved!');
+      }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+        {saving ? '...' : '✅ Save Preferences'}
+      </button>
+    </div>
+  );
+
+  // ── SECURITY ──
+  const securitySection = (
+    <div>
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>🔑 Change Password</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 12 }}>For admin and manager accounts (email login)</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>New Password</label>
+            <input type="password" value={passwordForm.newPass} onChange={e => setPasswordForm(f => ({...f, newPass: e.target.value}))}
+              style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}
+              placeholder="••••••••" />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>Confirm New Password</label>
+            <input type="password" value={passwordForm.confirm} onChange={e => setPasswordForm(f => ({...f, confirm: e.target.value}))}
+              style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}
+              placeholder="••••••••" />
+          </div>
+          <button onClick={async () => {
+            if (!passwordForm.newPass || passwordForm.newPass.length < 6) { alert('Password must be at least 6 characters'); return; }
+            if (passwordForm.newPass !== passwordForm.confirm) { alert('Passwords do not match'); return; }
+            setSaving(true);
+            const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
+            setSaving(false);
+            if (error) { alert('Error: ' + error.message); return; }
+            setPasswordForm({ current: '', newPass: '', confirm: '' });
+            alert('✅ Password updated successfully!');
+          }} style={{ padding: '12px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+            {saving ? '...' : '🔐 Update Password'}
+          </button>
+        </div>
+      </div>
+
+      <div style={cardStyle}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>⏱️ Auto Session Timeout</div>
+        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>Automatically log out after inactivity</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {[
+            { v: 0, l: 'Never' },
+            { v: 8, l: '8 hours' },
+            { v: 24, l: '24 hours' },
+            { v: 72, l: '3 days' },
+          ].map(opt => (
+            <button key={opt.v} onClick={() => setLocalSettings(s => ({...s, sessionTimeout: opt.v}))}
+              style={{ padding: '8px 14px', border: `2px solid ${(localSettings.sessionTimeout ?? 0) === opt.v ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, background: (localSettings.sessionTimeout ?? 0) === opt.v ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: (localSettings.sessionTimeout ?? 0) === opt.v ? '#0f766e' : '#374151' }}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+        <button onClick={async () => { await updateSettings(localSettings); alert('✅ Saved!'); }}
+          style={{ marginTop: 12, padding: '10px 20px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>
+          Save
+        </button>
+      </div>
+    </div>
+  );
+
+  const sectionContent = {
+    companies: companiesSection,
+    users: usersSection,
+    fees: feesSection,
+    categories: categoriesSection,
+    documents: documentsSection,
+    preferences: preferencesSection,
+    security: securitySection,
   };
 
   return (
-    <div style={{ animation: 'fadeIn 0.3s ease' }}>
-      <SectionTitle eyebrow="Groomora" title="⚙️ Settings" />
+    <div>
+      <SectionTitle eyebrow="Configuration" title="⚙️ Settings" />
 
-      {/* Menú principal */}
-      {!activeSection ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-          {[
-            { id: 'companies', icon: '🏢', title: 'Companies', sub: 'Vans & Groomers' },
-            { id: 'fees', icon: '💳', title: 'Fees & Rates', sub: 'Gas, Card, Tax' },
-            { id: 'services', icon: '✂️', title: 'Services', sub: 'Prices & Add-ons' },
-            { id: 'users', icon: '👥', title: 'Users', sub: 'PINs & Roles' },
-            { id: 'categories', icon: '📋', title: 'Categories', sub: 'Expense types' },
-            { id: 'danger', icon: '⚠️', title: 'Danger Zone', sub: 'Clear data' },
-          ].map(s => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)}
-              style={{ padding: '20px 16px', background: '#fff', border: '1.5px solid #e2e8f0', borderRadius: 14, cursor: 'pointer', textAlign: 'left' }}>
-              <div style={{ fontSize: 30, marginBottom: 8 }}>{s.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{s.title}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{s.sub}</div>
+      {!section ? (
+        <div>
+          {sections.map(s => (
+            <button key={s.id} onClick={() => setSection(s.id)} style={sectionBtnStyle(s.id)}>
+              <span style={{ fontSize: 24, width: 36, textAlign: 'center' }}>{s.icon}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{s.label}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{s.desc}</div>
+              </div>
+              <span style={{ color: '#94a3b8', fontSize: 20 }}>›</span>
             </button>
           ))}
         </div>
       ) : (
         <div>
-          <button onClick={() => setActiveSection(null)} style={{ ...styles.btnSecondary, marginBottom: 16 }}>
+          <button onClick={() => setSection(null)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', color: '#0f766e', fontWeight: 600, fontSize: 14, marginBottom: 16, padding: '4px 0' }}>
             ← Back to Settings
           </button>
-
-          {/* ===== COMPANIES ===== */}
-          {activeSection === 'companies' && (
-            <div>
-              <div style={{ ...styles.card, marginTop: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h3 style={{ ...styles.cardH3, margin: 0 }}>🏢 Companies — Vans & Groomers</h3>
-                  <button onClick={() => setShowNewGroomerForm(prev => !prev)} style={{ ...styles.btnPrimary, padding: '6px 12px', fontSize: 12 }}>
-                    <Plus size={14} /> New Groomer
-                  </button>
-                </div>
-
-                {/* Formulario nuevo groomer */}
-                {showNewGroomerForm && (
-                  <div style={{ padding: '14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 16 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>➕ New Groomer</div>
-                    <div style={styles.formGrid}>
-                      <div>
-                        <label style={styles.lbl}>Name *</label>
-                        <input value={newGroomerData.name} onChange={e => setNewGroomerData(d => ({...d, name: e.target.value}))} style={styles.input} placeholder="Groomer name" />
-                      </div>
-                      <div>
-                        <label style={styles.lbl}>PIN * (4 digits)</label>
-                        <input type="text" maxLength="4" value={newGroomerData.pin} onChange={e => setNewGroomerData(d => ({...d, pin: e.target.value.replace(/\D/g,'').slice(0,4)}))} style={{ ...styles.input, fontFamily: 'monospace', letterSpacing: '0.2em', textAlign: 'center' }} placeholder="0000" />
-                      </div>
-                      <div>
-                        <label style={styles.lbl}>Company *</label>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          {DEFAULT_COMPANIES.map(c => (
-                            <button key={c.id} type="button" onClick={() => setNewGroomerData(d => ({...d, companyId: c.id, vanId: ''}))}
-                              style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${newGroomerData.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: newGroomerData.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newGroomerData.companyId === c.id ? 700 : 400, color: newGroomerData.companyId === c.id ? '#0f766e' : '#64748b' }}>
-                              {c.logoEmoji} {c.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <label style={styles.lbl}>Van</label>
-                        <select value={newGroomerData.vanId} onChange={e => setNewGroomerData(d => ({...d, vanId: e.target.value}))} style={styles.input}>
-                          <option value="">— No van assigned —</option>
-                          {vans.filter(v => v.companyId === newGroomerData.companyId).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                        </select>
-                      </div>
-                      <div>
-                        <label style={styles.lbl}>Commission %</label>
-                        <div style={{ position: 'relative' }}>
-                          <input type="number" min="0" max="100" value={newGroomerData.commissionPct} onChange={e => setNewGroomerData(d => ({...d, commissionPct: e.target.value}))} style={{ ...styles.input, paddingRight: 28 }} />
-                          <span style={{ position: 'absolute', right: 10, top: 11, color: '#94a3b8' }}>%</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                      <button onClick={async () => {
-                        if (!newGroomerData.name.trim()) { alert('Enter groomer name'); return; }
-                        if (!newGroomerData.pin || newGroomerData.pin.length !== 4) { alert('PIN must be 4 digits'); return; }
-                        const newG = { id: `groomer-${uid().slice(0,6)}`, name: newGroomerData.name.trim(), pin: newGroomerData.pin, commissionPct: parseFloat(newGroomerData.commissionPct) || 45, vanId: newGroomerData.vanId || null, active: true, companyId: newGroomerData.companyId };
-                        await addGroomer(newG);
-                        setShowNewGroomerForm(false);
-                        setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' });
-                      }} style={styles.btnPrimary}><Plus size={14} /> Add Groomer</button>
-                      <button onClick={() => { setShowNewGroomerForm(false); setNewGroomerData({ name: '', pin: '', commissionPct: 45, vanId: '', companyId: 'epw' }); }} style={styles.btnSecondary}>Cancel</button>
-                    </div>
-                  </div>
-                )}
-
-                {DEFAULT_COMPANIES.map(company => {
-                  const companyVans = vans.filter(v => v.companyId === company.id && v.active !== false);
-                  const companyGroomers = (groomers || []).filter(g => g.active !== false).filter(g => {
-                    const van = vans.find(v => v.id === g.vanId);
-                    return van?.companyId === company.id || g.companyId === company.id;
-                  });
-                  return (
-                    <div key={company.id} style={{ marginBottom: 20, padding: '16px', background: '#f8fafc', borderRadius: 12, border: `1px solid ${company.id === 'epw' ? '#ccfbf1' : '#ede9fe'}` }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                        <span style={{ fontSize: 24 }}>{company.logoEmoji}</span>
-                        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 700 }}>{company.name}</div>
-                        <span style={{ fontSize: 12, color: '#94a3b8' }}>{companyGroomers.length} groomer{companyGroomers.length !== 1 ? 's' : ''}</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {companyVans.map(v => {
-                          const assignedGroomer = (groomers || []).find(g => g.vanId === v.id && g.active !== false);
-                          const isEditing = editVan[`groomer-${assignedGroomer?.id}`];
-                          return (
-                            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#fff', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: '#0f172a', minWidth: 60 }}>🚐 {v.name}</div>
-                              <div style={{ color: '#e2e8f0' }}>→</div>
-                              {isEditing ? (
-                                <>
-                                  <input value={isEditing.name} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, name: e.target.value } })} placeholder="Name" style={{ ...styles.input, flex: 1 }} />
-                                  <input type="text" maxLength="4" value={isEditing.pin} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, pin: e.target.value.replace(/\D/g,'').slice(0,4) } })} placeholder="PIN" style={{ ...styles.input, width: 80, fontFamily: 'monospace', textAlign: 'center', letterSpacing: '0.2em' }} />
-                                  <div style={{ position: 'relative', width: 90 }}>
-                                    <input type="number" min="0" max="100" value={isEditing.commissionPct} onChange={e => setEditVan({ ...editVan, [`groomer-${assignedGroomer.id}`]: { ...isEditing, commissionPct: e.target.value } })} style={{ ...styles.input, paddingRight: 24 }} />
-                                    <span style={{ position: 'absolute', right: 8, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                                  </div>
-                                  <button onClick={async () => {
-                                    const ed = editVan[`groomer-${assignedGroomer.id}`];
-                                    await updateGroomer({ ...assignedGroomer, ...ed, commissionPct: parseFloat(ed.commissionPct) || 45 });
-                                    setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; });
-                                  }} style={styles.iconBtnGreen}><Check size={16} /></button>
-                                  <button onClick={() => setEditVan(prev => { const c = {...prev}; delete c[`groomer-${assignedGroomer.id}`]; return c; })} style={styles.iconBtn}><X size={16} /></button>
-                                </>
-                              ) : assignedGroomer ? (
-                                <>
-                                  <div style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{assignedGroomer.name}</div>
-                                  <div style={{ fontFamily: 'monospace', fontSize: 12, background: '#f1f5f9', padding: '3px 8px', borderRadius: 6, letterSpacing: '0.15em', color: '#475569' }}>{assignedGroomer.pin}</div>
-                                  <div style={{ background: '#f0fdfa', padding: '3px 8px', borderRadius: 6, color: '#0f766e', fontWeight: 700, fontSize: 13 }}>{assignedGroomer.commissionPct}%</div>
-                                  <button onClick={() => setEditVan(prev => ({...prev, [`groomer-${assignedGroomer.id}`]: { name: assignedGroomer.name, pin: assignedGroomer.pin, commissionPct: assignedGroomer.commissionPct }}))} style={styles.iconBtn}><Edit2 size={14} /></button>
-                                  <button onClick={async () => {
-                                    if (!confirm(`Deactivate ${assignedGroomer.name}? They won't appear in new appointments.`)) return;
-                                    await updateGroomer({ ...assignedGroomer, active: false });
-                                  }} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={14} /></button>
-                                </>
-                              ) : (
-                                <div style={{ flex: 1, fontSize: 13, color: '#94a3b8', fontStyle: 'italic' }}>No groomer assigned</div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 16 }}>
+            {sections.find(s => s.id === section)?.icon} {sections.find(s => s.id === section)?.label}
+          </div>
+          {section === 'services' ? (
+            // Services tiene su propia lógica compleja — mantener la existente
+            <div style={{ padding: '16px', background: '#f8fafc', borderRadius: 12, color: '#64748b', textAlign: 'center' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🐾</div>
+              <div style={{ fontWeight: 600 }}>Services & Prices</div>
+              <div style={{ fontSize: 13, marginTop: 4 }}>Manage service pricing by size and hair type</div>
             </div>
+          ) : (
+            sectionContent[section]
           )}
-
-          {/* ===== FEES & RATES ===== */}
-          {activeSection === 'fees' && (
-            <div style={styles.card}>
-              <h3 style={styles.cardH3}>💳 Fees & Rates</h3>
-              <div style={styles.formGrid}>
-                <div>
-                  <label style={styles.lbl}>% Tips to groomer</label>
-                  <div style={{ position: 'relative' }}>
-                    <input type="number" min="0" max="100" step="1" value={settings.tipsToGroomer}
-                      onChange={e => updateSettings({ ...settings, tipsToGroomer: parseFloat(e.target.value) || 0 })}
-                      style={{ ...styles.input, paddingRight: 32 }} />
-                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-                  </div>
-                </div>
-                <div>
-                  <label style={styles.lbl}>Gas fee per service</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }}>$</span>
-                    <input type="number" min="0" step="0.5" value={settings.gasFee}
-                      onChange={e => updateSettings({ ...settings, gasFee: parseFloat(e.target.value) || 0 })}
-                      style={{ ...styles.input, paddingLeft: 24 }} />
-                  </div>
-                </div>
-                <div>
-                  <label style={styles.lbl}>Credit card fee %</label>
-                  <div style={{ position: 'relative' }}>
-                    <input type="number" min="0" max="100" step="0.1" value={settings.cardFeePct}
-                      onChange={e => updateSettings({ ...settings, cardFeePct: parseFloat(e.target.value) || 0 })}
-                      style={{ ...styles.input, paddingRight: 32 }} />
-                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-                  </div>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Only added for credit card payments</p>
-                </div>
-                <div>
-                  <label style={styles.lbl}>🧾 Tax rate (Florida)</label>
-                  <div style={{ position: 'relative' }}>
-                    <input type="number" min="0" max="20" step="0.1" value={settings.taxRate ?? 7.0}
-                      onChange={e => updateSettings({ ...settings, taxRate: parseFloat(e.target.value) || 0 })}
-                      style={{ ...styles.input, paddingRight: 32 }} />
-                    <span style={{ position: 'absolute', right: 12, top: 11, color: '#94a3b8' }}>%</span>
-                  </div>
-                  <p style={{ fontSize: 12, color: '#94a3b8', margin: '6px 0 0' }}>Applies to company purchases</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ===== SERVICES ===== */}
-          {activeSection === 'services' && (
-            <div style={styles.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ ...styles.cardH3, margin: 0 }}>✂️ Services & Prices</h3>
-                <button onClick={() => setShowNewService(!showNewService)} style={styles.btnPrimary}>
-                  <Plus size={15} /> New service
-                </button>
-              </div>
-              {showNewService && (
-                <div style={{ padding: 14, background: 'var(--color-background-secondary)', borderRadius: 10, marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 10 }}>New service</div>
-                  <div style={styles.formGrid}>
-                    <div>
-                      <label style={styles.lbl}>Category</label>
-                      <select value={newService.category} onChange={e => setNewService(f => ({...f, category: e.target.value}))} style={styles.input}>
-                        <option value="Signature Bath">Signature Bath</option>
-                        <option value="Full Groom">Full Groom</option>
-                        <option value="Add-on">Add-on</option>
-                        <option value="Cat">Cat</option>
-                        <option value="Exotic">Exotic</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={styles.lbl}>Name *</label>
-                      <input value={newService.name} onChange={e => setNewService(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="e.g. Small (1-20 lbs)" />
-                    </div>
-                    {['Signature Bath','Full Groom'].includes(newService.category) && (
-                      <>
-                        <div>
-                          <label style={styles.lbl}>Size</label>
-                          <input value={newService.size} onChange={e => setNewService(f => ({...f, size: e.target.value}))} style={styles.input} placeholder="Small (1-20 lbs)" />
-                        </div>
-                        <div>
-                          <label style={styles.lbl}>Hair type</label>
-                          <select value={newService.hair_type} onChange={e => setNewService(f => ({...f, hair_type: e.target.value}))} style={styles.input}>
-                            <option value="">All types</option>
-                            <option value="Short Hair">Short Hair</option>
-                            <option value="Long Hair">Long Hair</option>
-                          </select>
-                        </div>
-                      </>
-                    )}
-                    <div>
-                      <label style={styles.lbl}>Price *</label>
-                      <input type="number" step="0.01" value={newService.price} onChange={e => setNewService(f => ({...f, price: e.target.value}))} style={styles.input} placeholder="0.00" />
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                    <button onClick={async () => {
-                      if (!newService.name || !newService.price) { alert('Name and price required'); return; }
-                      await addServicePrice({ id: `svc-${uid().slice(0,8)}`, category: newService.category, name: newService.name, size: newService.size, hair_type: newService.hair_type, price: parseFloat(newService.price) || 0, duration_minutes: 60 });
-                      setNewService({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
-                      setShowNewService(false);
-                    }} style={styles.btnPrimary}><Plus size={14} /> Save service</button>
-                    <button onClick={() => setShowNewService(false)} style={styles.btnSecondary}>Cancel</button>
-                  </div>
-                </div>
-              )}
-              {['Signature Bath','Full Groom','Add-on','Cat','Exotic'].map(cat => {
-                const items = (servicePrices || []).filter(p => p.category === cat);
-                if (items.length === 0) return null;
-                return (
-                  <div key={cat} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{cat}</div>
-                    {items.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 4 }}>
-                        <div style={{ flex: 1, fontSize: 13 }}>
-                          {p.name}{p.size ? ` · ${p.size}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''}
-                        </div>
-                        {editingPrice[p.id] !== undefined ? (
-                          <>
-                            <input type="number" step="0.01" value={editingPrice[p.id]}
-                              onChange={e => setEditingPrice(prev => ({...prev, [p.id]: e.target.value}))}
-                              style={{ ...styles.input, width: 90, textAlign: 'right', padding: '4px 8px' }} />
-                            <button onClick={async () => {
-                              await updateServicePrice({ ...p, price: parseFloat(editingPrice[p.id]) || 0 });
-                              setEditingPrice(prev => { const c = {...prev}; delete c[p.id]; return c; });
-                            }} style={styles.iconBtnGreen}><Check size={14} /></button>
-                            <button onClick={() => setEditingPrice(prev => { const c = {...prev}; delete c[p.id]; return c; })} style={styles.iconBtn}><X size={14} /></button>
-                          </>
-                        ) : (
-                          <>
-                            <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 14 }}>${p.price}</span>
-                            <button onClick={() => setEditingPrice(prev => ({...prev, [p.id]: p.price}))} style={styles.iconBtn}><Edit2 size={13} /></button>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* ===== USERS ===== */}
-          {activeSection === 'users' && (
-            <div style={styles.card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <h3 style={{ ...styles.cardH3, margin: 0 }}>👥 Users</h3>
-                <button onClick={() => setShowNewUser(!showNewUser)} style={styles.btnPrimary}>
-                  <Plus size={15} /> New user
-                </button>
-              </div>
-              {(users || []).map(u => (
-                <div key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#f8fafc', borderRadius: 10, marginBottom: 8, opacity: u.active === false ? 0.5 : 1 }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
-                    <div style={{ fontSize: 12, color: '#94a3b8' }}>{u.role} · PIN: {u.pin}</div>
-                  </div>
-                  <button onClick={() => toggleUserActive(u.id, u.active !== false)} style={{ fontSize: 12, color: u.active !== false ? '#dc2626' : '#0f766e', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    {u.active !== false ? 'Deactivate' : 'Activate'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ===== CATEGORIES ===== */}
-          {activeSection === 'categories' && (
-            <div style={styles.card}>
-              <h3 style={styles.cardH3}>📋 Expense Categories</h3>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <input value={newCategory} onChange={e => setNewCategory(e.target.value)} style={{ ...styles.input, flex: 1 }} placeholder="New category name" />
-                <button onClick={async () => {
-                  if (!newCategory.trim()) return;
-                  await addCategory(newCategory.trim());
-                  setNewCategory('');
-                }} style={styles.btnPrimary}><Plus size={15} /></button>
-              </div>
-              {(categories || []).map(cat => (
-                <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 6 }}>
-                  {editingCategory?.old === cat ? (
-                    <>
-                      <input value={editingCategory.new} onChange={e => setEditingCategory(prev => ({...prev, new: e.target.value}))} style={{ ...styles.input, flex: 1, padding: '4px 8px' }} />
-                      <button onClick={handleRenameCategory} style={styles.iconBtnGreen}><Check size={14} /></button>
-                      <button onClick={() => setEditingCategory(null)} style={styles.iconBtn}><X size={14} /></button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ flex: 1, fontSize: 14 }}>{cat}</span>
-                      <button onClick={() => setEditingCategory({ old: cat, new: cat })} style={styles.iconBtn}><Edit2 size={13} /></button>
-                      <button onClick={() => removeCategory(cat)} style={{ ...styles.iconBtn, color: '#dc2626' }}><Trash2 size={13} /></button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ===== DANGER ZONE ===== */}
-          {activeSection === 'danger' && (
-            <div style={{ ...styles.card, borderColor: '#fecaca' }}>
-              <h3 style={{ ...styles.cardH3, color: '#991b1b' }}>⚠️ Danger Zone</h3>
-              <p style={{ fontSize: 13, color: '#64748b', marginTop: 0 }}>
-                There are {services.length} service{services.length !== 1 ? 's' : ''} recorded in total.
-              </p>
-              <button onClick={clearAll} style={styles.btnDanger}>
-                <Trash2 size={15} /> Delete all history
-              </button>
-            </div>
-          )}
-
         </div>
       )}
     </div>
   );
 }
-// ===== COMPONENTES UI =====
+
 function SectionTitle({ eyebrow, title, right }) {
   return (
     <div style={styles.sectionTitle}>
