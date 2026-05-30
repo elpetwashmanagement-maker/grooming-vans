@@ -1503,6 +1503,9 @@ export default function App() {
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
   const isGroomer = session.role === 'groomer';
+  const isViewer = session.role === 'viewer';
+  // Viewer ve solo su empresa
+  const viewerCompanyId = isViewer ? session.companyId : null;
   const canViewFinances = session.permissions?.can_view_finances || isAdmin;
   const canViewReports = session.permissions?.can_view_reports || isAdmin;
   const canEditConfig = session.permissions?.can_edit_config || isAdmin;
@@ -1518,7 +1521,9 @@ export default function App() {
   // Admin ve todas las vans, groomer solo la suya
   const visibleVans = isGroomer
     ? (currentVan ? [currentVan] : [])
-    : vans; // Admin y manager ven todas
+    : isViewer
+      ? vans.filter(v => v.companyId === viewerCompanyId)
+      : vans; // Admin y manager ven todas
 
   return (
     <div style={styles.app}>
@@ -2016,24 +2021,30 @@ function SignatureModal({ appt, companyId, onSave, onClose }) {
 // ===== LOGIN =====
 
 
+// Viewer users (company-specific, read-only)
+const VIEWER_USERS = [
+  { id: 'viewer-epw', name: 'Mariam', username: 'Mariam', pin: '6501', role: 'viewer', companyId: 'epw',
+    permissions: { can_create_clients: false, can_view_clients: true, can_schedule: false, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false } },
+  { id: 'viewer-atw', name: 'Melissa', username: 'Melissa', pin: '2026', role: 'viewer', companyId: 'atw',
+    permissions: { can_create_clients: false, can_view_clients: true, can_schedule: false, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false } },
+];
+
 function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, loadingUsers }) {
-  const [step, setStep] = useState('select');
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [userInput, setUserInput] = useState('');
   const [pinInput, setPinInput] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState('input'); // input | pin | password
+  const [matchedUser, setMatchedUser] = useState(null);
   const [error, setError] = useState('');
   const [shaking, setShaking] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
 
   const groomers = (groomersList && groomersList.length > 0)
     ? groomersList.filter(g => g.active !== false).map(g => ({
-        id: g.id, name: g.name, pin: g.pin, role: 'groomer',
+        id: g.id, name: g.name, pin: String(g.pin), role: 'groomer',
         van_id: g.vanId, vanId: g.vanId, commissionPct: g.commissionPct,
         companyId: g.companyId || 'epw',
-        can_create_clients: true, can_view_clients: false, can_schedule: true,
-        can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false,
       }))
     : users.filter(u => u.role === 'groomer');
 
@@ -2043,11 +2054,84 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
     setTimeout(() => { setPinInput(''); setError(''); setShaking(false); }, 700);
   };
 
+  const handleUserInput = (val) => {
+    setUserInput(val);
+    setError('');
+  };
+
+  const handleNext = () => {
+    const val = userInput.trim();
+    if (!val) { setError('Please enter your username'); return; }
+
+    // Check if email → admin/manager login
+    if (val.includes('@')) {
+      setStep('password');
+      return;
+    }
+
+    // Check if groomer PIN (4 digits)
+    if (/^\d{4}$/.test(val)) {
+      const groomer = groomers.find(g => g.pin === val);
+      if (groomer) {
+        onLogin({
+          userId: groomer.id, userName: groomer.name, role: 'groomer',
+          vanId: groomer.vanId, commissionPct: groomer.commissionPct,
+          companyId: groomer.companyId || 'epw',
+          permissions: { can_create_clients: true, can_view_clients: false, can_schedule: true, can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false }
+        });
+        return;
+      } else {
+        setError('PIN not found');
+        return;
+      }
+    }
+
+    // Check viewer users by username
+    const viewer = VIEWER_USERS.find(v => v.username.toLowerCase() === val.toLowerCase());
+    if (viewer) {
+      setMatchedUser(viewer);
+      setStep('pin');
+      setPinInput('');
+      return;
+    }
+
+    // Check groomers by name
+    const groomerByName = groomers.find(g => g.name.toLowerCase() === val.toLowerCase());
+    if (groomerByName) {
+      setMatchedUser(groomerByName);
+      setStep('pin');
+      setPinInput('');
+      return;
+    }
+
+    setError('User not found');
+  };
+
+  const handleDigit = (d) => {
+    if (pinInput.length >= 4) return;
+    const newPin = pinInput + d;
+    setPinInput(newPin); setError('');
+    if (newPin.length === 4) setTimeout(() => {
+      if (!matchedUser) { shake(); return; }
+      const expectedPin = String(matchedUser.pin);
+      if (newPin === expectedPin) {
+        onLogin({
+          userId: matchedUser.id, userName: matchedUser.name,
+          role: matchedUser.role,
+          vanId: matchedUser.vanId || matchedUser.van_id || null,
+          commissionPct: matchedUser.commissionPct || 0,
+          companyId: matchedUser.companyId || 'epw',
+          permissions: matchedUser.permissions || {}
+        });
+      } else { shake(); }
+    }, 150);
+  };
+
   const handleEmailLogin = async () => {
-    if (!email || !password) { setError('Enter email and password'); return; }
+    if (!userInput || !password) { setError('Enter email and password'); return; }
     setLoggingIn(true); setError('');
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email: userInput, password });
       if (authError) { setError('Invalid email or password'); setLoggingIn(false); return; }
       const { data: appUser } = await supabase.from('app_users').select('*').eq('id', data.user.id).single();
       if (!appUser) { setError('User not configured'); setLoggingIn(false); return; }
@@ -2064,22 +2148,6 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
     setLoggingIn(false);
   };
 
-  const handleDigit = (d) => {
-    if (pinInput.length >= 4) return;
-    const newPin = pinInput + d;
-    setPinInput(newPin); setError('');
-    if (newPin.length === 4) setTimeout(() => {
-      if (newPin === selectedUser.pin) {
-        onLogin({
-          userId: selectedUser.id, userName: selectedUser.name, role: selectedUser.role,
-          vanId: selectedUser.van_id || selectedUser.vanId,
-          commissionPct: selectedUser.commissionPct, companyId: selectedUser.companyId || 'epw',
-          permissions: { can_create_clients: true, can_view_clients: false, can_schedule: true, can_view_all_schedule: false, can_view_finances: false, can_view_reports: false, can_edit_config: false }
-        });
-      } else { shake(); }
-    }, 150);
-  };
-
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0f172a 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
@@ -2088,123 +2156,103 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
         </div>
         <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff' }}>Groomora</div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
-          {step === 'select' ? 'Select your profile' : step === 'email' ? 'Management Login' : `Welcome, ${selectedUser?.name}`}
+          {step === 'input' ? 'Enter your username or PIN' : step === 'password' ? 'Enter your password' : 'Enter your PIN'}
         </div>
       </div>
 
-      <div style={{ width: '100%', maxWidth: 440, background: 'rgba(255,255,255,0.97)', borderRadius: 24, padding: '28px 24px', boxShadow: '0 32px 80px rgba(0,0,0,0.3)' }}>
+      <div style={{ width: '100%', maxWidth: 400, background: 'rgba(255,255,255,0.97)', borderRadius: 24, padding: '28px 24px', boxShadow: '0 32px 80px rgba(0,0,0,0.3)' }}
+        className={shaking ? 'shake' : ''}>
 
-        {step === 'select' && (
+        {/* STEP 1: Username / email / PIN input */}
+        {step === 'input' && (
           <div>
-            {loadingUsers ? (
-              <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8' }}>
-                <Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} />
-              </div>
-            ) : (
-              <div>
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Management</div>
-                  <button onClick={() => setStep('email')}
-                    style={{ width: '100%', padding: '14px 18px', background: '#f0f4ff', border: '1.5px solid #e0e7ff', borderRadius: 14, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 46, height: 46, borderRadius: 12, background: '#0f172a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>👑</div>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>Admin & Managers</div>
-                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>Login with email & password</div>
-                    </div>
-                    <div style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: 18 }}>›</div>
-                  </button>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Groomers</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-                    {groomers.map(u => {
-                      const van = vans?.find(v => v.id === u.vanId);
-                      const company = companies?.find(c => c.id === (van?.companyId || u.companyId));
-                      return (
-                        <button key={u.id} onClick={() => { setSelectedUser(u); setStep('pin'); setPinInput(''); setError(''); }}
-                          style={{ padding: '16px 14px', background: '#f0fdfa', border: '1.5px solid #ccfbf1', borderRadius: 14, cursor: 'pointer', textAlign: 'center' }}>
-                          <div style={{ width: 50, height: 50, borderRadius: '50%', margin: '0 auto 10px', background: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: '#fff', fontWeight: 800 }}>{u.name.charAt(0)}</div>
-                          <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{u.name}</div>
-                          <div style={{ fontSize: 11, color: '#64748b', marginTop: 3 }}>{company?.logoEmoji} {van?.name || ''}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {step === 'email' && (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>
-              <button onClick={() => { setStep('select'); setEmail(''); setPassword(''); setError(''); }}
-                style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#64748b', fontSize: 14 }}>← Back</button>
-              <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>Management Login</div>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Email</label>
-              <input type="email" value={email} onChange={e => { setEmail(e.target.value); setError(''); }}
-                onKeyDown={e => e.key === 'Enter' && handleEmailLogin()}
-                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
-                placeholder="your@email.com" autoComplete="email" />
-            </div>
-            <div style={{ marginBottom: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <input type={showPassword ? 'text' : 'password'} value={password}
-                  onChange={e => { setPassword(e.target.value); setError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && handleEmailLogin()}
-                  style={{ width: '100%', padding: '12px 42px 12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, outline: 'none', boxSizing: 'border-box' }}
-                  placeholder="••••••••" autoComplete="current-password" />
-                <button onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: 12, top: 12, background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
-            {error && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>❌ {error}</div>}
-            <button onClick={handleEmailLogin} disabled={loggingIn}
-              style={{ width: '100%', padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              {loggingIn ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Lock size={18} />}
-              {loggingIn ? 'Signing in...' : 'Sign In'}
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>Username or PIN</label>
+            <input
+              type="text"
+              value={userInput}
+              onChange={e => handleUserInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleNext()}
+              placeholder="Enter your username, email or 4-digit PIN"
+              autoComplete="off"
+              autoCapitalize="off"
+              style={{ width: '100%', padding: '14px 16px', border: '1.5px solid #e2e8f0', borderRadius: 12, fontSize: 16, boxSizing: 'border-box', outline: 'none', letterSpacing: userInput.match(/^\d+$/) ? '0.3em' : 'normal' }}
+            />
+            {error && <div style={{ color: '#dc2626', fontSize: 13, marginTop: 8 }}>{error}</div>}
+            <button onClick={handleNext}
+              style={{ width: '100%', marginTop: 14, padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+              Continue →
             </button>
           </div>
         )}
 
-        {step === 'pin' && selectedUser && (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ width: 72, height: 72, borderRadius: '50%', margin: '0 auto 12px', background: '#0f766e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 30, color: '#fff', fontWeight: 800 }}>{selectedUser.name.charAt(0)}</div>
-            <div style={{ fontWeight: 700, fontSize: 20, color: '#0f172a', marginBottom: 4 }}>{selectedUser.name}</div>
-            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 28 }}>Enter your 4-digit PIN</div>
-            <div style={{ display: 'flex', justifyContent: 'center', gap: 14, marginBottom: 28, animation: shaking ? 'shake 0.5s ease' : 'none' }}>
+        {/* STEP 2a: PIN pad */}
+        {step === 'pin' && (
+          <div>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 18, color: '#0f172a' }}>Welcome</div>
+              <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Enter your 4-digit PIN</div>
+            </div>
+            {/* PIN dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 24 }}>
               {[0,1,2,3].map(i => (
-                <div key={i} style={{ width: 18, height: 18, borderRadius: '50%', background: i < pinInput.length ? (error ? '#dc2626' : '#0f766e') : '#e2e8f0', transition: 'all 0.15s', transform: i < pinInput.length ? 'scale(1.2)' : 'scale(1)' }} />
+                <div key={i} style={{ width: 16, height: 16, borderRadius: '50%', background: i < pinInput.length ? '#0f766e' : '#e2e8f0', transition: 'background 0.15s' }} />
               ))}
             </div>
-            {error && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 16 }}>❌ {error}</div>}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 280, margin: '0 auto' }}>
-              {['1','2','3','4','5','6','7','8','9'].map(d => (
-                <button key={d} onClick={() => handleDigit(d)}
-                  style={{ height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a' }}>{d}</button>
+            {error && <div style={{ color: '#dc2626', fontSize: 13, textAlign: 'center', marginBottom: 12 }}>{error}</div>}
+            {/* Numpad */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+              {[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map((d, i) => (
+                <button key={i} onClick={() => {
+                  if (d === '') return;
+                  if (d === '⌫') { setPinInput(p => p.slice(0,-1)); return; }
+                  handleDigit(String(d));
+                }}
+                  style={{ padding: '16px', fontSize: d === '⌫' ? 20 : 22, fontWeight: 600, background: d === '' ? 'transparent' : '#f8fafc', border: d === '' ? 'none' : '1.5px solid #e2e8f0', borderRadius: 12, cursor: d === '' ? 'default' : 'pointer', color: '#0f172a' }}>
+                  {d}
+                </button>
               ))}
-              <button onClick={() => { setStep('select'); setPinInput(''); setError(''); }}
-                style={{ height: 64, borderRadius: 14, border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#94a3b8' }}>Back</button>
-              <button onClick={() => handleDigit('0')}
-                style={{ height: 64, borderRadius: 14, border: '1.5px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 22, fontWeight: 700, color: '#0f172a' }}>0</button>
-              <button onClick={() => setPinInput(p => p.slice(0,-1))}
-                style={{ height: 64, borderRadius: 14, border: 'none', background: '#fef2f2', cursor: 'pointer', fontSize: 20, color: '#dc2626' }}>⌫</button>
             </div>
+            <button onClick={() => { setStep('input'); setMatchedUser(null); setPinInput(''); setError(''); }}
+              style={{ width: '100%', marginTop: 14, padding: '12px', background: 'none', border: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer' }}>
+              ← Back
+            </button>
+          </div>
+        )}
+
+        {/* STEP 2b: Password */}
+        {step === 'password' && (
+          <div>
+            <div style={{ marginBottom: 12, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+              📧 {userInput}
+            </div>
+            <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>Password</label>
+            <div style={{ position: 'relative' }}>
+              <input type={showPassword ? 'text' : 'password'} value={password}
+                onChange={e => { setPassword(e.target.value); setError(''); }}
+                onKeyDown={e => e.key === 'Enter' && handleEmailLogin()}
+                placeholder="••••••••"
+                style={{ width: '100%', padding: '14px 44px 14px 16px', border: '1.5px solid #e2e8f0', borderRadius: 12, fontSize: 16, boxSizing: 'border-box' }} />
+              <button onClick={() => setShowPassword(s => !s)}
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+            {error && <div style={{ color: '#dc2626', fontSize: 13, marginTop: 8 }}>{error}</div>}
+            <button onClick={handleEmailLogin} disabled={loggingIn}
+              style={{ width: '100%', marginTop: 14, padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+              {loggingIn ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : 'Sign In →'}
+            </button>
+            <button onClick={() => { setStep('input'); setPassword(''); setError(''); }}
+              style={{ width: '100%', marginTop: 10, padding: '12px', background: 'none', border: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer' }}>
+              ← Back
+            </button>
           </div>
         )}
       </div>
-      <div style={{ marginTop: 24, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>Groomora © 2026 · Group Guerrero Orejarena International LLC</div>
     </div>
   );
 }
 
-// ===== HOME TAB =====
 function HomeTab({ session, appointments, vans, clients, pets, settings, setTab, groomers }) {
   const isGroomer = session?.role === 'groomer';
   const isAdmin = session?.role === 'admin';
@@ -2411,23 +2459,23 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
 
   const allTabs = [
     { id: 'home',           label: 'Home',          icon: '🏠', show: true },
-    { id: 'appointments',          label: 'Schedule',      icon: '🗓️', show: true },
-    { id: 'clients',       label: 'Clients',       icon: '👥', show: isAdmin || isManager },
-    { id: 'breeds',          label: 'AI Breeds',     icon: '🐾', show: true },
-    { id: 'registro',       label: isGroomer ? 'Daily Log' : 'Daily Log', icon: '⛽', show: true },
-    { id: 'cierre',         label: isGroomer ? 'My Close' : 'Daily Close', icon: '💰', show: true },
-    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin },
+    { id: 'appointments',   label: 'Schedule',      icon: '🗓️', show: true },
+    { id: 'clients',        label: 'Clients',       icon: '👥', show: isAdmin || isManager },
+    { id: 'breeds',         label: 'AI Breeds',     icon: '🐾', show: !isViewer },
+    { id: 'registro',       label: 'Daily Log',     icon: '⛽', show: !isViewer },
+    { id: 'cierre',         label: isGroomer ? 'My Close' : 'Daily Close', icon: '💰', show: !isViewer },
+    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin || isViewer },
     { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin },
-    { id: 'inventory',     label: 'Inventory',     icon: '📦', show: true },
-    { id: 'week',         label: 'Weekly Report', icon: '📈', show: isAdmin || isManager },
+    { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer },
+    { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer },
     { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
     { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin },
     { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
   ].filter(t => t.show);
 
-  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e' };
-  const roleLabels = { admin: 'Admin', manager: 'Manager', groomer: 'Groomer' };
+  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e', viewer: '#b45309' };
+  const roleLabels = { admin: 'Admin', manager: 'Manager', groomer: 'Groomer', viewer: 'Viewer' };
 
   const handleTabClick = (id) => {
     setTab(id);
