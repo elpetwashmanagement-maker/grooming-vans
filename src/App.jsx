@@ -1382,7 +1382,7 @@ export default function App() {
   };
   const removeClient = async (id) => {
     const client = clients.find(c => c.id === id);
-    const clientAppts = appointments.filter(a => a.clientId === id);
+    const clientAppts = appointments.filter(a => String(a.clientId) === String(id));
     const clientPetsList = pets.filter(p => p.client_id === id);
 
     const msg = `⚠️ ¿Delete a ${client?.name}?\n\nEsto eliminará permanentemente:\n• ${clientPetsList.length} mascota(s)\n• ${clientAppts.length} cita(s)\n• Todas las fichas de grooming\n\nNo se puede deshacer.`;
@@ -3091,7 +3091,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
       serviceName: newApptForm.serviceName,
       discountPct: newApptForm.discountPct,
       recurrenceWeeks: newApptForm.recurrenceWeeks || 0,
-      client: clients.find(c => c.id === newApptForm.clientId) || null,
+      client: clients.find(c => String(c.id) === String(newApptForm.clientId)) || null,
       pets: petsList,
     };
     await addAppointment(appt);
@@ -3272,28 +3272,45 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
             <div style={{ gridColumn: 'span 2' }}>
               <label style={styles.lbl}>Cliente *</label>
               <div style={{ position: 'relative' }}>
-                <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: ''})); }}
-                  style={styles.input} placeholder="Search cliente por nombre..." />
-                {clientSearch && filteredClients.length > 0 && !newApptForm.clientId && (
-                  <div style={styles.suggestionsBox}>
-                    {filteredClients.map(c => (
-                      <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
-                        className="suggestion-hover" style={styles.suggestionItem}>
-                        <div style={{ fontWeight: 500, fontSize: 13 }}>{c.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{c.address}</div>
-                      </button>
-                    ))}
+                {newApptForm.clientId ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>
+                        ✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name || clientSearch}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                        {clients.find(c => String(c.id) === String(newApptForm.clientId))?.address || ''}
+                      </div>
+                    </div>
+                    <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
                   </div>
+                ) : (
+                  <>
+                    <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: ''})); }}
+                      style={styles.input} placeholder="Search client by name..." autoComplete="off" />
+                    {clientSearch && filteredClients.length > 0 && (
+                      <div style={styles.suggestionsBox}>
+                        {filteredClients.map(c => (
+                          <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
+                            className="suggestion-hover" style={styles.suggestionItem}>
+                            <div style={{ fontWeight: 500, fontSize: 13 }}>{c.name}</div>
+                            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{c.address}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               {!newApptForm.clientId && (
                 <button onClick={() => setShowNewClient(true)} style={{ ...styles.btnSecondary, marginTop: 6, fontSize: 12, padding: '5px 10px' }}>
-                  <Plus size={13} /> Cliente nuevo
+                  <Plus size={13} /> New client
                 </button>
               )}
               {newApptForm.clientId && (
                 <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-success)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-success)' }}>
-                  ✅ {clients.find(c => c.id === newApptForm.clientId)?.name} — {clients.find(c => c.id === newApptForm.clientId)?.address}
+                  ✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name} — {clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}
                 </div>
               )}
             </div>
