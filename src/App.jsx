@@ -3091,7 +3091,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [cobroForm, setCobroForm] = useState({ method: 'Cash', tip: '', step: 1 });
   const [viewMode, setViewMode] = useState('lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
-  const [filterVanId, setFilterVanId] = useState('todos');
+  const isViewer = session?.role === 'viewer';
+  const viewerCompany = session?.companyId || null;
+  const [filterVanId, setFilterVanId] = useState(isViewer ? viewerCompany : 'todos');
   const [showSignature, setShowSignature] = useState(null); // appt
   const [reasignando, setReasignando] = useState(null); // appt id
   const [editingPets, setEditingPets] = useState(null);
@@ -3429,7 +3431,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       {/* Filtro de company y groomer — solo admin */}
       {!isGroomer && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {/* Filtro por company */}
+          {/* Filtro por company — oculto para viewers */}
+          {!isViewer && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Company:</span>
             <button onClick={() => setFilterVanId('todos')}
@@ -3445,6 +3448,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               🐕 All Tails Wag ({appointments.filter(a => a.date === date && vans.find(v => v.id === a.vanId)?.companyId === 'atw').length})
             </button>
           </div>
+          )}
 
           {/* Filtro por groomer */}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
