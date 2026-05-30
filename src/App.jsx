@@ -3448,472 +3448,338 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       {/* Formulario new appointment */}
       {showNewAppt && (
         <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>New Appointment — {formatDateNice(date)}</h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>📅 New Appointment</h3>
             <button onClick={() => setShowNewAppt(false)} style={styles.iconBtn}><X size={16} /></button>
           </div>
 
-          {/* Search client */}
-          <div style={styles.formGrid}>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>Client *</label>
+          {/* STEP 1: Company */}
+          {!isGroomer && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={styles.lbl}>🏢 Company *</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                {DEFAULT_COMPANIES.map(c => (
+                  <button key={c.id} type="button"
+                    onClick={() => setNewApptForm(f => ({ ...f, companyId: c.id, vanId: vans.find(v => v.companyId === c.id)?.id || f.vanId }))}
+                    style={{ flex: 1, padding: '10px', borderRadius: 10, border: `2px solid ${newApptForm.companyId === c.id ? '#0f766e' : '#e2e8f0'}`, background: newApptForm.companyId === c.id ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 14, fontWeight: 700, color: newApptForm.companyId === c.id ? '#0f766e' : '#64748b' }}>
+                    {c.logoEmoji} {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Date + Time */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div>
+              <label style={styles.lbl}>📅 Date *</label>
+              <input type="date" value={date} onChange={e => setDate && setDate(e.target.value)}
+                style={styles.input} />
+            </div>
+            <div>
+              <label style={styles.lbl}>⏰ Start Time *</label>
+              <input type="time" value={newApptForm.timeStart}
+                onChange={e => {
+                  const start = e.target.value;
+                  const numPets = newApptForm.petIds.length || 1;
+                  const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                  const [h, m] = start.split(':').map(Number);
+                  const endH = Math.min(h + duration, 23);
+                  const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+                  setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime}));
+                }}
+                style={styles.input} />
+            </div>
+          </div>
+
+          {/* STEP 3: Client */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={styles.lbl}>🔍 Client *</label>
+            {newApptForm.clientId ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14 }}>✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name}</div>
+                  <div style={{ fontSize: 11, color: '#64748b' }}>{clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}</div>
+                </div>
+                <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 20 }}>×</button>
+              </div>
+            ) : (
               <div style={{ position: 'relative' }}>
-                {newApptForm.clientId ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>
-                        ✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name || clientSearch}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                        {clients.find(c => String(c.id) === String(newApptForm.clientId))?.address || ''}
-                      </div>
-                    </div>
-                    <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+                <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: '', petIds: []})); }}
+                  style={styles.input} placeholder="Search client by name..." autoComplete="off" />
+                {clientSearch && filteredClients.length > 0 && (
+                  <div style={styles.suggestionsBox}>
+                    {filteredClients.slice(0, 6).map(c => (
+                      <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
+                        className="suggestion-hover" style={styles.suggestionItem}>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>{c.address}</div>
+                      </button>
+                    ))}
                   </div>
-                ) : (
-                  <>
-                    <input value={clientSearch} onChange={e => { setClientSearch(e.target.value); setNewApptForm(f => ({...f, clientId: ''})); }}
-                      style={styles.input} placeholder="Search client by name..." autoComplete="off" />
-                    {clientSearch && filteredClients.length > 0 && (
-                      <div style={styles.suggestionsBox}>
-                        {filteredClients.map(c => (
-                          <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
-                            className="suggestion-hover" style={styles.suggestionItem}>
-                            <div style={{ fontWeight: 500, fontSize: 13 }}>{c.name}</div>
-                            <div style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}>{c.address}</div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </>
                 )}
               </div>
-              {!newApptForm.clientId && (
-                <button onClick={() => setShowNewClient(true)} style={{ ...styles.btnSecondary, marginTop: 6, fontSize: 12, padding: '5px 10px' }}>
-                  <Plus size={13} /> New client
-                </button>
-              )}
-              {newApptForm.clientId && (
-                <div style={{ marginTop: 6, padding: '6px 10px', background: 'var(--color-background-success)', borderRadius: 6, fontSize: 12, color: 'var(--color-text-success)' }}>
-                  ✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name} — {clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}
-                </div>
-              )}
-            </div>
+            )}
+          </div>
 
-            {/* Hora — antes del Smart Scheduling */}
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>Start Time *</label>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <input type="time" value={newApptForm.timeStart}
+          {/* STEP 4: Smart Scheduling → Van */}
+          {newApptForm.clientId && !isGroomer && (() => {
+            const client = clients.find(c => String(c.id) === String(newApptForm.clientId));
+            const companyVans = vans.filter(v => v.active !== false && (!newApptForm.companyId || v.companyId === newApptForm.companyId));
+            const vanOptions = companyVans.map(v => {
+              const groomer = groomers.find(g => g.vanId === v.id);
+              const todayAppts = appointments.filter(a => a.vanId === v.id && a.date === date && a.status !== 'cancelled').length;
+              return { ...v, groomer, todayAppts };
+            }).sort((a, b) => a.todayAppts - b.todayAppts);
+
+            return (
+              <div style={{ marginBottom: 16 }}>
+                {/* Smart Scheduling */}
+                {client?.address && vanOptions.length > 0 && (
+                  <div style={{ padding: '12px 14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e', marginBottom: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>💡 Smart Scheduling — Suggested vans</div>
+                    <div style={{ fontSize: 11, color: '#64748b', marginBottom: 8 }}>📍 {client.address.split(',').slice(0,2).join(',')}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {vanOptions.slice(0, 3).map((v, idx) => {
+                        const medals = ['🥇','🥈','🥉'];
+                        const isSelected = newApptForm.vanId === v.id;
+                        const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
+                        return (
+                          <button key={v.id} type="button"
+                            onClick={() => setNewApptForm(f => ({ ...f, vanId: v.id, companyId: v.companyId || f.companyId, groomerId: v.groomer?.id || '' }))}
+                            style={{ padding: '10px 12px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#fff' : '#f8fafc', cursor: 'pointer', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{ fontSize: 18 }}>{medals[idx]}</span>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>{v.name} — {v.groomer?.name || 'No groomer'}</div>
+                                <div style={{ fontSize: 11, color: '#64748b' }}>{company?.logoEmoji} {company?.name}</div>
+                              </div>
+                            </div>
+                            <div style={{ padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: v.todayAppts === 0 ? '#f0fdfa' : '#fffbeb', color: v.todayAppts === 0 ? '#0f766e' : '#92400e' }}>
+                              {v.todayAppts === 0 ? '✅ Free' : `${v.todayAppts} appts`}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Van selector */}
+                <label style={styles.lbl}>🚐 Van & Groomer</label>
+                <select value={newApptForm.vanId}
                   onChange={e => {
-                    const start = e.target.value;
-                    const numPets = newApptForm.petIds.length || 1;
-                    const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
-                    const [h, m] = start.split(':').map(Number);
-                    const endH = h + duration;
-                    const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-                    setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime, duration}));
+                    const van = vans.find(v => v.id === e.target.value);
+                    const groomer = groomers.find(g => g.vanId === e.target.value);
+                    setNewApptForm(f => ({ ...f, vanId: e.target.value, companyId: van?.companyId || f.companyId, groomerId: groomer?.id || '' }));
                   }}
-                  style={{ ...styles.input, width: 160 }} />
-                <div style={{ padding: '9px 14px', background: '#f0fdfa', borderRadius: 8, fontSize: 13, color: '#0f766e', fontWeight: 600, border: '1px solid #ccfbf1' }}>
-                  ⏱ {newApptForm.petIds.length <= 1 ? '2' : newApptForm.petIds.length === 2 ? '3' : '4'} hrs → End: {newApptForm.timeEnd || '—'}
-                </div>
-              </div>
-            </div>
-
-            {!isGroomer && (
-              <>
-                {/* Smart Scheduling — sugerencia de van más cercana */}
-                {newApptForm.clientId && (() => {
-                  const client = clients.find(c => String(c.id) === String(newApptForm.clientId));
-                  if (!client?.address) return null;
-
-                  // Calcular distancia aproximada usando coordenadas del client
-                  // Por ahora usamos orden por zona/ciudad como proxy
-                  const groomerList = session?.groomers || [];
-                  const vanOptions = vans.filter(v => v.active !== false).map(v => {
-                    const groomer = groomerList.find(g => g.vanId === v.id);
+                  style={styles.input}>
+                  {vans.filter(v => !newApptForm.companyId || v.companyId === newApptForm.companyId).map(v => {
+                    const groomer = groomers.find(g => g.vanId === v.id);
                     const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
-                    // Contar appointments del day en esta van para ver disponibilidad
-                    const todayAppts = appointments.filter(a =>
-                      a.vanId === v.id && a.date === date &&
-                      a.status !== 'cancelled' && a.status !== 'completed'
-                    ).length;
-                    return { ...v, groomer, company, todayAppts };
-                  }).sort((a, b) => a.todayAppts - b.todayAppts);
-
+                    return <option key={v.id} value={v.id}>{v.name}{groomer ? ` — ${groomer.name}` : ''} {company ? `(${company.logoEmoji})` : ''}</option>;
+                  })}
+                </select>
+                {newApptForm.vanId && (() => {
+                  const van = vans.find(v => v.id === newApptForm.vanId);
+                  const groomer = groomers.find(g => g.vanId === newApptForm.vanId);
+                  const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
                   return (
-                    <div style={{ gridColumn: 'span 2', padding: '12px 14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e', marginBottom: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                        <span style={{ fontSize: 16 }}>💡</span>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: '#0f766e' }}>Smart Scheduling — Suggested vans</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: '#64748b', marginBottom: 10 }}>
-                        📍 Client: {client.address.split(',').slice(0,2).join(',')}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {vanOptions.slice(0, 3).map((v, idx) => {
-                          const medals = ['🥇', '🥈', '🥉'];
-                          const isSelected = newApptForm.vanId === v.id;
-                          return (
-                            <button key={v.id} type="button"
-                              onClick={() => setNewApptForm(f => ({
-                                ...f, vanId: v.id,
-                                companyId: v.companyId || f.companyId,
-                                groomerId: v.groomer?.id || '',
-                              }))}
-                              style={{
-                                padding: '10px 14px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`,
-                                background: isSelected ? '#fff' : '#f8fafc', cursor: 'pointer', textAlign: 'left',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                              }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <span style={{ fontSize: 18 }}>{medals[idx]}</span>
-                                <div>
-                                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0f172a' }}>
-                                    {v.name} — {v.groomer?.name || 'No groomer'}
-                                  </div>
-                                  <div style={{ fontSize: 11, color: '#64748b' }}>
-                                    {v.company?.logoEmoji} {v.company?.name}
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{
-                                  padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
-                                  background: v.todayAppts === 0 ? '#f0fdfa' : v.todayAppts <= 2 ? '#fffbeb' : '#fef2f2',
-                                  color: v.todayAppts === 0 ? '#0f766e' : v.todayAppts <= 2 ? '#92400e' : '#dc2626',
-                                }}>
-                                  {v.todayAppts === 0 ? '✅ Free' : `${v.todayAppts} appts`}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
+                    <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 6, fontSize: 12, color: '#0f766e', display: 'flex', gap: 12 }}>
+                      {company && <span>{company.logoEmoji} {company.name}</span>}
+                      {groomer && <span>✂️ {groomer.name} · {groomer.commissionPct}%</span>}
                     </div>
                   );
                 })()}
 
-                {/* Solo selector de van — company y groomer automáticos */}
-                <div style={{ gridColumn: 'span 2' }}>
-                  <label style={styles.lbl}>Van</label>
-                  <select value={newApptForm.vanId}
-                    onChange={e => {
-                      const van = vans.find(v => v.id === e.target.value);
-                      const groomerList = session?.groomers || [];
-                      const groomer = groomerList.find(g => g.vanId === e.target.value) ||
-                                      groomerList.find(g => g.name === van?.groomer);
-                      setNewApptForm(f => ({
-                        ...f,
-                        vanId: e.target.value,
-                        companyId: van?.companyId || f.companyId,
-                        groomerId: groomer?.id || '',
-                      }));
-                    }}
-                    style={styles.input}>
-                    {vans.map(v => {
-                      const groomerList = session?.groomers || [];
-                      const groomer = groomerList.find(g => g.vanId === v.id) ||
-                                      groomerList.find(g => g.name === v.groomer);
-                      const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
-                      return (
-                        <option key={v.id} value={v.id}>
-                          {v.name}{groomer ? ` — ${groomer.name}` : v.groomer ? ` — ${v.groomer}` : ''} {company ? `(${company.logoEmoji} ${company.name})` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  {/* Info de company y groomer automáticos */}
-                  {newApptForm.vanId && (() => {
-                    const van = vans.find(v => v.id === newApptForm.vanId);
-                    const groomerList = session?.groomers || [];
-                    const groomer = groomerList.find(g => g.vanId === newApptForm.vanId) ||
-                                    groomerList.find(g => g.name === van?.groomer);
-                    const company = DEFAULT_COMPANIES.find(c => c.id === van?.companyId);
-                    const groomerName = groomer?.name || van?.groomer || '';
-                    const groomerPct = groomer?.commissionPct || van?.commissionPct || 45;
-                    return (
-                      <div style={{ marginTop: 6, padding: '6px 10px', background: '#f0fdfa', borderRadius: 6, fontSize: 12, color: '#0f766e', display: 'flex', gap: 12 }}>
-                        {company && <span>{company.logoEmoji} {company.name}</span>}
-                        {groomerName && <span>✂️ {groomerName} · {groomerPct}%</span>}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </>
-            )}
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>Start Time *</label>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <input type="time" value={newApptForm.timeStart}
-                  onChange={e => {
-                    const start = e.target.value;
-                    const numPets = newApptForm.petIds.length || 1;
-                    const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
-                    const [h, m] = start.split(':').map(Number);
-                    const endH = h + duration;
-                    const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-                    setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime, duration}));
-                  }}
-                  style={{ ...styles.input, width: 160 }} />
-
-                {/* Duración automática */}
-                <div style={{ padding: '9px 14px', background: '#f0fdfa', borderRadius: 8, fontSize: 13, color: '#0f766e', fontWeight: 600, border: '1px solid #ccfbf1' }}>
-                  ⏱ {newApptForm.petIds.length <= 1 ? '2' : newApptForm.petIds.length === 2 ? '3' : '4'} hrs
-                  → End: {newApptForm.timeEnd || '—'}
-                </div>
+                {/* Conflict check */}
+                {newApptForm.timeStart && newApptForm.vanId && (() => {
+                  const conflict = appointments.filter(a =>
+                    a.vanId === newApptForm.vanId && a.date === date && a.status !== 'cancelled' &&
+                    a.timeStart && a.timeEnd &&
+                    newApptForm.timeStart < a.timeEnd && newApptForm.timeEnd > a.timeStart
+                  );
+                  if (!conflict.length) return null;
+                  return <div style={{ marginTop: 6, padding: '6px 10px', background: '#fef2f2', borderRadius: 8, fontSize: 12, color: '#dc2626' }}>⚠️ Schedule conflict: {conflict[0].timeStart}–{conflict[0].timeEnd}</div>;
+                })()}
               </div>
+            );
+          })()}
 
-              {/* Conflicto de horario */}
-              {newApptForm.timeStart && newApptForm.vanId && (() => {
-                const conflict = appointments.filter(a =>
-                  a.vanId === newApptForm.vanId &&
-                  a.date === date &&
-                  a.status !== 'cancelled' &&
-                  a.timeStart && a.timeEnd &&
-                  newApptForm.timeStart < a.timeEnd &&
-                  newApptForm.timeEnd > a.timeStart
-                );
-                if (conflict.length === 0) return null;
-                const van = vans.find(v => v.id === newApptForm.vanId);
-                return (
-                  <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef2f2', borderRadius: 8, fontSize: 12, color: '#dc2626', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    ⚠️ {van?.name} already has an appointment from {conflict[0].timeStart} to {conflict[0].timeEnd}
+          {/* STEP 5: Pets */}
+          {newApptForm.clientId && (() => {
+            const clientPetsLocal = pets.filter(p => String(p.client_id) === String(newApptForm.clientId));
+            if (!clientPetsLocal.length) return (
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d', fontSize: 13, color: '#92400e' }}>
+                ⚠️ No pets found for this client. Add pets in the Clients tab first.
+              </div>
+            );
+            return (
+              <div style={{ marginBottom: 16 }}>
+                <label style={styles.lbl}>🐾 Pet(s) *</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                  {clientPetsLocal.map(p => {
+                    const selected = newApptForm.petIds.includes(String(p.id));
+                    return (
+                      <button key={p.id} type="button"
+                        onClick={() => {
+                          const newPetIds = selected
+                            ? newApptForm.petIds.filter(id => id !== String(p.id))
+                            : [...newApptForm.petIds, String(p.id)];
+                          const numPets = newPetIds.length || 1;
+                          const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
+                          const [h, m] = (newApptForm.timeStart || '08:00').split(':').map(Number);
+                          const endH = Math.min(h + duration, 23);
+                          setNewApptForm(f => ({ ...f, petIds: newPetIds, timeEnd: `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}` }));
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: selected ? '#f0fdfa' : '#f8fafc', border: `1.5px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? '#0f766e' : '#374151' }}>
+                        {selected ? '✅ ' : '🐾 '}{p.name}
+                        {p.size && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.size.split(' ')[0]}</span>}
+                        {p.hair_type && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.hair_type.split(' ')[0]}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Duration indicator */}
+                {newApptForm.petIds.length > 0 && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#0f766e' }}>
+                    ⏱ {newApptForm.petIds.length <= 1 ? '2' : newApptForm.petIds.length === 2 ? '3' : '4'} hrs → End: {newApptForm.timeEnd}
                   </div>
-                );
-              })()}
-            </div>
+                )}
+              </div>
+            );
+          })()}
 
-            {/* Selector de service — solo admin/manager */}
-            {!isGroomer && (
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>Service principal</label>
-              <select value={newApptForm.serviceId} onChange={e => {
-                const svc = (servicePrices || []).find(p => p.id === e.target.value);
-                setNewApptForm(f => ({ ...f, serviceId: e.target.value, serviceName: svc?.name || '', servicePrice: svc?.price || 0 }));
-              }} style={styles.input}>
-                <option value="">Seleccionar service...</option>
-                {['Signature Bath', 'Full Groom'].map(cat => (
+          {/* STEP 6: Service + Smart Pricing */}
+          {newApptForm.clientId && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={styles.lbl}>🛁 Service</label>
+              <select value={newApptForm.serviceName || ''}
+                onChange={e => {
+                  const sp = servicePrices?.find(p => p.name === e.target.value || `${p.category} · ${p.size} · ${p.hair_type}` === e.target.value);
+                  setNewApptForm(f => ({ ...f, serviceName: e.target.value, serviceId: sp?.id || '', servicePrice: sp?.price || 0 }));
+                }}
+                style={styles.input}>
+                <option value="">— Select service —</option>
+                {[...new Set((servicePrices || []).map(p => p.category))].map(cat => (
                   <optgroup key={cat} label={cat}>
                     {(servicePrices || []).filter(p => p.category === cat).map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}{p.size ? ` · ${p.size.split('(')[0].trim()}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
+                      <option key={p.id} value={p.name || p.category}>
+                        {p.name || p.category}{p.size ? ` · ${p.size}` : ''}{p.hair_type ? ` · ${p.hair_type}` : ''} — ${p.price}
                       </option>
                     ))}
                   </optgroup>
                 ))}
               </select>
-              {newApptForm.servicePrice > 0 && (
-                <div style={{ marginTop: 8 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={styles.lbl}>Descuento (%)</label>
-                      <div style={{ position: 'relative' }}>
-                        <input type="number" min="0" max="100" step="5"
-                          value={newApptForm.discountPct}
-                          onChange={e => setNewApptForm(f => ({...f, discountPct: parseFloat(e.target.value) || 0}))}
-                          style={{ ...styles.input, paddingRight: 28 }} placeholder="0" />
-                        <span style={{ position: 'absolute', right: 10, top: 11, fontSize: 12, color: '#94a3b8' }}>%</span>
-                      </div>
-                    </div>
-                    <div style={{ flex: 1, padding: '8px 12px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
-                      {newApptForm.discountPct > 0 ? (
-                        <>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-success)', marginBottom: 2 }}>
-                            <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>${newApptForm.servicePrice}</span>
-                            {' '}-{newApptForm.discountPct}%
-                          </div>
-                          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>
-                            💰 ${(newApptForm.servicePrice * (1 - newApptForm.discountPct / 100)).toFixed(2)}
-                          </div>
-                        </>
-                      ) : (
-                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-success)' }}>
-                          💰 ${newApptForm.servicePrice}
+
+              {/* Smart Pricing */}
+              {newApptForm.petIds.length > 0 && newApptForm.serviceName && (() => {
+                const suggestions = newApptForm.petIds.map(petId => {
+                  const pet = pets.find(p => String(p.id) === String(petId));
+                  if (!pet) return null;
+                  const match = servicePrices?.find(sp => {
+                    const nameMatch = sp.category === newApptForm.serviceName || sp.name === newApptForm.serviceName;
+                    const sizeMatch = !sp.size || sp.size === pet.size || sp.size.toLowerCase().startsWith((pet.size || '').split(' ')[0].toLowerCase());
+                    const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type || sp.hair_type.toLowerCase().startsWith((pet.hair_type || '').split(' ')[0].toLowerCase());
+                    return nameMatch && sizeMatch && hairMatch;
+                  });
+                  return { pet, match };
+                }).filter(Boolean);
+
+                if (!suggestions.some(s => s.match)) return null;
+                return (
+                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>💡 Smart Pricing</div>
+                    {suggestions.map(({ pet, match }, i) => match && (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 12 }}>🐾 {pet.name} — {pet.size?.split(' ')[0]} · {pet.hair_type?.split(' ')[0]}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontWeight: 700, color: '#0f766e' }}>${match.price}</span>
+                          <button onClick={() => setNewApptForm(f => ({...f, servicePrice: match.price}))}
+                            style={{ fontSize: 10, padding: '3px 8px', background: '#0f766e', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Use</button>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
-            )}
+          )}
 
-            {/* Add-ons — solo admin/manager */}
-            {!isGroomer && (servicePrices || []).filter(p => p.category === 'Add-on').length > 0 && (
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={styles.lbl}>Add-ons (opcional)</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                  {(servicePrices || []).filter(p => p.category === 'Add-on').map(addon => {
-                    const selected = (newApptForm.addons || []).includes(addon.id);
-                    return (
-                      <button key={addon.id} type="button"
-                        onClick={() => setNewApptForm(f => ({
-                          ...f,
-                          addons: selected
-                            ? (f.addons || []).filter(id => id !== addon.id)
-                            : [...(f.addons || []), addon.id]
-                        }))}
-                        style={{ padding: '7px 14px', borderRadius: 999, border: `1.5px solid ${selected ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: selected ? '#f0fdfa' : 'var(--color-background-secondary)', cursor: 'pointer', fontSize: 13, fontWeight: selected ? 700 : 400, color: selected ? '#0f766e' : 'var(--color-text-secondary)', transition: 'all 0.15s' }}>
-                        {selected ? '✅ ' : '+ '}{addon.name} ${addon.price}
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* Total con add-ons */}
-                {(newApptForm.addons || []).length > 0 && (
-                  <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--color-background-success)', borderRadius: 8, border: '0.5px solid var(--color-border-success)' }}>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-success)', marginBottom: 4 }}>
-                      {(newApptForm.addons || []).map(id => (servicePrices || []).find(p => p.id === id)?.name).filter(Boolean).join(' + ')}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 12, color: 'var(--color-text-success)' }}>
-                        Service ${newApptForm.discountPct > 0
-                          ? (newApptForm.servicePrice * (1 - newApptForm.discountPct/100)).toFixed(2)
-                          : newApptForm.servicePrice} + Add-ons ${(newApptForm.addons || []).reduce((sum, id) => sum + ((servicePrices || []).find(p => p.id === id)?.price || 0), 0).toFixed(2)}
-                      </span>
-                      <span style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700, color: 'var(--color-text-success)' }}>
-                        💰 ${(
-                          (newApptForm.discountPct > 0
-                            ? newApptForm.servicePrice * (1 - newApptForm.discountPct/100)
-                            : newApptForm.servicePrice) +
-                          (newApptForm.addons || []).reduce((sum, id) => sum + ((servicePrices || []).find(p => p.id === id)?.price || 0), 0)
-                        ).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>Notes (opcional)</label>
-              <input value={newApptForm.notes} onChange={e => setNewApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Instrucciones especiales..." />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>⚠️ Notes de alerta (privado)</label>
-              <input value={newApptForm.alertNotes} onChange={e => setNewApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="Ej: perro agresivo, client difícil..." />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={styles.lbl}>🔄 Recurrence</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                {[0, 2, 4, 6, 8].map(w => (
-                  <button key={w} type="button"
-                    onClick={() => setNewApptForm(f => ({...f, recurrenceWeeks: w}))}
-                    style={{ padding: '6px 14px', borderRadius: 8, border: `2px solid ${newApptForm.recurrenceWeeks === w ? '#0f766e' : '#e2e8f0'}`, background: newApptForm.recurrenceWeeks === w ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newApptForm.recurrenceWeeks === w ? 700 : 400, color: newApptForm.recurrenceWeeks === w ? '#0f766e' : '#64748b' }}>
-                    {w === 0 ? 'No repeat' : `Every ${w}w`}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Pets */}
-          {newApptForm.clientId && clientPets.length > 0 && (
-            <div style={{ marginTop: 14 }}>
-              <label style={styles.lbl}>Pets</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                {clientPets.map(p => {
-                  const selected = newApptForm.petIds.includes(p.id);
+          {/* STEP 7: Add-ons */}
+          {newApptForm.clientId && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={styles.lbl}>➕ Add-ons</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+                {(servicePrices || []).filter(p => p.category === 'Add-on' || p.category === 'Add-ons').map(addon => {
+                  const selected = (newApptForm.addons || []).some(a => a.id === addon.id);
                   return (
-                    <button key={p.id} type="button"
-                      onClick={() => {
-                        const newPetIds = selected
-                          ? newApptForm.petIds.filter(id => id !== p.id)
-                          : [...newApptForm.petIds, p.id];
-                        const numPets = newPetIds.length || 1;
-                        const duration = numPets === 1 ? 2 : numPets === 2 ? 3 : 4;
-                        const [h, m] = (newApptForm.timeStart || '09:00').split(':').map(Number);
-                        const endH = h + duration;
-                        const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
-                        setNewApptForm(f => ({ ...f, petIds: newPetIds, timeEnd: endTime, duration }));
-                      }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', background: selected ? 'var(--color-background-success)' : 'var(--color-background-secondary)', border: `1.5px solid ${selected ? 'var(--color-border-success)' : 'var(--color-border-tertiary)'}`, borderRadius: 999, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? 'var(--color-text-success)' : 'var(--color-text-secondary)' }}>
-                      {selected ? '✅ ' : '🐾 '}{p.name} {p.size ? `· ${p.size.split(' ')[0]}` : ''} {p.hairType ? `· ${p.hairType.split(' ')[0]}` : ''}
+                    <button key={addon.id} type="button"
+                      onClick={() => setNewApptForm(f => ({
+                        ...f, addons: selected
+                          ? (f.addons || []).filter(a => a.id !== addon.id)
+                          : [...(f.addons || []), { id: addon.id, name: addon.name, price: addon.price }]
+                      }))}
+                      style={{ padding: '6px 12px', background: selected ? '#f0fdfa' : '#f8fafc', border: `1px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? '#0f766e' : '#64748b' }}>
+                      {selected ? '✅ ' : '+ '}{addon.name} ${addon.price}
                     </button>
                   );
                 })}
               </div>
-
-              {/* Smart Pricing — sugerencia de precio por mascota */}
-              {newApptForm.petIds.length > 0 && newApptForm.serviceName && (
-                <div style={{ marginTop: 10, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d' }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>💡 Smart Pricing — {newApptForm.serviceName}</div>
-                  {newApptForm.petIds.map(petId => {
-                    const pet = clientPets.find(p => String(p.id) === String(petId));
-                    if (!pet) return null;
-                    // Buscar precio que coincida con size y hair_type de la mascota
-                    const matchedPrice = servicePrices?.find(sp => {
-                      const nameMatch = sp.category === newApptForm.serviceName || sp.name === newApptForm.serviceName || sp.service_name === newApptForm.serviceName;
-                      const sizeMatch = !sp.size || sp.size === pet.size || sp.size.toLowerCase().includes((pet.size || '').split(' ')[0].toLowerCase());
-                      const hairMatch = !sp.hair_type || sp.hair_type === pet.hairType || sp.hair_type.toLowerCase().includes((pet.hairType || '').split(' ')[0].toLowerCase());
-                      return nameMatch && sizeMatch && hairMatch;
-                    });
-                    return (
-                      <div key={petId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <div style={{ fontSize: 12 }}>
-                          🐾 <strong>{pet.name}</strong> — {pet.size?.split(' ')[0] || '?'} · {pet.hairType?.split(' ')[0] || '?'}
-                        </div>
-                        {matchedPrice ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: '#0f766e' }}>${matchedPrice.price?.toFixed(2) || matchedPrice.base_price?.toFixed(2)}</span>
-                            <button onClick={() => setNewApptForm(f => ({...f, servicePrice: matchedPrice.price || matchedPrice.base_price}))}
-                              style={{ fontSize: 10, padding: '3px 8px', background: '#0f766e', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>
-                              Use
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: '#94a3b8' }}>No match found</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           )}
 
+          {/* STEP 8: Notes + Recurrence */}
           {newApptForm.clientId && (
-            <button onClick={() => setAddingPet(true)} style={{ ...styles.btnSecondary, marginTop: 10, fontSize: 12, padding: '5px 10px' }}>
-              <Plus size={13} /> Add pet nueva
-            </button>
-          )}
-
-          {addingPet && (
-            <div style={{ marginTop: 10, padding: 12, background: 'var(--color-background-secondary)', borderRadius: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 500, marginBottom: 8 }}>Nueva pet</div>
-              <div style={styles.formGrid}>
-                <div><label style={styles.lbl}>Name *</label><input value={newPetForm.name} onChange={e => setNewPetForm(f => ({...f, name: e.target.value}))} style={styles.input} placeholder="Name" /></div>
-                <div><label style={styles.lbl}>Breed</label><BreedInput value={newPetForm.breed} onChange={v => setNewPetForm(f => ({...f, breed: v}))} /></div>
-                <div><label style={styles.lbl}>Size</label><select value={newPetForm.size} onChange={e => setNewPetForm(f => ({...f, size: e.target.value}))} style={styles.input}>{SIZES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                <div><label style={styles.lbl}>Pelo</label><select value={newPetForm.hairType} onChange={e => setNewPetForm(f => ({...f, hairType: e.target.value}))} style={styles.input}>{HAIR_TYPES.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
-                <div><label style={styles.lbl}>Allergies</label><input value={newPetForm.allergies} onChange={e => setNewPetForm(f => ({...f, allergies: e.target.value}))} style={styles.input} placeholder="Ninguna" /></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>📝 Notes</label>
+                <input value={newApptForm.notes} onChange={e => setNewApptForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Special instructions..." />
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={async () => {
-                  if (!newPetForm.name.trim()) { alert('Ingresa el name'); return; }
-                  const pet = { id: uid(), clientId: newApptForm.clientId, client_id: newApptForm.clientId, ...newPetForm, name: newPetForm.name.trim() };
-                  await addPet(pet);
-                  setNewApptForm(f => ({ ...f, petIds: [...f.petIds, pet.id] }));
-                  setAddingPet(false);
-                  setNewPetForm({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
-                }} style={styles.btnPrimary}><Check size={14} /> Save pet</button>
-                <button onClick={() => setAddingPet(false)} style={styles.btnSecondary}><X size={14} /> Cancel</button>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>⚠️ Alert Notes (private)</label>
+                <input value={newApptForm.alertNotes} onChange={e => setNewApptForm(f => ({...f, alertNotes: e.target.value}))} style={styles.input} placeholder="e.g. Aggressive dog, difficult client..." />
+              </div>
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>🔄 Recurrence</label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                  {[{v:0,l:'None'},{v:2,l:'2 weeks'},{v:4,l:'4 weeks'},{v:6,l:'6 weeks'},{v:8,l:'8 weeks'}].map(opt => (
+                    <button key={opt.v} type="button"
+                      onClick={() => setNewApptForm(f => ({...f, recurrenceWeeks: opt.v}))}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: `1.5px solid ${newApptForm.recurrenceWeeks === opt.v ? '#0f766e' : '#e2e8f0'}`, background: newApptForm.recurrenceWeeks === opt.v ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: newApptForm.recurrenceWeeks === opt.v ? 700 : 400, color: newApptForm.recurrenceWeeks === opt.v ? '#0f766e' : '#64748b' }}>
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+          {/* Summary + Save */}
+          {newApptForm.clientId && newApptForm.vanId && (
+            <div style={{ padding: '12px 14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', marginBottom: 6 }}>📋 Summary</div>
+              <div style={{ fontSize: 12, color: '#374151', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <div>📅 {formatDateNice(date)} · ⏰ {newApptForm.timeStart} → {newApptForm.timeEnd}</div>
+                <div>🚐 {vans.find(v => v.id === newApptForm.vanId)?.name} · ✂️ {groomers.find(g => g.vanId === newApptForm.vanId)?.name || ''}</div>
+                {newApptForm.petIds.length > 0 && <div>🐾 {newApptForm.petIds.map(id => pets.find(p => String(p.id) === String(id))?.name).filter(Boolean).join(', ')}</div>}
+                {newApptForm.serviceName && <div>🛁 {newApptForm.serviceName} {newApptForm.servicePrice > 0 ? `· $${newApptForm.servicePrice}` : ''}</div>}
+                {(newApptForm.addons || []).length > 0 && <div>➕ {newApptForm.addons.map(a => a.name).join(', ')}</div>}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
             <button onClick={() => setShowNewAppt(false)} style={styles.btnSecondary}><X size={15} /> Cancel</button>
             <button onClick={handleCreateAppt} style={styles.btnPrimary} disabled={saving}>
               {saving ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
-              {saving ? 'Guardando...' : 'Crear appointment'}
+              {saving ? 'Saving...' : '✅ Create Appointment'}
             </button>
           </div>
         </div>
       )}
+
 
       {/* Formulario client nuevo */}
       {showNewClient && (
