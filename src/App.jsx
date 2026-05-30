@@ -4878,7 +4878,7 @@ function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmi
                                 </div>
                               </div>
                               <div style={{ fontSize: 11, padding: '3px 8px', borderRadius: 999, background: 'rgba(255,255,255,0.6)', color: sc.text, fontWeight: 600 }}>
-                                {STATUS_LABELS[appt.status]}
+                                {({'unconfirmed':'Unconfirmed','confirmed':'Confirmed','in_progress':'In Progress','completed':'Completed','cancelled':'Cancelled'})[appt.status] || appt.status}
                               </div>
                             </div>
                           </div>
