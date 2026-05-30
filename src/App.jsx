@@ -498,17 +498,20 @@ const loadAppointments = async () => {
   }));
 };
 const saveAppointment = async (appt) => {
-  const { error } = await supabase.from('appointments').upsert({
+  const payload = {
     id: appt.id, date: appt.date, time_start: appt.timeStart, time_end: appt.timeEnd || '',
-    van_id: appt.vanId, client_id: appt.clientId, status: appt.status || 'unconfirmed',
+    van_id: appt.vanId, client_id: String(appt.clientId), status: appt.status || 'unconfirmed',
     notes: appt.notes || '', alert_notes: appt.alertNotes || '',
     agreement_signed: appt.agreementSigned || false,
     groomer_id: appt.groomerId || null,
     company_id: appt.companyId || 'epw',
     recurrence_weeks: appt.recurrenceWeeks || 0,
     recurrence_parent_id: appt.recurrenceParentId || null,
-  });
-  if (error) console.error(error);
+  };
+  console.log('💾 Saving appointment:', payload);
+  const { error } = await supabase.from('appointments').upsert(payload);
+  if (error) console.error('❌ saveAppointment error:', error);
+  else console.log('✅ Appointment saved!');
   return !error;
 };
 const updateAppointmentStatus = async (id, status) => {
