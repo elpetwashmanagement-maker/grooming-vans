@@ -1548,7 +1548,17 @@ export default function App() {
         onLogout={() => setSession(null)}
         activeCompany={activeCompany} isOnline={isOnline} />
       <main style={styles.main}>
-        {tab === 'home' && <HomeTab session={session} appointments={appointments} vans={vans} clients={clients} pets={pets} settings={settings} setTab={setTab} groomers={groomers} />}
+        {tab === 'home' && !isViewer && <HomeTab session={session} appointments={appointments} vans={vans} clients={clients} pets={pets} settings={settings} setTab={setTab} groomers={groomers} />}
+        {tab === 'home' && isViewer && (
+          <div style={{ padding: 20, textAlign: 'center', marginTop: 40 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>👋</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800 }}>Welcome, {session.userName}!</div>
+            <div style={{ color: '#64748b', marginTop: 8 }}>Use the menu to view your schedule and reports.</div>
+            <button onClick={() => setTab('appointments')} style={{ marginTop: 20, padding: '12px 24px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+              📅 View Schedule
+            </button>
+          </div>
+        )}
         {tab === 'appointments' && (
           <AppointmentsTab
             appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
