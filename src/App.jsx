@@ -2774,6 +2774,7 @@ const SIZES = ['Small (1-20 lbs)','Medium (21-40 lbs)','Large (41-60 lbs)','Big 
 const HAIR_TYPES = ['Short Hair','Long Hair'];
 const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirmed: t('status_confirmed'), in_progress: t('status_in_progress'), completed: t('status_completed'), cancelled: t('status_cancelled') });
 const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' } };
+const STATUS_LABELS = { unconfirmed: 'Unconfirmed', confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled' };
 
 function CitasTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices, deposits = [], setDeposits = () => {}, groomers = [] }) {
   const t = useT('en');
