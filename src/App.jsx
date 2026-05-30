@@ -1403,6 +1403,10 @@ export default function App() {
     setServicePrices(prev => prev.map(p => p.id === price.id ? price : p));
     await saveServicePrice(price);
   };
+  const deleteServicePrice = async (id) => {
+    await supabase.from('service_prices').delete().eq('id', id);
+    setServicePrices(prev => prev.filter(p => p.id !== id));
+  };
   const addServicePrice = async (price) => {
     const ok = await saveServicePrice(price);
     if (ok) setServicePrices(prev => [...prev, price].sort((a,b) => a.sort_order - b.sort_order));
@@ -1566,7 +1570,7 @@ export default function App() {
             services={services} clearServices={clearServices} categories={categories}
             addCategory={addCategory} removeCategory={removeCategory} expenses={expenses}
             users={users} addUser={addUser} updateUser={updateUser} toggleUserActive={toggleUserActive}
-            servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice}
+            servicePrices={servicePrices} updateServicePrice={updateServicePrice} addServicePrice={addServicePrice} deleteServicePrice={deleteServicePrice}
             groomers={groomers} addGroomer={addGroomer} updateGroomer={updateGroomer} toggleGroomerActive={toggleGroomerActive}
           />
         )}
@@ -6089,7 +6093,7 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
 }
 
 // ===== CONFIG TAB =====
-function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive, companies, updateCompany }) {
+function ConfigTab({ vans, updateVans, settings, updateSettings, services, clearServices, categories, addCategory, removeCategory, expenses, users, addUser, updateUser, toggleUserActive, servicePrices, updateServicePrice, addServicePrice, deleteServicePrice, groomers, addGroomer, updateGroomer, toggleGroomerActive, companies, updateCompany }) {
   const [section, setSection] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -6706,8 +6710,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                             )}
                             <button onClick={async () => {
                               if (window.confirm('Delete this service?')) {
-                                await supabase.from('service_prices').delete().eq('id', price.id);
-                                await addServicePrice(null); // trigger refresh
+                                await deleteServicePrice(price.id);
                               }
                             }} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', color: '#dc2626', fontSize: 11 }}>✕</button>
                           </div>
