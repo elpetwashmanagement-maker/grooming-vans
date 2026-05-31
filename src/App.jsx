@@ -1278,7 +1278,7 @@ const markRequestDelivered = async (requestId) => {
 };
 
 // ===== APP =====
-export default function App() {
+function AppMain() {
   const [tab, setTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -1314,23 +1314,26 @@ export default function App() {
   const [groomerPayments, setGroomerPayments] = useState([]);
   const [deposits, setDeposits] = useState([]);
   const [cardsOnFile, setCardsOnFile] = useState([]);
+  const [bookingRequests, setBookingRequests] = useState([]);
+  const lastBookingCountRef = useRef(null);
   const lang = 'en';
   const t = useT(lang);
 
   useEffect(() => {
     (async () => {
-      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp, fuel, payments, deps, cards] = await Promise.all([
+      const [v, s, st, ex, cats, us, appts, cls, pts, svc, gr, cos, invItems, invReqs, compExp, fuel, payments, deps, cards, bkReqs] = await Promise.all([
         loadVans(), loadServices(), loadSettings(), loadExpenses(),
         loadCategories(), loadUsers(), loadAppointments(), loadClients(), loadPets(),
         loadServicePrices(), loadGroomers(), loadCompanies(),
-        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses(), loadFuelLogs(), loadGroomerPayments(), loadDeposits(), loadCardsOnFile()
+        loadInventoryItems(), loadInventoryRequests(), loadCompanyExpenses(), loadFuelLogs(), loadGroomerPayments(), loadDeposits(), loadCardsOnFile(), loadBookingRequests()
       ]);
       setVans(v); setServices(s); setSettings(st); setExpenses(ex);
       setCategories(cats); setUsers(us); setAppointments(appts);
       setClients(cls); setPets(pts); setServicePrices(svc); setGroomers(gr);
       setCompanies(cos); setInventoryItems(invItems); setInventoryRequests(invReqs);
       setCompanyExpenses(compExp); setFuelLogs(fuel); setGroomerPayments(payments);
-      setDeposits(deps); setCardsOnFile(cards);
+      setDeposits(deps); setCardsOnFile(cards); setBookingRequests(bkReqs);
+      lastBookingCountRef.current = bkReqs.filter(r => r.status === 'pending').length;
       setSession(loadSession());
       setLoading(false);
     })();
@@ -1366,6 +1369,28 @@ export default function App() {
     }, 15000);
     return () => clearInterval(interval);
   }, [loading, session]);
+
+  // Polling de booking requests + notificación
+  useEffect(() => {
+    if (!session || session.role === 'groomer') return;
+    const checkRequests = async () => {
+      const reqs = await loadBookingRequests();
+      setBookingRequests(reqs);
+      const pendingCount = reqs.filter(r => r.status === 'pending').length;
+      if (lastBookingCountRef.current !== null && pendingCount > lastBookingCountRef.current) {
+        const newest = reqs.filter(r => r.status === 'pending')[0];
+        playNotificationSound();
+        showBrowserNotification(
+          '🐾 New Booking Request!',
+          newest ? `${newest.client_name} — ${newest.pet_name || 'Pet'} · ${newest.company_id === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}` : 'A new client wants to book'
+        );
+      }
+      lastBookingCountRef.current = pendingCount;
+    };
+    checkRequests();
+    const interval = setInterval(checkRequests, 30000);
+    return () => clearInterval(interval);
+  }, [session?.role, loading]);
 
   useEffect(() => {
     if (!session) return;
@@ -1654,6 +1679,14 @@ export default function App() {
           />
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
+        {tab === 'requests' && (isAdmin || isManager) && (
+          <BookingRequestsTab
+            requests={bookingRequests} setRequests={setBookingRequests}
+            vans={vans} groomers={groomers} clients={clients}
+            addAppointment={addAppointment} addClient={addClient} addPet={addPet}
+            refreshAppointments={refreshAppointments}
+          />
+        )}
       </main>
 
       {/* ===== BOTTOM NAVIGATION ===== */}
@@ -1679,7 +1712,7 @@ export default function App() {
           { id: 'home',         icon: '🏠', label: 'Home' },
           { id: 'appointments', icon: '🗓️', label: 'Schedule' },
           { id: 'clients',      icon: '👥', label: 'Clients' },
-          { id: 'boarding',     icon: '🏡', label: 'Boarding' },
+          { id: 'requests',     icon: '📩', label: 'Requests' },
           { id: 'more',         icon: '⋯', label: 'More' },
         ];
 
@@ -1696,6 +1729,8 @@ export default function App() {
               // Count pending_review appointments for badge
               const pendingCount = t.id === 'appointments' && !isGroomer
                 ? appointments.filter(a => a.status === 'pending_review').length
+                : t.id === 'requests'
+                ? bookingRequests.filter(r => r.status === 'pending').length
                 : 0;
               return (
                 <button key={t.id} onClick={() => setTab(t.id === 'more' ? 'cierre' : t.id)}
@@ -10293,3 +10328,469 @@ const styles = {
   pinBtn: { height: 60, background: '#fafaf7', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 22, fontWeight: 600, color: '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   pinBackBtn: { display: 'block', margin: '20px auto 0', background: 'transparent', border: 'none', fontSize: 13, color: '#64748b', fontWeight: 600, cursor: 'pointer', padding: 8 },
 };
+
+// ===== BOOKING REQUESTS — SUPABASE =====
+const loadBookingRequests = async () => {
+  const { data, error } = await supabase.from('booking_requests').select('*').order('created_at', { ascending: false });
+  if (error) { console.error(error); return []; }
+  return data || [];
+};
+const saveBookingRequest = async (req) => {
+  const { error } = await supabase.from('booking_requests').insert({
+    id: req.id, company_id: req.companyId, client_name: req.clientName,
+    phone: req.phone, address: req.address || '', zip: req.zip || '',
+    city: req.city || '', state: req.state || 'FL',
+    pet_name: req.petName, breed: req.breed || '', size: req.size || '',
+    service: req.service || '', notes: req.notes || '', status: 'pending',
+  });
+  if (error) console.error(error);
+  return !error;
+};
+const updateBookingRequest = async (id, updates) => {
+  const { error } = await supabase.from('booking_requests').update(updates).eq('id', id);
+  if (error) console.error(error);
+  return !error;
+};
+
+// ===== SOUND + BROWSER NOTIFICATIONS =====
+const playNotificationSound = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(660, ctx.currentTime + 0.12);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.24);
+    gain.gain.setValueAtTime(0.35, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.6);
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.6);
+  } catch(e) {}
+};
+const showBrowserNotification = (title, body) => {
+  if (!('Notification' in window)) return;
+  const show = () => new Notification(title, { body, icon: '/Groomora.jpg' });
+  if (Notification.permission === 'granted') show();
+  else if (Notification.permission !== 'denied') {
+    Notification.requestPermission().then(p => { if (p === 'granted') show(); });
+  }
+};
+
+// ===== BOOKING PAGE (público, sin login) =====
+function BookingPage({ companyId }) {
+  const company = DEFAULT_COMPANIES.find(c => c.id === companyId) || DEFAULT_COMPANIES[0];
+  const [step, setStep] = useState('form'); // form | success
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    firstName: '', lastName: '', phone: '', address: '', zip: '', city: '', state: 'FL',
+    petName: '', breed: '', size: 'Small (1-20 lbs)', service: 'Signature Bath', notes: '',
+  });
+  const [errors, setErrors] = useState({});
+
+  const validate = () => {
+    const e = {};
+    if (!form.firstName.trim()) e.firstName = 'Required';
+    if (!form.lastName.trim()) e.lastName = 'Required';
+    if (!form.phone.trim()) e.phone = 'Required';
+    if (!form.address.trim()) e.address = 'Required';
+    if (!form.petName.trim()) e.petName = 'Required';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSaving(true);
+    const req = {
+      id: uid(), companyId,
+      clientName: `${form.firstName.trim()} ${form.lastName.trim()}`,
+      phone: form.phone.trim(), address: form.address.trim(),
+      zip: form.zip, city: form.city, state: form.state,
+      petName: form.petName.trim(), breed: form.breed,
+      size: form.size, service: form.service, notes: form.notes,
+    };
+    await saveBookingRequest(req);
+    setSaving(false);
+    setStep('success');
+  };
+
+  const inp = {
+    width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0',
+    borderRadius: 10, fontSize: 15, boxSizing: 'border-box', fontFamily: 'Manrope, sans-serif',
+    outline: 'none',
+  };
+  const lbl = { fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 };
+  const err = { fontSize: 12, color: '#dc2626', marginTop: 4 };
+  const bgColor = companyId === 'epw' ? '#0f766e' : '#7c3aed';
+
+  if (step === 'success') return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, fontFamily: 'Manrope, sans-serif' }}>
+      <div style={{ background: '#fff', borderRadius: 24, padding: '40px 32px', maxWidth: 440, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.1)' }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 26, fontWeight: 800, color: '#0f172a', marginBottom: 10 }}>
+          Request Sent!
+        </div>
+        <div style={{ fontSize: 15, color: '#64748b', lineHeight: 1.6, marginBottom: 24 }}>
+          Thank you! We'll contact you soon to confirm your appointment.
+        </div>
+        <div style={{ padding: '14px 20px', background: '#f0fdfa', borderRadius: 12, fontSize: 14, color: '#0f766e', fontWeight: 600 }}>
+          {company.logoEmoji} {company.name}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Manrope, sans-serif' }}>
+      {/* Header */}
+      <div style={{ background: bgColor, padding: '28px 20px 24px', textAlign: 'center', color: '#fff' }}>
+        <div style={{ fontSize: 44, marginBottom: 8 }}>{company.logoEmoji}</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 800 }}>{company.name}</div>
+        <div style={{ fontSize: 14, opacity: 0.85, marginTop: 6 }}>Book your mobile grooming appointment</div>
+      </div>
+
+      {/* Form */}
+      <div style={{ maxWidth: 500, margin: '0 auto', padding: '24px 20px 60px' }}>
+
+        {/* Client info */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 14 }}>👤 Your Info</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={lbl}>First Name *</label>
+              <input value={form.firstName} onChange={e => setForm(f => ({...f, firstName: e.target.value}))}
+                style={{ ...inp, borderColor: errors.firstName ? '#dc2626' : '#e2e8f0' }} placeholder="John" />
+              {errors.firstName && <div style={err}>{errors.firstName}</div>}
+            </div>
+            <div>
+              <label style={lbl}>Last Name *</label>
+              <input value={form.lastName} onChange={e => setForm(f => ({...f, lastName: e.target.value}))}
+                style={{ ...inp, borderColor: errors.lastName ? '#dc2626' : '#e2e8f0' }} placeholder="Smith" />
+              {errors.lastName && <div style={err}>{errors.lastName}</div>}
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>📞 Phone Number *</label>
+            <input type="tel" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))}
+              style={{ ...inp, borderColor: errors.phone ? '#dc2626' : '#e2e8f0' }} placeholder="(305) 000-0000" />
+            {errors.phone && <div style={err}>{errors.phone}</div>}
+          </div>
+          <div>
+            <label style={lbl}>📍 Address *</label>
+            <AddressAutocomplete
+              value={form.address}
+              onChange={d => setForm(f => ({...f, address: d.address || '', zip: d.zip || f.zip, city: d.city || f.city, state: d.state || f.state}))}
+              placeholder="Start typing your address..."
+              style={{ ...inp, borderColor: errors.address ? '#dc2626' : '#e2e8f0' }}
+            />
+            {errors.address && <div style={err}>{errors.address}</div>}
+            {form.zip && <div style={{ fontSize: 12, color: '#0f766e', marginTop: 6, fontWeight: 600 }}>📍 {form.city}, {form.state} {form.zip}</div>}
+          </div>
+        </div>
+
+        {/* Pet info */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a', marginBottom: 14 }}>🐾 Pet Info</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label style={lbl}>Pet Name *</label>
+              <input value={form.petName} onChange={e => setForm(f => ({...f, petName: e.target.value}))}
+                style={{ ...inp, borderColor: errors.petName ? '#dc2626' : '#e2e8f0' }} placeholder="Buddy" />
+              {errors.petName && <div style={err}>{errors.petName}</div>}
+            </div>
+            <div>
+              <label style={lbl}>Breed</label>
+              <input value={form.breed} onChange={e => setForm(f => ({...f, breed: e.target.value}))}
+                style={inp} placeholder="e.g. Goldendoodle" />
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={lbl}>Size</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              {['Small (1-20 lbs)', 'Medium (21-40 lbs)', 'Large (41-60 lbs)', 'Extra Large (61+ lbs)'].map(s => (
+                <button key={s} type="button" onClick={() => setForm(f => ({...f, size: s}))}
+                  style={{ padding: '10px', borderRadius: 10, border: `2px solid ${form.size === s ? bgColor : '#e2e8f0'}`, background: form.size === s ? (companyId === 'epw' ? '#f0fdfa' : '#faf5ff') : '#f8fafc', cursor: 'pointer', fontSize: 12, fontWeight: form.size === s ? 700 : 400, color: form.size === s ? bgColor : '#64748b' }}>
+                  {s.split(' ')[0]}
+                  <div style={{ fontSize: 10, opacity: 0.7 }}>{s.match(/\(.*\)/)?.[0]}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label style={lbl}>Service</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {['Signature Bath', 'Full Groom'].map(s => (
+                <button key={s} type="button" onClick={() => setForm(f => ({...f, service: s}))}
+                  style={{ padding: '12px', borderRadius: 10, border: `2px solid ${form.service === s ? bgColor : '#e2e8f0'}`, background: form.service === s ? (companyId === 'epw' ? '#f0fdfa' : '#faf5ff') : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: form.service === s ? 700 : 400, color: form.service === s ? bgColor : '#64748b' }}>
+                  {s === 'Signature Bath' ? '🛁 Signature Bath' : '✂️ Full Groom'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Notes */}
+        <div style={{ background: '#fff', borderRadius: 16, padding: 20, marginBottom: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <label style={lbl}>📝 Additional Notes (optional)</label>
+          <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))}
+            style={{ ...inp, minHeight: 80, resize: 'vertical' }} placeholder="Allergies, special instructions..." />
+        </div>
+
+        {/* Submit */}
+        <button onClick={handleSubmit} disabled={saving}
+          style={{ width: '100%', padding: '16px', background: saving ? '#94a3b8' : bgColor, border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+          {saving ? <><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> Sending...</> : '🐾 Send Booking Request'}
+        </button>
+
+        <div style={{ textAlign: 'center', fontSize: 12, color: '#94a3b8', marginTop: 16 }}>
+          We'll contact you by phone or text to confirm your appointment.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== BOOKING REQUESTS TAB =====
+function BookingRequestsTab({ requests, setRequests, vans, groomers, clients, addAppointment, addClient, addPet, refreshAppointments }) {
+  const [schedulingId, setSchedulingId] = useState(null);
+  const [schedForm, setSchedForm] = useState({ vanId: '', date: todayISO(), timeStart: '09:00', timeEnd: '11:00', notes: '' });
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState('pending');
+
+  const filtered = requests.filter(r => filter === 'all' ? true : r.status === filter);
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+
+  const handleSchedule = async (req) => {
+    if (!schedForm.vanId || !schedForm.date) { alert('Select van and date'); return; }
+    setSaving(true);
+    try {
+      // 1. Crear client si no existe
+      const existingClient = clients.find(c =>
+        c.name.toLowerCase() === req.client_name?.toLowerCase() ||
+        c.phone === req.phone
+      );
+      let clientId = existingClient?.id;
+      if (!clientId) {
+        clientId = uid();
+        await addClient({ id: clientId, name: req.client_name, phone: req.phone, address: req.address || '', active: true });
+      }
+      // 2. Crear mascota
+      const petId = uid();
+      await addPet({ id: petId, clientId, client_id: clientId, name: req.pet_name || 'Pet', breed: req.breed || '', size: req.size || '', hairType: 'Short Hair', active: true });
+      // 3. Crear appointment
+      const van = vans.find(v => v.id === schedForm.vanId);
+      const appt = {
+        id: uid(), date: schedForm.date, timeStart: schedForm.timeStart, timeEnd: schedForm.timeEnd,
+        vanId: schedForm.vanId, clientId, groomerId: null,
+        companyId: van?.companyId || req.company_id || 'epw',
+        status: 'confirmed',
+        notes: `${req.service || ''} — Booked online${schedForm.notes ? ' — ' + schedForm.notes : ''}`,
+        alertNotes: '', agreementSigned: false,
+        servicePrice: 0, serviceName: req.service || '',
+        recurrenceWeeks: 0,
+        client: { id: clientId, name: req.client_name, phone: req.phone, address: req.address },
+        pets: [{ id: uid(), petId, service: req.service || '', amount: 0, tip: 0, cardFee: 0, method: 'Cash', status: 'pending', pet: { id: petId, name: req.pet_name, breed: req.breed } }],
+      };
+      await addAppointment(appt);
+      await refreshAppointments();
+      // 4. Actualizar request
+      await updateBookingRequest(req.id, { status: 'scheduled' });
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'scheduled' } : r));
+      // 5. SMS confirmación
+      if (req.phone) {
+        const dateFormatted = new Date(schedForm.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        sendSMS(req.phone, `Hi ${req.client_name}! ✅ Your grooming appointment is confirmed for ${dateFormatted} at ${schedForm.timeStart} for ${req.pet_name || 'your pet'}. Thank you! — ${req.company_id === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}`, req.company_id);
+      }
+      setSchedulingId(null);
+      alert('✅ Appointment created and SMS sent!');
+    } catch(e) { alert('Error: ' + e.message); }
+    setSaving(false);
+  };
+
+  const handleDecline = async (id) => {
+    if (!confirm('Decline this request?')) return;
+    await updateBookingRequest(id, { status: 'cancelled' });
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'cancelled' } : r));
+  };
+
+  const statusColors = {
+    pending: { bg: '#fef3c7', text: '#92400e', border: '#fcd34d', label: '⏳ Pending' },
+    scheduled: { bg: '#f0fdfa', text: '#0f766e', border: '#6ee7b7', label: '✅ Scheduled' },
+    cancelled: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5', label: '❌ Declined' },
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Online Booking" title={`📩 Requests ${pendingCount > 0 ? `· ${pendingCount} pending` : ''}`} />
+
+      {/* Request notification permission */}
+      {'Notification' in window && Notification.permission === 'default' && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#92400e' }}>🔔 Enable notifications</div>
+            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>Get alerts when new requests arrive</div>
+          </div>
+          <button onClick={() => Notification.requestPermission()}
+            style={{ background: '#f59e0b', border: 'none', borderRadius: 8, padding: '8px 14px', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+            Enable
+          </button>
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: '#f1f5f9', padding: 3, borderRadius: 8 }}>
+        {[['pending', '⏳ Pending'], ['scheduled', '✅ Scheduled'], ['cancelled', '❌ Declined'], ['all', '📋 All']].map(([val, lbl]) => (
+          <button key={val} onClick={() => setFilter(val)}
+            style={{ flex: 1, padding: '7px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: filter === val ? 700 : 400, background: filter === val ? '#fff' : 'transparent', color: filter === val ? '#0f766e' : '#64748b' }}>
+            {lbl} {val === 'pending' && pendingCount > 0 ? `(${pendingCount})` : ''}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={styles.empty}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>📩</div>
+          <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>
+            {filter === 'pending' ? 'No pending requests' : 'No requests found'}
+          </p>
+          <p style={{ margin: '8px 0 0', fontSize: 13, color: '#94a3b8' }}>
+            Share the booking link on social media to start receiving requests
+          </p>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {DEFAULT_COMPANIES.map(c => (
+              <div key={c.id} style={{ padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, fontSize: 13, color: '#0f766e', fontFamily: 'monospace' }}>
+                {c.logoEmoji} {window.location.origin}/booking/{c.id}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filtered.map(req => {
+            const sc = statusColors[req.status] || statusColors.pending;
+            const company = DEFAULT_COMPANIES.find(c => c.id === req.company_id);
+            const isScheduling = schedulingId === req.id;
+            return (
+              <div key={req.id} style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', borderLeft: `4px solid ${sc.border}` }}>
+                <div style={{ padding: '14px 16px' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{req.client_name}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>📞 {req.phone}</div>
+                      {req.address && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>📍 {req.address}</div>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.text }}>{sc.label}</span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  {/* Pet + service */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <span style={{ padding: '4px 10px', background: '#f0fdfa', borderRadius: 999, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>🐾 {req.pet_name}</span>
+                    {req.breed && <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{req.breed}</span>}
+                    {req.size && <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{req.size.split(' ')[0]}</span>}
+                    {req.service && <span style={{ padding: '4px 10px', background: '#fffbeb', borderRadius: 999, fontSize: 12, color: '#92400e', fontWeight: 600 }}>✂️ {req.service}</span>}
+                    <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{company?.logoEmoji} {company?.name}</span>
+                  </div>
+
+                  {req.notes && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 8, marginBottom: 10 }}>📝 {req.notes}</div>}
+
+                  {/* Actions */}
+                  {req.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => { setSchedulingId(isScheduling ? null : req.id); setSchedForm({ vanId: vans.find(v => v.companyId === req.company_id)?.id || '', date: todayISO(), timeStart: '09:00', timeEnd: '11:00', notes: '' }); }}
+                        style={{ flex: 2, padding: '10px', background: isScheduling ? '#f0fdfa' : '#0f766e', border: isScheduling ? '2px solid #0f766e' : 'none', borderRadius: 10, color: isScheduling ? '#0f766e' : '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        {isScheduling ? '✕ Cancel' : '📅 Schedule'}
+                      </button>
+                      <button onClick={() => { window.open(`https://wa.me/${req.phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi ${req.client_name}! We received your grooming request for ${req.pet_name}. We'll contact you soon to confirm.`)}`, '_blank'); }}
+                        style={{ flex: 1, padding: '10px', background: '#25d366', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        💬 WA
+                      </button>
+                      <button onClick={() => handleDecline(req.id)}
+                        style={{ flex: 1, padding: '10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Schedule form */}
+                {isScheduling && req.status === 'pending' && (
+                  <div style={{ borderTop: '1px solid #f1f5f9', padding: '14px 16px', background: '#f0fdfa' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#0f766e', marginBottom: 12 }}>📅 Schedule Appointment</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Van *</label>
+                        <select value={schedForm.vanId} onChange={e => setSchedForm(f => ({...f, vanId: e.target.value}))}
+                          style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                          <option value="">Select van</option>
+                          {vans.filter(v => v.active !== false && (!req.company_id || v.companyId === req.company_id)).map(v => {
+                            const g = groomers.find(gr => gr.vanId === v.id);
+                            return <option key={v.id} value={v.id}>{v.name}{g ? ` — ${g.name}` : ''}</option>;
+                          })}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Date *</label>
+                        <input type="date" value={schedForm.date} onChange={e => setSchedForm(f => ({...f, date: e.target.value}))}
+                          style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Start Time</label>
+                        <input type="time" value={schedForm.timeStart} onChange={e => setSchedForm(f => ({...f, timeStart: e.target.value}))}
+                          style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>End Time</label>
+                        <input type="time" value={schedForm.timeEnd} onChange={e => setSchedForm(f => ({...f, timeEnd: e.target.value}))}
+                          style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
+                      </div>
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 }}>Notes</label>
+                      <input value={schedForm.notes} onChange={e => setSchedForm(f => ({...f, notes: e.target.value}))}
+                        style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} placeholder="Optional notes..." />
+                    </div>
+                    <button onClick={() => handleSchedule(req)} disabled={saving}
+                      style={{ width: '100%', padding: '12px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
+                      {saving ? '...' : '✅ Confirm & Send SMS'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Booking links */}
+      <div style={{ marginTop: 24, padding: '16px', background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 10 }}>🔗 Booking Links — share on social media</div>
+        {DEFAULT_COMPANIES.map(c => (
+          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#fff', borderRadius: 10, marginBottom: 8, border: '1px solid #e2e8f0' }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{c.logoEmoji} {c.name}</div>
+              <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace', marginTop: 2 }}>{window.location.origin}/booking/{c.id}</div>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/booking/${c.id}`); alert('✅ Link copied!'); }}
+              style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              Copy
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ===== EXPORT — detecta /booking/epw o /booking/atw =====
+export default function App() {
+  const pathname = window.location.pathname;
+  if (pathname.startsWith('/booking/')) {
+    const companyId = pathname.split('/')[2] || 'epw';
+    return <BookingPage companyId={companyId} />;
+  }
+  return <AppMain />;
+}
