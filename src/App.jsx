@@ -1597,7 +1597,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'boarding' && <div style={{padding:40,textAlign:'center',fontSize:24,fontWeight:800}}>🏠 BOARDING WORKS ✅</div>}
+        {tab === 'boarding' && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
@@ -5898,32 +5898,23 @@ function BoardingTab({ clients, pets, session, settings }) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingRes, setEditingRes] = useState(null);
-  const [showAgreement, setShowAgreement] = useState(false);
-  const [agreementSigned, setAgreementSigned] = useState(false);
-  const [viewMode, setViewMode] = useState('list'); // list | calendar
-  const [showPayment, setShowPayment] = useState(null); // reservation
+  const [viewMode, setViewMode] = useState('list');
+  const [showPayment, setShowPayment] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ method: 'Cash', amount: '', tip: '' });
   const [maxCapacity, setMaxCapacity] = useState(5);
-  const [showCapacityEdit, setShowCapacityEdit] = useState(false);
-  const emptyForm = {
-    clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
-    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0,
-    rating: 0,
-    // Feeding
-    foodType: '', foodBrand: '', foodAmount: '', feedingTimes: ['8:00 AM', '6:00 PM'], foodNotes: '',
-    // Inventory
-    ownBowl: false, toys: '', accessories: '', medications: '',
-    // Vaccines
-    rabiesDate: '', bordetellaDate: '', dhppDate: '', otherVaccines: '',
-    // Vet
-    vetName: '', vetPhone: '', medicalConditions: '',
-    // Agreement
-    agreementSigned: false,
-  };
-  const [form, setForm] = useState({...emptyForm});
   const [clientSearch, setClientSearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState('basic'); // basic | feeding | health | agreement
+  const [activeSection, setActiveSection] = useState('basic');
+
+  const emptyForm = {
+    clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
+    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0, rating: 0,
+    foodType: '', foodBrand: '', foodAmount: '', feedingTimes: ['8:00 AM', '6:00 PM'], foodNotes: '',
+    ownBowl: false, toys: '', accessories: '', medications: '',
+    rabiesDate: '', bordetellaDate: '', dhppDate: '', otherVaccines: '',
+    vetName: '', vetPhone: '', medicalConditions: '', agreementSigned: false,
+  };
+  const [form, setForm] = useState({...emptyForm});
 
   useEffect(() => { loadReservations(); }, []);
 
@@ -5931,706 +5922,427 @@ function BoardingTab({ clients, pets, session, settings }) {
     setLoading(true);
     try {
       const { data, error } = await supabase.from('boarding_reservations').select('*').order('check_in', { ascending: false });
-      if (error) { console.warn('Boarding table not ready:', error.message); setReservations([]); }
-      else setReservations(data || []);
-    } catch(e) { console.warn('Boarding error:', e); setReservations([]); }
+      setReservations(error ? [] : (data || []));
+    } catch(e) { setReservations([]); }
     setLoading(false);
   };
 
-  const nights = (checkIn, checkOut) => {
-    if (!checkIn || !checkOut) return 0;
-    const d1 = new Date(checkIn), d2 = new Date(checkOut);
-    return Math.max(0, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+  const nights = (a, b) => {
+    if (!a || !b) return 0;
+    return Math.max(0, Math.round((new Date(b) - new Date(a)) / 86400000));
   };
 
-  const calcTotal = (f) => {
-    const n = nights(f.checkIn, f.checkOut);
-    const nightly = BOARDING_PRICES[f.size]?.price || 40;
-    const bath = f.includesBath ? (f.bathPrice || 0) : 0;
-    return n * nightly + bath;
-  };
+  const calcTotal = (f) => nights(f.checkIn, f.checkOut) * (BOARDING_PRICES[f.size]?.price || 40) + (f.includesBath ? (f.bathPrice || 0) : 0);
 
-  const resetForm = () => { setForm({...emptyForm}); setActiveSection('basic'); setAgreementSigned(false); };
+  const resetForm = () => { setForm({...emptyForm}); setActiveSection('basic'); };
 
   const handleSave = async () => {
-    if (!form.clientId || !form.petId || !form.checkIn || !form.checkOut) {
-      alert('Please fill in client, pet, check-in and check-out'); return;
-    }
-    const n = nights(form.checkIn, form.checkOut);
-    if (n < 1) { alert('Check-out must be after check-in'); return; }
-    if (n > 90) { alert('Maximum stay is 90 nights'); return; }
+    if (!form.clientId || !form.petId || !form.checkIn || !form.checkOut) { alert('Fill in all required fields'); return; }
+    if (nights(form.checkIn, form.checkOut) < 1) { alert('Check-out must be after check-in'); return; }
     setSaving(true);
     const payload = {
-      client_id: form.clientId, pet_id: form.petId,
-      check_in: form.checkIn, check_out: form.checkOut,
-      size: form.size, includes_bath: form.includesBath,
-      bath_price: form.includesBath ? (form.bathPrice || 0) : 0,
-      notes: form.notes, status: form.status,
-      deposit_paid: parseFloat(form.depositPaid) || 0,
-      total: calcTotal(form),
-      food_type: form.foodType, food_brand: form.foodBrand,
-      food_amount: form.foodAmount, feeding_times: form.feedingTimes,
-      food_notes: form.foodNotes, own_bowl: form.ownBowl,
-      toys: form.toys, accessories: form.accessories,
-      medications: form.medications, rabies_date: form.rabiesDate || null,
-      bordetella_date: form.bordetellaDate || null, dhpp_date: form.dhppDate || null,
-      other_vaccines: form.otherVaccines, vet_name: form.vetName,
-      vet_phone: form.vetPhone, medical_conditions: form.medicalConditions,
-      agreement_signed: form.agreementSigned,
-      rating: form.rating || 0,
+      client_id: form.clientId, pet_id: form.petId, check_in: form.checkIn, check_out: form.checkOut,
+      size: form.size, includes_bath: form.includesBath, bath_price: form.includesBath ? (form.bathPrice||0) : 0,
+      notes: form.notes, status: form.status, deposit_paid: parseFloat(form.depositPaid)||0, total: calcTotal(form),
+      food_type: form.foodType, food_brand: form.foodBrand, food_amount: form.foodAmount,
+      feeding_times: form.feedingTimes, food_notes: form.foodNotes, own_bowl: form.ownBowl,
+      toys: form.toys, accessories: form.accessories, medications: form.medications,
+      rabies_date: form.rabiesDate||null, bordetella_date: form.bordetellaDate||null,
+      dhpp_date: form.dhppDate||null, other_vaccines: form.otherVaccines,
+      vet_name: form.vetName, vet_phone: form.vetPhone, medical_conditions: form.medicalConditions,
+      agreement_signed: form.agreementSigned, rating: form.rating||0,
     };
-    if (editingRes) {
-      await supabase.from('boarding_reservations').update(payload).eq('id', editingRes.id);
-    } else {
-      await supabase.from('boarding_reservations').insert([payload]);
-    }
+    if (editingRes) await supabase.from('boarding_reservations').update(payload).eq('id', editingRes.id);
+    else await supabase.from('boarding_reservations').insert([payload]);
     await loadReservations();
     setShowForm(false); setEditingRes(null); resetForm(); setSaving(false);
   };
 
   const handleEdit = (res) => {
     setForm({
-      clientId: res.client_id, petId: res.pet_id,
-      checkIn: res.check_in, checkOut: res.check_out,
-      size: res.size || 'small', includesBath: res.includes_bath,
-      bathPrice: res.bath_price || 0, notes: res.notes || '',
-      status: res.status, depositPaid: res.deposit_paid || 0,
-      foodType: res.food_type || '', foodBrand: res.food_brand || '',
-      foodAmount: res.food_amount || '', feedingTimes: res.feeding_times || ['8:00 AM', '6:00 PM'],
-      foodNotes: res.food_notes || '', ownBowl: res.own_bowl || false,
-      toys: res.toys || '', accessories: res.accessories || '',
-      medications: res.medications || '', rabiesDate: res.rabies_date || '',
-      bordetellaDate: res.bordetella_date || '', dhppDate: res.dhpp_date || '',
-      otherVaccines: res.other_vaccines || '', vetName: res.vet_name || '',
-      vetPhone: res.vet_phone || '', medicalConditions: res.medical_conditions || '',
-      agreementSigned: res.agreement_signed || false,
-      rating: res.rating || 0,
+      clientId: res.client_id, petId: res.pet_id, checkIn: res.check_in, checkOut: res.check_out,
+      size: res.size||'small', includesBath: res.includes_bath, bathPrice: res.bath_price||0,
+      notes: res.notes||'', status: res.status, depositPaid: res.deposit_paid||0,
+      foodType: res.food_type||'', foodBrand: res.food_brand||'', foodAmount: res.food_amount||'',
+      feedingTimes: res.feeding_times||['8:00 AM','6:00 PM'], foodNotes: res.food_notes||'',
+      ownBowl: res.own_bowl||false, toys: res.toys||'', accessories: res.accessories||'',
+      medications: res.medications||'', rabiesDate: res.rabies_date||'',
+      bordetellaDate: res.bordetella_date||'', dhppDate: res.dhpp_date||'',
+      otherVaccines: res.other_vaccines||'', vetName: res.vet_name||'',
+      vetPhone: res.vet_phone||'', medicalConditions: res.medical_conditions||'',
+      agreementSigned: res.agreement_signed||false, rating: res.rating||0,
     });
     setEditingRes(res); setShowForm(true); setActiveSection('basic');
+  };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this reservation?')) return;
     await supabase.from('boarding_reservations').delete().eq('id', id);
-    await loadReservations();
+    loadReservations();
   };
 
   const updateStatus = async (id, status) => {
     await supabase.from('boarding_reservations').update({ status }).eq('id', id);
-    await loadReservations();
+    loadReservations();
   };
 
-  const filteredClients = clients.filter(c =>
-    clientSearch ? c.name.toLowerCase().includes(clientSearch.toLowerCase()) : true
-  ).slice(0, 8);
-
-  const clientPets = pets.filter(p => String(p.clientId || p.client_id) === String(form.clientId));
-  const selectedClient = clients.find(c => String(c.id) === String(form.clientId));
-
-  const statusColors = {
-    pending:   { bg: '#fef9c3', text: '#854d0e', border: '#fbbf24' },
-    active:    { bg: '#dcfce7', text: '#14532d', border: '#22c55e' },
-    completed: { bg: '#f1f5f9', text: '#475569', border: '#94a3b8' },
-    cancelled: { bg: '#fee2e2', text: '#7f1d1d', border: '#f87171' },
+  const handlePayment = async () => {
+    if (!paymentForm.amount) { alert('Enter amount'); return; }
+    const newPaid = (showPayment.deposit_paid||0) + parseFloat(paymentForm.amount) + (parseFloat(paymentForm.tip)||0);
+    await supabase.from('boarding_reservations').update({ deposit_paid: newPaid }).eq('id', showPayment.id);
+    loadReservations(); setShowPayment(null); setPaymentForm({ method: 'Cash', amount: '', tip: '' });
   };
 
   const today = todayISO();
   const activeNow = reservations.filter(r => r.status === 'active' && r.check_in <= today && r.check_out > today).length;
   const checkInsToday = reservations.filter(r => r.check_in === today).length;
   const checkOutsToday = reservations.filter(r => r.check_out === today).length;
-  const monthRevenue = reservations.filter(r => r.status !== 'cancelled' && r.check_in?.startsWith(today.slice(0,7)))
-    .reduce((sum, r) => sum + (r.total || 0), 0);
+  const monthRevenue = reservations.filter(r => r.status !== 'cancelled' && r.check_in?.startsWith(today.slice(0,7))).reduce((s,r) => s+(r.total||0), 0);
+  const filteredClients = clientSearch ? clients.filter(c => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0,8) : [];
+  const clientPets = pets.filter(p => String(p.clientId||p.client_id) === String(form.clientId));
+  const selectedClient = clients.find(c => String(c.id) === String(form.clientId));
+  const sc_map = { pending:{bg:'#fef9c3',text:'#854d0e',border:'#fbbf24'}, active:{bg:'#dcfce7',text:'#14532d',border:'#22c55e'}, completed:{bg:'#f1f5f9',text:'#475569',border:'#94a3b8'}, cancelled:{bg:'#fee2e2',text:'#7f1d1d',border:'#f87171'} };
+  const inp = { width:'100%', padding:'10px 12px', border:'1.5px solid #e2e8f0', borderRadius:10, fontSize:14, boxSizing:'border-box' };
+  const lbl = { fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:6 };
+  const card = { background:'#fff', borderRadius:16, padding:16, border:'1px solid #e2e8f0', marginBottom:12 };
 
-  const cardStyle = { background: '#fff', borderRadius: 16, padding: '16px', border: '1px solid #e2e8f0', marginBottom: 12 };
-  const inputStyle = { width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' };
-  const labelStyle = { fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 };
-
-  const BOARDING_AGREEMENT = `BOARDING SERVICE AGREEMENT — Group Guerrero
-
-1. HEALTH REQUIREMENTS
-All pets must be current on Rabies, Bordetella, and DHPP vaccinations. Owner must provide proof upon request. We reserve the right to refuse boarding to any pet that appears ill or poses a health risk to other animals.
-
-2. FEEDING & CARE
-Owner must provide pet's regular food to avoid digestive upset. Feeding schedule will follow owner's instructions. We will provide fresh water at all times. Additional feeding costs may apply for special diets.
-
-3. PET BEHAVIOR
-Owner must disclose any history of aggression, anxiety, or behavioral issues. We reserve the right to contact the owner or terminate boarding if the pet poses a danger to staff or other animals.
-
-4. MEDICAL EMERGENCIES
-In case of a medical emergency, we will attempt to contact the owner immediately. If unreachable, we reserve the right to seek veterinary care at the owner's expense. Owner authorizes emergency veterinary treatment if necessary.
-
-5. PERSONAL BELONGINGS
-We are not responsible for loss or damage to personal items brought by the pet (toys, beds, bowls, etc.). Label all items with your pet's name.
-
-6. MEDICATIONS
-We will administer medications as instructed. Owner must provide clear written instructions and all necessary supplies.
-
-7. CANCELLATION POLICY
-Cancellations must be made at least 48 hours in advance. No-show or late cancellations may result in forfeiture of deposit.
-
-8. PAYMENT
-Full payment is due at check-out. A deposit may be required to hold the reservation. We accept cash, Zelle, and credit card (5.5% processing fee applies).
-
-9. LIABILITY
-Owner agrees that Group Guerrero, its staff, and associates are not liable for illness, injury, or death that may occur during boarding, except in cases of gross negligence. Owner assumes full financial responsibility for any damage caused by their pet.
-
-By signing below, the owner acknowledges reading and agreeing to all terms above.`;
-
-  // ---- AGREEMENT MODAL ----
-  if (showAgreement) return (
-    <div style={{ padding: 16, maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <button onClick={() => setShowAgreement(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>←</button>
-        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 800 }}>🏠 Boarding Agreement</div>
-      </div>
-      <div style={{ background: '#fff', borderRadius: 16, padding: 20, border: '1px solid #e2e8f0', fontSize: 13, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: '#374151', marginBottom: 20 }}>
-        {BOARDING_AGREEMENT}
-      </div>
-    </div>
-  );
-
-  // ---- PAYMENT PANEL ----
-  const handlePayment = async () => {
-    if (!paymentForm.amount) { alert('Enter amount'); return; }
-    const paid = parseFloat(paymentForm.amount);
-    const tip = parseFloat(paymentForm.tip) || 0;
-    const newDeposit = (showPayment.deposit_paid || 0) + paid + tip;
-    await supabase.from('boarding_reservations').update({
-      deposit_paid: newDeposit,
-      status: newDeposit >= (showPayment.total || 0) ? 'completed' : showPayment.status,
-    }).eq('id', showPayment.id);
-    await loadReservations();
-    setShowPayment(null);
-    setPaymentForm({ method: 'Cash', amount: '', tip: '' });
-  };
-
+  // Payment screen
   if (showPayment) {
-    const bal = (showPayment.total || 0) - (showPayment.deposit_paid || 0);
+    const bal = (showPayment.total||0) - (showPayment.deposit_paid||0);
     const client = clients.find(c => String(c.id) === String(showPayment.client_id));
     const pet = pets.find(p => String(p.id) === String(showPayment.pet_id));
     return (
-      <div style={{ padding: 16, maxWidth: 500, margin: '0 auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button onClick={() => setShowPayment(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>←</button>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 800 }}>💰 Collect Payment</div>
+      <div style={{ padding:16, maxWidth:500, margin:'0 auto' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:20 }}>
+          <button onClick={() => setShowPayment(null)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer' }}>←</button>
+          <div style={{ fontFamily:'Fraunces, serif', fontSize:20, fontWeight:800 }}>💰 Collect Payment</div>
         </div>
-        <div style={{ background: '#f0fdfa', borderRadius: 16, padding: 16, marginBottom: 16, border: '1px solid #99f6e4' }}>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{client?.name}</div>
-          <div style={{ fontSize: 13, color: '#64748b' }}>🐾 {pet?.name} · {showPayment.check_in} → {showPayment.check_out}</div>
-          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Total</span>
-            <span style={{ fontWeight: 700 }}>${showPayment.total?.toFixed(2)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 13, color: '#64748b' }}>Paid</span>
-            <span style={{ color: '#0f766e', fontWeight: 600 }}>${showPayment.deposit_paid?.toFixed(2) || '0.00'}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, borderTop: '1px solid #99f6e4', paddingTop: 8, marginTop: 8 }}>
+        <div style={{ background:'#f0fdfa', borderRadius:16, padding:16, marginBottom:16, border:'1px solid #99f6e4' }}>
+          <div style={{ fontWeight:700, fontSize:15 }}>{client?.name}</div>
+          <div style={{ fontSize:13, color:'#64748b' }}>🐾 {pet?.name} · {showPayment.check_in} → {showPayment.check_out}</div>
+          <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:18, marginTop:12 }}>
             <span>Balance Due</span>
-            <span style={{ color: bal > 0 ? '#dc2626' : '#0f766e' }}>${bal.toFixed(2)}</span>
+            <span style={{ color:'#dc2626' }}>${bal.toFixed(2)}</span>
           </div>
         </div>
-        {/* Payment method */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>Payment Method</label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['Cash', 'Zelle', 'Card'].map(m => (
-              <button key={m} onClick={() => setPaymentForm(f => ({...f, method: m}))}
-                style={{ flex: 1, padding: '12px', border: `2px solid ${paymentForm.method===m?'#0f766e':'#e2e8f0'}`, borderRadius: 12, background: paymentForm.method===m?'#f0fdfa':'#fff', fontWeight: paymentForm.method===m?700:400, cursor: 'pointer', fontSize: 14 }}>
-                {m === 'Cash' ? '💵' : m === 'Zelle' ? '📱' : '💳'} {m}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Amount ($)</label>
-            <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({...f, amount: e.target.value}))}
-              placeholder={bal.toFixed(2)}
-              style={{ width: '100%', padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', fontWeight: 700 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Tip ($)</label>
-            <input type="number" value={paymentForm.tip} onChange={e => setPaymentForm(f => ({...f, tip: e.target.value}))}
-              placeholder="0.00"
-              style={{ width: '100%', padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 16, boxSizing: 'border-box' }} />
-          </div>
-        </div>
-        {/* Quick amounts */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-          {[bal, Math.ceil(bal/2), 50, 100].filter((v,i,a) => v > 0 && a.indexOf(v) === i).map(amt => (
-            <button key={amt} onClick={() => setPaymentForm(f => ({...f, amount: amt.toFixed(2)}))}
-              style={{ padding: '8px 14px', border: '1.5px solid #e2e8f0', borderRadius: 20, background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-              ${amt.toFixed(0)}
+        <div style={{ display:'flex', gap:8, marginBottom:16 }}>
+          {['Cash','Zelle','Card'].map(m => (
+            <button key={m} onClick={() => setPaymentForm(f=>({...f,method:m}))}
+              style={{ flex:1, padding:'12px', border:`2px solid ${paymentForm.method===m?'#0f766e':'#e2e8f0'}`, borderRadius:12, background:paymentForm.method===m?'#f0fdfa':'#fff', fontWeight:paymentForm.method===m?700:400, cursor:'pointer', fontSize:14 }}>
+              {m==='Cash'?'💵':m==='Zelle'?'📱':'💳'} {m}
             </button>
           ))}
         </div>
-        {paymentForm.method === 'Card' && (
-          <div style={{ background: '#fef9c3', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#854d0e' }}>
-            ⚠️ Card payments include a 5.5% processing fee
-          </div>
-        )}
-        <button onClick={handlePayment}
-          style={{ width: '100%', padding: 16, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>
-          ✅ Collect ${paymentForm.amount || bal.toFixed(2)} {paymentForm.tip > 0 ? `+ $${paymentForm.tip} tip` : ''}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
+          <div><label style={lbl}>Amount ($)</label>
+            <input type="number" value={paymentForm.amount} onChange={e=>setPaymentForm(f=>({...f,amount:e.target.value}))} placeholder={bal.toFixed(2)} style={{...inp,fontSize:16,fontWeight:700}} /></div>
+          <div><label style={lbl}>Tip ($)</label>
+            <input type="number" value={paymentForm.tip} onChange={e=>setPaymentForm(f=>({...f,tip:e.target.value}))} placeholder="0.00" style={inp} /></div>
+        </div>
+        <button onClick={handlePayment} style={{ width:'100%', padding:16, background:'#0f766e', border:'none', borderRadius:14, color:'#fff', fontSize:16, fontWeight:800, cursor:'pointer' }}>
+          ✅ Collect ${paymentForm.amount||bal.toFixed(2)}
         </button>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '16px', maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+    <div style={{ padding:16, maxWidth:600, margin:'0 auto', paddingBottom:100 }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
         <div>
-          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800 }}>🏠 Boarding</div>
-          <div style={{ fontSize: 12, color: '#64748b' }}>Group Guerrero</div>
+          <div style={{ fontFamily:'Fraunces, serif', fontSize:22, fontWeight:800 }}>🏠 Boarding</div>
+          <div style={{ fontSize:12, color:'#64748b' }}>Group Guerrero · Max: {maxCapacity} dogs</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowCapacityEdit(s => !s)}
-            style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b' }}>
-            🏠 {maxCapacity} max
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={() => setMaxCapacity(n => { const v = prompt('Max capacity:', n); return parseInt(v)||n; })}
+            style={{ background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:10, padding:'8px 12px', cursor:'pointer', fontSize:13, color:'#64748b' }}>
+            ⚙️ {maxCapacity}
           </button>
           <button onClick={() => { resetForm(); setEditingRes(null); setShowForm(true); setClientSearch(''); }}
-            style={{ background: '#0f766e', border: 'none', borderRadius: 12, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+            style={{ background:'#0f766e', border:'none', borderRadius:12, padding:'10px 16px', color:'#fff', fontWeight:700, fontSize:14, cursor:'pointer' }}>
             + New
           </button>
         </div>
       </div>
 
-      {/* Capacity edit */}
-      {showCapacityEdit && (
-        <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #e2e8f0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Max capacity:</span>
-          <input type="number" value={maxCapacity} onChange={e => setMaxCapacity(parseInt(e.target.value)||1)} min={1} max={50}
-            style={{ width: 70, padding: '6px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, textAlign: 'center' }} />
-          <span style={{ fontSize: 13, color: '#64748b' }}>dogs</span>
-          <button onClick={() => setShowCapacityEdit(false)} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 13 }}>Save</button>
-        </div>
-      )}
-
-      {/* View toggle */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-        {[['list','📋 List'],['calendar','📅 Calendar']].map(([m,l]) => (
-          <button key={m} onClick={() => setViewMode(m)}
-            style={{ padding: '8px 16px', borderRadius: 20, border: `1.5px solid ${viewMode===m?'#0f766e':'#e2e8f0'}`, background: viewMode===m?'#f0fdfa':'#fff', color: viewMode===m?'#0f766e':'#64748b', fontWeight: viewMode===m?700:400, fontSize: 13, cursor: 'pointer' }}>
-            {l}
-          </button>
-        ))}
-      </div>
-
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:10, marginBottom:16 }}>
         {[
-          { label: 'Dogs In House', value: `${activeNow}/${maxCapacity}`, icon: '🐶', color: activeNow >= maxCapacity ? '#dc2626' : '#0f766e' },
-          { label: 'Check-ins Today', value: checkInsToday, icon: '📥', color: '#7c3aed' },
-          { label: 'Check-outs Today', value: checkOutsToday, icon: '📤', color: '#ea580c' },
-          { label: 'Month Revenue', value: `$${monthRevenue.toFixed(0)}`, icon: '💰', color: '#0369a1' },
-        ].map((s, i) => (
-          <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '14px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
-            <div style={{ fontSize: 24 }}>{s.icon}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.label}</div>
+          { label:'Dogs In House', value:`${activeNow}/${maxCapacity}`, icon:'🐶', color: activeNow>=maxCapacity?'#dc2626':'#0f766e' },
+          { label:'Check-ins Today', value:checkInsToday, icon:'📥', color:'#7c3aed' },
+          { label:'Check-outs Today', value:checkOutsToday, icon:'📤', color:'#ea580c' },
+          { label:'Month Revenue', value:`$${monthRevenue.toFixed(0)}`, icon:'💰', color:'#0369a1' },
+        ].map((s,i) => (
+          <div key={i} style={{ background:'#fff', borderRadius:14, padding:14, border:'1px solid #e2e8f0', textAlign:'center' }}>
+            <div style={{ fontSize:24 }}>{s.icon}</div>
+            <div style={{ fontSize:22, fontWeight:800, color:s.color }}>{s.value}</div>
+            <div style={{ fontSize:11, color:'#64748b', marginTop:2 }}>{s.label}</div>
           </div>
         ))}
       </div>
 
       {/* Capacity bar */}
       {activeNow > 0 && (
-        <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #e2e8f0', marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-            <span>Occupancy</span>
-            <span style={{ fontWeight: 700, color: activeNow >= maxCapacity ? '#dc2626' : '#0f766e' }}>{activeNow}/{maxCapacity}</span>
+        <div style={{ background:'#fff', borderRadius:12, padding:'10px 16px', border:'1px solid #e2e8f0', marginBottom:12 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:'#64748b', marginBottom:6 }}>
+            <span>Occupancy</span><span style={{ fontWeight:700, color:activeNow>=maxCapacity?'#dc2626':'#0f766e' }}>{activeNow}/{maxCapacity}</span>
           </div>
-          <div style={{ background: '#f1f5f9', borderRadius: 20, height: 10, overflow: 'hidden' }}>
-            <div style={{ background: activeNow >= maxCapacity ? '#dc2626' : '#0f766e', height: '100%', width: `${Math.min(100, (activeNow/maxCapacity)*100)}%`, borderRadius: 20, transition: 'width 0.3s' }} />
+          <div style={{ background:'#f1f5f9', borderRadius:20, height:8 }}>
+            <div style={{ background:activeNow>=maxCapacity?'#dc2626':'#0f766e', height:'100%', width:`${Math.min(100,(activeNow/maxCapacity)*100)}%`, borderRadius:20 }} />
           </div>
         </div>
       )}
 
-      {/* CALENDAR VIEW */}
-      {viewMode === 'calendar' && (() => {
-        const today2 = new Date();
-        const days = Array.from({length: 14}, (_, i) => {
-          const d = new Date(today2);
-          d.setDate(d.getDate() + i);
-          return d.toISOString().split('T')[0];
-        });
-        return (
-          <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #e2e8f0', marginBottom: 16, overflowX: 'auto' }}>
-            <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>📅 Next 14 Days</div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, 1fr)`, gap: 4, minWidth: 560 }}>
-              {days.map(day => {
-                const count = reservations.filter(r => r.status !== 'cancelled' && r.check_in <= day && r.check_out > day).length;
-                const pct = maxCapacity > 0 ? count / maxCapacity : 0;
-                const isToday2 = day === todayISO();
-                return (
-                  <div key={day} style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 10, color: isToday2 ? '#0f766e' : '#94a3b8', fontWeight: isToday2 ? 700 : 400, marginBottom: 4 }}>
-                      {new Date(day + 'T12:00:00').toLocaleDateString('en', {weekday: 'short'}).slice(0,1)}
-                      <br/>{day.slice(8)}
-                    </div>
-                    <div style={{ height: 40, background: count === 0 ? '#f1f5f9' : pct >= 1 ? '#fee2e2' : pct >= 0.7 ? '#fef9c3' : '#dcfce7', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: isToday2 ? '2px solid #0f766e' : 'none' }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: count === 0 ? '#94a3b8' : pct >= 1 ? '#dc2626' : '#0f766e' }}>{count > 0 ? count : ''}</span>
-                    </div>
+      {/* View toggle */}
+      <div style={{ display:'flex', gap:6, marginBottom:16 }}>
+        {[['list','📋 List'],['calendar','📅 Calendar']].map(([m,l]) => (
+          <button key={m} onClick={() => setViewMode(m)}
+            style={{ padding:'8px 16px', borderRadius:20, border:`1.5px solid ${viewMode===m?'#0f766e':'#e2e8f0'}`, background:viewMode===m?'#f0fdfa':'#fff', color:viewMode===m?'#0f766e':'#64748b', fontWeight:viewMode===m?700:400, fontSize:13, cursor:'pointer' }}>
+            {l}
+          </button>
+        ))}
+      </div>
+
+      {/* Calendar */}
+      {viewMode === 'calendar' && (
+        <div style={{ background:'#fff', borderRadius:16, padding:16, border:'1px solid #e2e8f0', marginBottom:16, overflowX:'auto' }}>
+          <div style={{ fontWeight:700, marginBottom:12, fontSize:14 }}>📅 Next 14 Days</div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(14,1fr)', gap:4, minWidth:500 }}>
+            {Array.from({length:14},(_,i) => { const d=new Date(); d.setDate(d.getDate()+i); return d.toISOString().split('T')[0]; }).map(day => {
+              const count = reservations.filter(r => r.status!=='cancelled' && r.check_in<=day && r.check_out>day).length;
+              const pct = maxCapacity>0?count/maxCapacity:0;
+              return (
+                <div key={day} style={{ textAlign:'center' }}>
+                  <div style={{ fontSize:9, color:'#94a3b8', marginBottom:4 }}>{new Date(day+'T12:00:00').toLocaleDateString('en',{weekday:'short'}).slice(0,1)}<br/>{day.slice(8)}</div>
+                  <div style={{ height:36, background:count===0?'#f1f5f9':pct>=1?'#fee2e2':pct>=0.7?'#fef9c3':'#dcfce7', borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', border:day===today?'2px solid #0f766e':'none' }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:count===0?'#94a3b8':pct>=1?'#dc2626':'#0f766e' }}>{count>0?count:''}</span>
                   </div>
-                );
-              })}
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11, color: '#64748b' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#dcfce7', borderRadius: 3, display: 'inline-block' }}/>Available</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#fef9c3', borderRadius: 3, display: 'inline-block' }}/>Almost full</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#fee2e2', borderRadius: 3, display: 'inline-block' }}/>Full</span>
-            </div>
+                </div>
+              );
+            })}
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Form */}
       {showForm && (
-        <div style={{ ...cardStyle, border: '2px solid #0f766e' }}>
-          <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>
-            {editingRes ? '✏️ Edit Reservation' : '🏠 New Reservation'}
-          </div>
-
-          {/* Section tabs */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto' }}>
+        <div style={{ ...card, border:'2px solid #0f766e', marginBottom:16 }}>
+          <div style={{ fontWeight:800, fontSize:16, marginBottom:14 }}>{editingRes?'✏️ Edit':'🏠 New Reservation'}</div>
+          <div style={{ display:'flex', gap:6, marginBottom:14, overflowX:'auto' }}>
             {[['basic','📋 Basic'],['feeding','🍽️ Feeding'],['health','💉 Health'],['agreement','📄 Agreement']].map(([s,l]) => (
               <button key={s} onClick={() => setActiveSection(s)}
-                style={{ padding: '8px 14px', borderRadius: 20, border: `1.5px solid ${activeSection===s?'#0f766e':'#e2e8f0'}`, background: activeSection===s?'#f0fdfa':'#fff', color: activeSection===s?'#0f766e':'#64748b', fontWeight: activeSection===s?700:400, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                style={{ padding:'7px 12px', borderRadius:20, border:`1.5px solid ${activeSection===s?'#0f766e':'#e2e8f0'}`, background:activeSection===s?'#f0fdfa':'#fff', color:activeSection===s?'#0f766e':'#64748b', fontWeight:activeSection===s?700:400, fontSize:12, cursor:'pointer', whiteSpace:'nowrap' }}>
                 {l}
               </button>
             ))}
           </div>
 
-          {/* BASIC SECTION */}
           {activeSection === 'basic' && (
             <div>
-              {/* Client */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Client *</label>
-                {!form.clientId ? (
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>Client *</label>
+                {form.clientId ? (
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', background:'#f0fdfa', borderRadius:10, border:'1.5px solid #0f766e' }}>
+                    <span style={{ fontWeight:600, flex:1 }}>{selectedClient?.name}</span>
+                    <button onClick={() => setForm(f=>({...f,clientId:'',petId:''}))} style={{ background:'none', border:'none', cursor:'pointer', color:'#64748b' }}>✕</button>
+                  </div>
+                ) : (
                   <div>
-                    <input value={clientSearch} onChange={e => setClientSearch(e.target.value)}
-                      placeholder="Search client..." style={inputStyle} />
+                    <input value={clientSearch} onChange={e=>setClientSearch(e.target.value)} placeholder="Search client..." style={inp} />
                     {clientSearch && (
-                      <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginTop: 4, overflow: 'hidden' }}>
-                        {filteredClients.map(c => (
-                          <div key={c.id} onClick={() => { setForm(f => ({...f, clientId: String(c.id), petId: ''})); setClientSearch(''); }}
-                            style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}>
-                            {c.name} <span style={{ color: '#94a3b8', fontSize: 12 }}>{c.phone}</span>
+                      <div style={{ border:'1px solid #e2e8f0', borderRadius:10, marginTop:4, overflow:'hidden' }}>
+                        {filteredClients.length ? filteredClients.map(c => (
+                          <div key={c.id} onClick={() => { setForm(f=>({...f,clientId:String(c.id),petId:''})); setClientSearch(''); }}
+                            style={{ padding:'10px 12px', cursor:'pointer', borderBottom:'1px solid #f1f5f9', fontSize:14 }}>
+                            {c.name} <span style={{ color:'#94a3b8', fontSize:12 }}>{c.phone}</span>
                           </div>
-                        ))}
-                        {!filteredClients.length && <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>No clients found</div>}
+                        )) : <div style={{ padding:'10px 12px', color:'#94a3b8', fontSize:13 }}>No clients found</div>}
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
-                    <span style={{ fontWeight: 600, flex: 1 }}>{selectedClient?.name}</span>
-                    <button onClick={() => setForm(f => ({...f, clientId: '', petId: ''}))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>✕</button>
-                  </div>
                 )}
               </div>
-              {/* Pet */}
               {form.clientId && (
-                <div style={{ marginBottom: 12 }}>
-                  <label style={labelStyle}>Pet *</label>
-                  <select value={form.petId} onChange={e => {
-                    const p = pets.find(p => String(p.id) === e.target.value);
-                    const sizeMap = w => w <= 20 ? 'small' : w <= 40 ? 'medium' : w <= 60 ? 'large' : 'giant';
-                    setForm(f => ({...f, petId: e.target.value, size: p?.weight ? sizeMap(p.weight) : f.size}));
-                  }} style={inputStyle}>
+                <div style={{ marginBottom:12 }}>
+                  <label style={lbl}>Pet *</label>
+                  <select value={form.petId} onChange={e=>setForm(f=>({...f,petId:e.target.value}))} style={inp}>
                     <option value="">Select pet...</option>
                     {clientPets.map(p => <option key={p.id} value={p.id}>{p.name} ({p.breed})</option>)}
                   </select>
                 </div>
               )}
-              {/* Dates */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div><label style={labelStyle}>Check-in *</label>
-                  <input type="date" value={form.checkIn} onChange={e => setForm(f => ({...f, checkIn: e.target.value}))} style={inputStyle} /></div>
-                <div><label style={labelStyle}>Check-out *</label>
-                  <input type="date" value={form.checkOut} min={form.checkIn} onChange={e => setForm(f => ({...f, checkOut: e.target.value}))} style={inputStyle} /></div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                <div><label style={lbl}>Check-in *</label><input type="date" value={form.checkIn} onChange={e=>setForm(f=>({...f,checkIn:e.target.value}))} style={inp} /></div>
+                <div><label style={lbl}>Check-out *</label><input type="date" value={form.checkOut} min={form.checkIn} onChange={e=>setForm(f=>({...f,checkOut:e.target.value}))} style={inp} /></div>
               </div>
-              {/* Size */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Size</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
-                  {Object.entries(BOARDING_PRICES).map(([key, val]) => (
-                    <button key={key} onClick={() => setForm(f => ({...f, size: key}))}
-                      style={{ padding: '10px', border: `2px solid ${form.size===key?'#0f766e':'#e2e8f0'}`, borderRadius: 10, background: form.size===key?'#f0fdfa':'#fff', cursor: 'pointer', textAlign: 'left' }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: form.size===key?'#0f766e':'#0f172a' }}>{val.label}</div>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>${val.price}/night</div>
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>Size & Price per Night</label>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
+                  {Object.entries(BOARDING_PRICES).map(([k,v]) => (
+                    <button key={k} onClick={() => setForm(f=>({...f,size:k}))}
+                      style={{ padding:'10px', border:`2px solid ${form.size===k?'#0f766e':'#e2e8f0'}`, borderRadius:10, background:form.size===k?'#f0fdfa':'#fff', cursor:'pointer', textAlign:'left' }}>
+                      <div style={{ fontWeight:700, fontSize:13, color:form.size===k?'#0f766e':'#0f172a' }}>{v.label}</div>
+                      <div style={{ fontSize:12, color:'#64748b' }}>${v.price}/night</div>
                     </button>
                   ))}
                 </div>
               </div>
-              {/* Bath */}
-              <div style={{ marginBottom: 12, padding: '12px', background: '#f8fafc', borderRadius: 10 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.includesBath} onChange={e => setForm(f => ({...f, includesBath: e.target.checked}))} style={{ width: 18, height: 18 }} />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>🛁 Include bath on check-out</span>
+              <div style={{ marginBottom:12, padding:12, background:'#f8fafc', borderRadius:10 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                  <input type="checkbox" checked={form.includesBath} onChange={e=>setForm(f=>({...f,includesBath:e.target.checked}))} style={{ width:18, height:18 }} />
+                  <span style={{ fontWeight:600, fontSize:14 }}>🛁 Bath on check-out</span>
                 </label>
-                {form.includesBath && (
-                  <div style={{ marginTop: 10 }}>
-                    <label style={labelStyle}>Bath price ($)</label>
-                    <input type="number" value={form.bathPrice} onChange={e => setForm(f => ({...f, bathPrice: parseFloat(e.target.value)||0}))} style={inputStyle} />
-                  </div>
-                )}
+                {form.includesBath && <div style={{ marginTop:10 }}><label style={lbl}>Bath price ($)</label><input type="number" value={form.bathPrice} onChange={e=>setForm(f=>({...f,bathPrice:parseFloat(e.target.value)||0}))} style={inp} /></div>}
               </div>
-              {/* Status & Deposit */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div><label style={labelStyle}>Status</label>
-                  <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))} style={inputStyle}>
-                    <option value="pending">Pending</option>
-                    <option value="active">Active</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                <div><label style={lbl}>Status</label>
+                  <select value={form.status} onChange={e=>setForm(f=>({...f,status:e.target.value}))} style={inp}>
+                    <option value="pending">Pending</option><option value="active">Active</option>
+                    <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
                   </select></div>
-                <div><label style={labelStyle}>Deposit Paid ($)</label>
-                  <input type="number" value={form.depositPaid} onChange={e => setForm(f => ({...f, depositPaid: e.target.value}))} style={inputStyle} /></div>
+                <div><label style={lbl}>Deposit Paid ($)</label><input type="number" value={form.depositPaid} onChange={e=>setForm(f=>({...f,depositPaid:e.target.value}))} style={inp} /></div>
               </div>
-              {/* Notes */}
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))}
-                  placeholder="Special instructions..." style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} />
-              </div>
-              {/* Total */}
-              {form.checkIn && form.checkOut && nights(form.checkIn, form.checkOut) > 0 && (
-                <div style={{ background: '#f0fdfa', borderRadius: 10, padding: '12px', marginBottom: 12, border: '1px solid #99f6e4' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span>{nights(form.checkIn, form.checkOut)} nights × ${BOARDING_PRICES[form.size]?.price}</span>
-                    <span>${(nights(form.checkIn, form.checkOut) * (BOARDING_PRICES[form.size]?.price||0)).toFixed(2)}</span>
-                  </div>
-                  {form.includesBath && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
-                    <span>🛁 Bath</span><span>${form.bathPrice||0}</span></div>}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, marginTop: 8, borderTop: '1px solid #99f6e4', paddingTop: 8 }}>
-                    <span>Total</span><span style={{ color: '#0f766e' }}>${calcTotal(form).toFixed(2)}</span>
-                  </div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>Notes</label><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...inp,minHeight:60,resize:'vertical'}} /></div>
+              {form.checkIn && form.checkOut && nights(form.checkIn,form.checkOut)>0 && (
+                <div style={{ background:'#f0fdfa', borderRadius:10, padding:12, border:'1px solid #99f6e4', marginBottom:12 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}><span>{nights(form.checkIn,form.checkOut)} nights × ${BOARDING_PRICES[form.size]?.price}</span><span>${(nights(form.checkIn,form.checkOut)*(BOARDING_PRICES[form.size]?.price||0)).toFixed(2)}</span></div>
+                  {form.includesBath && <div style={{ display:'flex', justifyContent:'space-between', fontSize:13 }}><span>Bath</span><span>${form.bathPrice||0}</span></div>}
+                  <div style={{ display:'flex', justifyContent:'space-between', fontWeight:800, fontSize:16, borderTop:'1px solid #99f6e4', paddingTop:8, marginTop:8 }}><span>Total</span><span style={{ color:'#0f766e' }}>${calcTotal(form).toFixed(2)}</span></div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* FEEDING SECTION */}
-          {activeSection === 'feeding' && (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div><label style={labelStyle}>Food Type</label>
-                  <select value={form.foodType} onChange={e => setForm(f => ({...f, foodType: e.target.value}))} style={inputStyle}>
-                    <option value="">Select...</option>
-                    <option value="kibble">Kibble (dry)</option>
-                    <option value="wet">Wet food</option>
-                    <option value="raw">Raw diet</option>
-                    <option value="homemade">Homemade</option>
-                    <option value="mixed">Mixed</option>
-                  </select></div>
-                <div><label style={labelStyle}>Food Brand</label>
-                  <input value={form.foodBrand} onChange={e => setForm(f => ({...f, foodBrand: e.target.value}))} placeholder="e.g. Royal Canin" style={inputStyle} /></div>
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Amount per Meal</label>
-                <input value={form.foodAmount} onChange={e => setForm(f => ({...f, foodAmount: e.target.value}))} placeholder="e.g. 1 cup, 200g" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>🕐 Feeding Times</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(form.feedingTimes || []).map((t, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <input value={t} onChange={e => {
-                        const times = [...form.feedingTimes];
-                        times[i] = e.target.value;
-                        setForm(f => ({...f, feedingTimes: times}));
-                      }} placeholder="e.g. 8:00 AM" style={{ ...inputStyle, flex: 1 }} />
-                      <button onClick={() => setForm(f => ({...f, feedingTimes: f.feedingTimes.filter((_,j) => j !== i)}))}
-                        style={{ background: '#fee2e2', border: 'none', borderRadius: 8, padding: '8px 10px', cursor: 'pointer', color: '#dc2626' }}>✕</button>
-                    </div>
-                  ))}
-                  <button onClick={() => setForm(f => ({...f, feedingTimes: [...(f.feedingTimes||[]), '']}))}
-                    style={{ padding: '8px', border: '1.5px dashed #e2e8f0', borderRadius: 8, background: 'none', cursor: 'pointer', color: '#64748b', fontSize: 13 }}>
-                    + Add feeding time
-                  </button>
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>⭐ Guest Rating</label>
+                <div style={{ display:'flex', gap:6 }}>
+                  {[1,2,3,4,5].map(s => <button key={s} onClick={() => setForm(f=>({...f,rating:s}))} style={{ fontSize:26, background:'none', border:'none', cursor:'pointer', opacity:s<=form.rating?1:0.3 }}>⭐</button>)}
                 </div>
               </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Food Restrictions / Allergies</label>
-                <textarea value={form.foodNotes} onChange={e => setForm(f => ({...f, foodNotes: e.target.value}))}
-                  placeholder="Any allergies, restrictions, or special instructions..." style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} />
-              </div>
-              <div style={{ marginBottom: 12, padding: '12px', background: '#f8fafc', borderRadius: 10 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.ownBowl} onChange={e => setForm(f => ({...f, ownBowl: e.target.checked}))} style={{ width: 18, height: 18 }} />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>🥣 Owner brings own bowl</span>
-                </label>
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>🧸 Toys brought</label>
-                <input value={form.toys} onChange={e => setForm(f => ({...f, toys: e.target.value}))} placeholder="e.g. rope toy, tennis ball" style={inputStyle} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>🎒 Accessories / Belongings</label>
-                <textarea value={form.accessories} onChange={e => setForm(f => ({...f, accessories: e.target.value}))}
-                  placeholder="Bed, blanket, clothing, leash..." style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }} />
-              </div>
             </div>
           )}
 
-          {/* HEALTH SECTION */}
+          {activeSection === 'feeding' && (
+            <div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                <div><label style={lbl}>Food Type</label>
+                  <select value={form.foodType} onChange={e=>setForm(f=>({...f,foodType:e.target.value}))} style={inp}>
+                    <option value="">Select...</option><option value="kibble">Kibble</option><option value="wet">Wet food</option><option value="raw">Raw</option><option value="homemade">Homemade</option><option value="mixed">Mixed</option>
+                  </select></div>
+                <div><label style={lbl}>Brand</label><input value={form.foodBrand} onChange={e=>setForm(f=>({...f,foodBrand:e.target.value}))} placeholder="e.g. Royal Canin" style={inp} /></div>
+              </div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>Amount per meal</label><input value={form.foodAmount} onChange={e=>setForm(f=>({...f,foodAmount:e.target.value}))} placeholder="e.g. 1 cup" style={inp} /></div>
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>Feeding Times</label>
+                {(form.feedingTimes||[]).map((t,i) => (
+                  <div key={i} style={{ display:'flex', gap:8, marginBottom:6 }}>
+                    <input value={t} onChange={e=>{ const times=[...form.feedingTimes]; times[i]=e.target.value; setForm(f=>({...f,feedingTimes:times})); }} style={{...inp,flex:1}} placeholder="e.g. 8:00 AM" />
+                    <button onClick={() => setForm(f=>({...f,feedingTimes:f.feedingTimes.filter((_,j)=>j!==i)}))} style={{ background:'#fee2e2', border:'none', borderRadius:8, padding:'8px 10px', cursor:'pointer', color:'#dc2626' }}>✕</button>
+                  </div>
+                ))}
+                <button onClick={() => setForm(f => ({...f, feedingTimes: [...(f.feedingTimes||[]), '']}))} style={{ padding:'8px', border:'1.5px dashed #e2e8f0', borderRadius:8, background:'none', cursor:'pointer', color:'#64748b', fontSize:13, width:'100%' }}>+ Add time</button>
+              </div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>Food notes / allergies</label><textarea value={form.foodNotes} onChange={e=>setForm(f=>({...f,foodNotes:e.target.value}))} style={{...inp,minHeight:60,resize:'vertical'}} /></div>
+              <div style={{ marginBottom:12, padding:12, background:'#f8fafc', borderRadius:10 }}>
+                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                  <input type="checkbox" checked={form.ownBowl} onChange={e=>setForm(f=>({...f,ownBowl:e.target.checked}))} style={{ width:18, height:18 }} />
+                  <span style={{ fontWeight:600 }}>🥣 Owner brings own bowl</span>
+                </label>
+              </div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>🧸 Toys</label><input value={form.toys} onChange={e=>setForm(f=>({...f,toys:e.target.value}))} style={inp} /></div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>🎒 Accessories / Belongings</label><textarea value={form.accessories} onChange={e=>setForm(f=>({...f,accessories:e.target.value}))} style={{...inp,minHeight:60,resize:'vertical'}} /></div>
+            </div>
+          )}
+
           {activeSection === 'health' && (
             <div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#0f172a' }}>💉 Vaccines</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div><label style={labelStyle}>Rabies (exp. date)</label>
-                  <input type="date" value={form.rabiesDate} onChange={e => setForm(f => ({...f, rabiesDate: e.target.value}))} style={inputStyle} /></div>
-                <div><label style={labelStyle}>Bordetella (exp. date)</label>
-                  <input type="date" value={form.bordetellaDate} onChange={e => setForm(f => ({...f, bordetellaDate: e.target.value}))} style={inputStyle} /></div>
-                <div><label style={labelStyle}>DHPP (exp. date)</label>
-                  <input type="date" value={form.dhppDate} onChange={e => setForm(f => ({...f, dhppDate: e.target.value}))} style={inputStyle} /></div>
-                <div><label style={labelStyle}>Other vaccines</label>
-                  <input value={form.otherVaccines} onChange={e => setForm(f => ({...f, otherVaccines: e.target.value}))} placeholder="e.g. Leptospira" style={inputStyle} /></div>
+              <div style={{ fontWeight:700, fontSize:14, marginBottom:10 }}>💉 Vaccines</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                <div><label style={lbl}>Rabies exp.</label><input type="date" value={form.rabiesDate} onChange={e=>setForm(f=>({...f,rabiesDate:e.target.value}))} style={inp} /></div>
+                <div><label style={lbl}>Bordetella exp.</label><input type="date" value={form.bordetellaDate} onChange={e=>setForm(f=>({...f,bordetellaDate:e.target.value}))} style={inp} /></div>
+                <div><label style={lbl}>DHPP exp.</label><input type="date" value={form.dhppDate} onChange={e=>setForm(f=>({...f,dhppDate:e.target.value}))} style={inp} /></div>
+                <div><label style={lbl}>Other</label><input value={form.otherVaccines} onChange={e=>setForm(f=>({...f,otherVaccines:e.target.value}))} style={inp} /></div>
               </div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: '#0f172a', marginTop: 8 }}>🏥 Medical Info</div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>Medical Conditions</label>
-                <textarea value={form.medicalConditions} onChange={e => setForm(f => ({...f, medicalConditions: e.target.value}))}
-                  placeholder="Allergies, chronic conditions, surgery history..." style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} />
-              </div>
-              <div style={{ marginBottom: 12 }}>
-                <label style={labelStyle}>💊 Medications</label>
-                <textarea value={form.medications} onChange={e => setForm(f => ({...f, medications: e.target.value}))}
-                  placeholder="Name, dose, frequency, instructions..." style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
-                <div><label style={labelStyle}>Veterinarian</label>
-                  <input value={form.vetName} onChange={e => setForm(f => ({...f, vetName: e.target.value}))} placeholder="Vet name / clinic" style={inputStyle} /></div>
-                <div><label style={labelStyle}>Vet Phone</label>
-                  <input value={form.vetPhone} onChange={e => setForm(f => ({...f, vetPhone: e.target.value}))} placeholder="(555) 000-0000" style={inputStyle} /></div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>Medical Conditions</label><textarea value={form.medicalConditions} onChange={e=>setForm(f=>({...f,medicalConditions:e.target.value}))} style={{...inp,minHeight:70,resize:'vertical'}} /></div>
+              <div style={{ marginBottom:12 }}><label style={lbl}>💊 Medications</label><textarea value={form.medications} onChange={e=>setForm(f=>({...f,medications:e.target.value}))} style={{...inp,minHeight:70,resize:'vertical'}} /></div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div><label style={lbl}>Vet Name</label><input value={form.vetName} onChange={e=>setForm(f=>({...f,vetName:e.target.value}))} style={inp} /></div>
+                <div><label style={lbl}>Vet Phone</label><input value={form.vetPhone} onChange={e=>setForm(f=>({...f,vetPhone:e.target.value}))} style={inp} /></div>
               </div>
             </div>
           )}
 
-          {/* AGREEMENT SECTION */}
           {activeSection === 'agreement' && (
             <div>
-              <div style={{ background: '#f8fafc', borderRadius: 12, padding: 16, fontSize: 12, lineHeight: 1.7, color: '#374151', whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto', marginBottom: 16, border: '1px solid #e2e8f0' }}>
+              <div style={{ background:'#f8fafc', borderRadius:12, padding:16, fontSize:12, lineHeight:1.7, color:'#374151', whiteSpace:'pre-wrap', maxHeight:280, overflowY:'auto', marginBottom:16, border:'1px solid #e2e8f0' }}>
                 {BOARDING_AGREEMENT}
               </div>
-              <div style={{ padding: '14px', background: form.agreementSigned ? '#f0fdfa' : '#fff', borderRadius: 12, border: `2px solid ${form.agreementSigned ? '#0f766e' : '#e2e8f0'}` }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={form.agreementSigned} onChange={e => setForm(f => ({...f, agreementSigned: e.target.checked}))} style={{ width: 20, height: 20 }} />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: form.agreementSigned ? '#0f766e' : '#0f172a' }}>
-                      {form.agreementSigned ? '✅ Agreement Signed' : 'Client agrees to all terms'}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Check to confirm client has read and agreed</div>
-                  </div>
-                </label>
-              </div>
+              <label style={{ display:'flex', alignItems:'center', gap:12, padding:14, background:form.agreementSigned?'#f0fdfa':'#fff', borderRadius:12, border:`2px solid ${form.agreementSigned?'#0f766e':'#e2e8f0'}`, cursor:'pointer' }}>
+                <input type="checkbox" checked={form.agreementSigned} onChange={e=>setForm(f=>({...f,agreementSigned:e.target.checked}))} style={{ width:20, height:20 }} />
+                <span style={{ fontWeight:700, color:form.agreementSigned?'#0f766e':'#0f172a' }}>{form.agreementSigned?'✅ Agreement Signed':'Client agrees to all terms'}</span>
+              </label>
             </div>
           )}
 
-          {/* Save buttons */}
-          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-            <button onClick={handleSave} disabled={saving}
-              style={{ flex: 1, padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-              {saving ? '...' : editingRes ? '✅ Save Changes' : '✅ Create Reservation'}
+          <div style={{ display:'flex', gap:8, marginTop:16 }}>
+            <button onClick={handleSave} disabled={saving} style={{ flex:1, padding:14, background:'#0f766e', border:'none', borderRadius:12, color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
+              {saving?'...':editingRes?'✅ Save Changes':'✅ Create Reservation'}
             </button>
-            <button onClick={() => { setShowForm(false); setEditingRes(null); resetForm(); }}
-              style={{ padding: '14px 16px', background: 'none', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 14, color: '#64748b' }}>
-              Cancel
-            </button>
+            <button onClick={() => { setShowForm(false); setEditingRes(null); resetForm(); }} style={{ padding:'14px 16px', background:'none', border:'1.5px solid #e2e8f0', borderRadius:12, cursor:'pointer', fontSize:14, color:'#64748b' }}>Cancel</button>
           </div>
         </div>
       )}
 
       {/* List */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Loading...</div>
-      ) : reservations.length === 0 && !showForm ? (
-        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
-          <div style={{ fontWeight: 600 }}>No reservations yet</div>
-          <div style={{ fontSize: 13, marginTop: 4 }}>Tap + New to create your first boarding reservation</div>
+      {loading ? <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>Loading...</div>
+      : !showForm && reservations.length === 0 ? (
+        <div style={{ textAlign:'center', padding:40, color:'#94a3b8' }}>
+          <div style={{ fontSize:40, marginBottom:12 }}>🏠</div>
+          <div style={{ fontWeight:600 }}>No reservations yet</div>
+          <div style={{ fontSize:13, marginTop:4 }}>Tap + New to create your first boarding reservation</div>
         </div>
-      ) : (
-        reservations.map(res => {
-          const client = clients.find(c => String(c.id) === String(res.client_id));
-          const pet = pets.find(p => String(p.id) === String(res.pet_id));
-          const sc = statusColors[res.status] || statusColors.pending;
-          const n = nights(res.check_in, res.check_out);
-          const balance = (res.total || 0) - (res.deposit_paid || 0);
-          return (
-            <div key={res.id} style={{ ...cardStyle, borderLeft: `4px solid ${sc.border}` }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>{client?.name || 'Unknown'}</div>
-                  <div style={{ fontSize: 13, color: '#64748b' }}>🐾 {pet?.name} · {pet?.breed}</div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {res.agreement_signed && <span style={{ fontSize: 16 }}>✅</span>}
-                  <span style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
-                    {res.status.charAt(0).toUpperCase() + res.status.slice(1)}
-                  </span>
-                </div>
+      ) : reservations.map(res => {
+        const client = clients.find(c => String(c.id)===String(res.client_id));
+        const pet = pets.find(p => String(p.id)===String(res.pet_id));
+        const sc = sc_map[res.status]||sc_map.pending;
+        const bal = (res.total||0)-(res.deposit_paid||0);
+        return (
+          <div key={res.id} style={{ ...card, borderLeft:`4px solid ${sc.border}` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:8 }}>
+              <div>
+                <div style={{ fontWeight:700, fontSize:15 }}>{client?.name||'Unknown'}</div>
+                <div style={{ fontSize:13, color:'#64748b' }}>🐾 {pet?.name} · {pet?.breed}</div>
               </div>
-              <div style={{ display: 'flex', gap: 12, fontSize: 13, color: '#374151', marginBottom: 8, flexWrap: 'wrap' }}>
-                <span>📥 {res.check_in}</span>
-                <span>📤 {res.check_out}</span>
-                <span>🌙 {n} nights</span>
-                {res.food_type && <span>🍽️ {res.food_type}</span>}
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                {res.agreement_signed && <span style={{ fontSize:14 }}>✅</span>}
+                <span style={{ background:sc.bg, color:sc.text, border:`1px solid ${sc.border}`, borderRadius:20, padding:'3px 10px', fontSize:11, fontWeight:700 }}>
+                  {res.status.charAt(0).toUpperCase()+res.status.slice(1)}
+                </span>
               </div>
-              {/* Vaccine warnings */}
-              {(() => {
-                const today2 = new Date();
-                const warn = [];
-                if (res.rabies_date && new Date(res.rabies_date) < today2) warn.push('Rabies expired');
-                if (res.bordetella_date && new Date(res.bordetella_date) < today2) warn.push('Bordetella expired');
-                if (warn.length) return <div style={{ background: '#fef9c3', borderRadius: 8, padding: '4px 10px', fontSize: 12, color: '#854d0e', marginBottom: 8 }}>⚠️ {warn.join(' · ')}</div>;
-              })()}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 13 }}>
-                  <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 16 }}>${res.total?.toFixed(2)}</span>
-                  {res.deposit_paid > 0 && <span style={{ color: '#64748b', marginLeft: 8 }}>Bal: ${balance.toFixed(2)}</span>}
-                  {res.includes_bath && <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', borderRadius: 6, padding: '2px 6px', fontSize: 11 }}>🛁</span>}
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {res.status === 'pending' && (
-                    <button onClick={() => updateStatus(res.id, 'active')}
-                      style={{ background: '#dcfce7', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#14532d', fontWeight: 700 }}>
-                      Check In ✓
-                    </button>
-                  )}
-                  {res.status === 'active' && (
-                    <button onClick={() => updateStatus(res.id, 'completed')}
-                      style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 700 }}>
-                      Check Out
-                    </button>
-                  )}
-                  {balance > 0 && (
-                    <button onClick={() => setShowPayment(res)}
-                      style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#fff', fontWeight: 700 }}>
-                      💰 Collect
-                    </button>
-                  )}
-                  <button onClick={() => handleEdit(res)}
-                    style={{ background: '#f0fdfa', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#0f766e' }}>✏️</button>
-                  <button onClick={() => handleDelete(res.id)}
-                    style={{ background: '#fee2e2', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑️</button>
-                </div>
-              </div>
-              {res.notes && <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', background: '#f8fafc', borderRadius: 8, padding: '6px 10px' }}>📝 {res.notes}</div>}
-              {res.medical_conditions && <div style={{ marginTop: 4, fontSize: 12, color: '#7c3aed', background: '#faf5ff', borderRadius: 8, padding: '6px 10px' }}>🏥 {res.medical_conditions}</div>}
-              {res.rating > 0 && <div style={{ marginTop: 6, fontSize: 13 }}>{'⭐'.repeat(res.rating)} <span style={{ fontSize: 11, color: '#94a3b8' }}>{['','Difficult','Challenging','Neutral','Good','Excellent'][res.rating]}</span></div>}
             </div>
-          );
-        })
-      )}
+            <div style={{ display:'flex', gap:12, fontSize:13, color:'#374151', marginBottom:8, flexWrap:'wrap' }}>
+              <span>📥 {res.check_in}</span><span>📤 {res.check_out}</span>
+              <span>🌙 {nights(res.check_in,res.check_out)} nights</span>
+            </div>
+            {(() => { const exp=[]; if(res.rabies_date&&new Date(res.rabies_date)<new Date())exp.push('Rabies expired'); if(res.bordetella_date&&new Date(res.bordetella_date)<new Date())exp.push('Bordetella expired'); return exp.length?<div style={{ background:'#fef9c3', borderRadius:8, padding:'4px 10px', fontSize:12, color:'#854d0e', marginBottom:8 }}>⚠️ {exp.join(' · ')}</div>:null; })()}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <div><span style={{ fontWeight:700, color:'#0f766e', fontSize:16 }}>${res.total?.toFixed(2)}</span>{bal>0&&<span style={{ color:'#64748b', marginLeft:8, fontSize:13 }}>Bal: ${bal.toFixed(2)}</span>}{res.includes_bath&&<span style={{ marginLeft:8, background:'#e0f2fe', color:'#0369a1', borderRadius:6, padding:'2px 6px', fontSize:11 }}>🛁</span>}</div>
+              <div style={{ display:'flex', gap:6 }}>
+                {res.status==='pending'&&<button onClick={()=>updateStatus(res.id,'active')} style={{ background:'#dcfce7', border:'none', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12, color:'#14532d', fontWeight:700 }}>Check In</button>}
+                {res.status==='active'&&<button onClick={()=>updateStatus(res.id,'completed')} style={{ background:'#f1f5f9', border:'none', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12, color:'#475569', fontWeight:700 }}>Check Out</button>}
+                {bal>0&&<button onClick={()=>setShowPayment(res)} style={{ background:'#0f766e', border:'none', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:700 }}>💰</button>}
+                <button onClick={()=>handleEdit(res)} style={{ background:'#f0fdfa', border:'none', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12, color:'#0f766e' }}>✏️</button>
+                <button onClick={()=>handleDelete(res.id)} style={{ background:'#fee2e2', border:'none', borderRadius:8, padding:'6px 10px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>🗑️</button>
+              </div>
+            </div>
+            {res.notes&&<div style={{ marginTop:8, fontSize:12, color:'#64748b', background:'#f8fafc', borderRadius:8, padding:'6px 10px' }}>📝 {res.notes}</div>}
+            {res.medical_conditions&&<div style={{ marginTop:4, fontSize:12, color:'#7c3aed', background:'#faf5ff', borderRadius:8, padding:'6px 10px' }}>🏥 {res.medical_conditions}</div>}
+            {res.rating>0&&<div style={{ marginTop:6, fontSize:13 }}>{'⭐'.repeat(res.rating)}</div>}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-}
 
 // ===== REPORTE SEMANAL =====
 function WeekTab({ vans, services, expenses, settings, appointments, groomers }) {
