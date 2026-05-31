@@ -2405,28 +2405,118 @@ function HomeTab({ session, appointments, vans, clients, pets, settings, setTab,
 
 // ===== VAN TRACKER TAB =====
 // ===== ROUTE MAP COMPONENT =====
-function RouteMap({ addresses, apiKey }) {
+function RouteMap({ addresses, apiKey, appointments = [] }) {
   const BASE = '6501 Plantation Rd, Plantation, FL 33317';
-  const all = [BASE, ...addresses];
+  const [orderedAddrs, setOrderedAddrs] = React.useState(addresses);
+  const [driveTimes, setDriveTimes] = React.useState([]);
+  const [optimizing, setOptimizing] = React.useState(false);
+  const [optimized, setOptimized] = React.useState(false);
+
+  const all = [BASE, ...orderedAddrs];
   const origin = encodeURIComponent(BASE);
-  const dest = encodeURIComponent(addresses[addresses.length - 1]);
-  const waypoints = addresses.slice(0, -1).map(a => encodeURIComponent(a)).join('|');
+  const dest = encodeURIComponent(orderedAddrs[orderedAddrs.length - 1]);
+  const waypoints = orderedAddrs.slice(0, -1).map(a => encodeURIComponent(a)).join('|');
   const embedUrl = `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}&mode=driving`;
   const mapsUrl = `https://www.google.com/maps/dir/${all.map(a => encodeURIComponent(a)).join('/')}`;
 
+  // Fetch drive times between stops
+  const fetchDriveTimes = React.useCallback(async (addrs) => {
+    if (!window.google?.maps) return;
+    const service = new window.google.maps.DistanceMatrixService();
+    const stops = [BASE, ...addrs];
+    const times = [];
+    for (let i = 0; i < stops.length - 1; i++) {
+      try {
+        const result = await new Promise((res, rej) => {
+          service.getDistanceMatrix({
+            origins: [stops[i]],
+            destinations: [stops[i + 1]],
+            travelMode: window.google.maps.TravelMode.DRIVING,
+          }, (r, s) => s === 'OK' ? res(r) : rej(s));
+        });
+        const el = result.rows[0].elements[0];
+        times.push({ duration: el.duration?.text || '', distance: el.distance?.text || '' });
+      } catch { times.push({ duration: '', distance: '' }); }
+    }
+    setDriveTimes(times);
+  }, []);
+
+  useEffect(() => {
+    const wait = setInterval(() => {
+      if (window.google?.maps) { clearInterval(wait); fetchDriveTimes(orderedAddrs); }
+    }, 300);
+    return () => clearInterval(wait);
+  }, []);
+
+  const handleOptimize = async () => {
+    if (!window.google?.maps) return;
+    setOptimizing(true);
+    try {
+      const service = new window.google.maps.DirectionsService();
+      const result = await new Promise((res, rej) => {
+        service.route({
+          origin: BASE,
+          destination: orderedAddrs[orderedAddrs.length - 1],
+          waypoints: orderedAddrs.slice(0, -1).map(a => ({ location: a, stopover: true })),
+          optimizeWaypoints: true,
+          travelMode: window.google.maps.TravelMode.DRIVING,
+        }, (r, s) => s === 'OK' ? res(r) : rej(s));
+      });
+      const order = result.routes[0].waypoint_order;
+      const middle = orderedAddrs.slice(0, -1);
+      const last = orderedAddrs[orderedAddrs.length - 1];
+      const reordered = [...order.map(i => middle[i]), last];
+      setOrderedAddrs(reordered);
+      setOptimized(true);
+      await fetchDriveTimes(reordered);
+    } catch(e) { console.warn('Optimize error', e); }
+    setOptimizing(false);
+  };
+
   return (
     <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 16, marginTop: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>🗺️ Route · {addresses.length} stops</div>
-        <button onClick={() => window.open(mapsUrl, '_blank')}
-          style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid #1a73e8', background: '#fff', color: '#1a73e8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-          📍 Open in Maps & Navigate
-        </button>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+          🗺️ Route · {orderedAddrs.length} stops
+          {optimized && <span style={{ marginLeft: 8, background: '#f0fdfa', color: '#0f766e', borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>⚡ Optimized</span>}
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={handleOptimize} disabled={optimizing}
+            style={{ padding: '6px 12px', borderRadius: 20, border: `1.5px solid ${optimized ? '#0f766e' : '#e2e8f0'}`, background: optimized ? '#f0fdfa' : '#fff', color: optimized ? '#0f766e' : '#64748b', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+            {optimizing ? '...' : optimized ? '✅ Optimized!' : '⚡ Optimize Route'}
+          </button>
+          <button onClick={() => window.open(mapsUrl, '_blank')}
+            style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid #1a73e8', background: '#fff', color: '#1a73e8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+            📍 Navigate
+          </button>
+        </div>
       </div>
+
+      {/* Drive time between stops */}
+      {driveTimes.length > 0 && (
+        <div style={{ background: '#f8fafc', padding: '10px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 8, overflowX: 'auto' }}>
+          {driveTimes.map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+              {i === 0 && <span style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>🏠 Base</span>}
+              {i > 0 && <span style={{ fontSize: 11, color: '#64748b' }}>Stop {i}</span>}
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>→</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#0f766e', background: '#f0fdfa', borderRadius: 20, padding: '2px 8px' }}>
+                🚗 {t.duration} · {t.distance}
+              </span>
+            </div>
+          ))}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#64748b' }}>Stop {driveTimes.length}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Map */}
       <iframe
         title="Route Map"
         width="100%"
-        height="380"
+        height="360"
         style={{ border: 0, display: 'block' }}
         loading="lazy"
         allowFullScreen
