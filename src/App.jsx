@@ -1654,11 +1654,11 @@ export default function App() {
           { id: 'inventory', icon: '📦', label: 'Supplies' },
           { id: 'breeds',    icon: '🐾', label: 'Breeds' },
         ] : [
-          { id: 'home',     icon: '🏠', label: 'Home' },
-          { id: 'appointments',    icon: '🗓️', label: 'Schedule' },
-          { id: 'clients', icon: '👥', label: 'Clients' },
-          { id: 'cierre',   icon: '💰', label: 'Close' },
-          { id: 'dashboard', icon: '📊', label: 'Reports' },
+          { id: 'home',         icon: '🏠', label: 'Home' },
+          { id: 'appointments', icon: '🗓️', label: 'Schedule' },
+          { id: 'clients',      icon: '👥', label: 'Clients' },
+          { id: 'boarding',     icon: '🏡', label: 'Boarding' },
+          { id: 'more',         icon: '⋯', label: 'More' },
         ];
 
         return (
