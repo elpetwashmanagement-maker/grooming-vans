@@ -1597,7 +1597,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'boarding' && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
+        {tab === 'boarding' && <div style={{padding:40,textAlign:'center',fontSize:24,fontWeight:800}}>🏠 BOARDING WORKS ✅</div>}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
