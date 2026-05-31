@@ -1653,6 +1653,10 @@ export default function App() {
           { id: 'registro', icon: '⛽', label: 'Expenses' },
           { id: 'inventory', icon: '📦', label: 'Supplies' },
           { id: 'breeds',    icon: '🐾', label: 'Breeds' },
+        ] : isViewer ? [
+          { id: 'appointments', icon: '🗓️', label: 'Schedule' },
+          { id: 'payroll',      icon: '💸', label: 'Payroll' },
+          { id: 'week',         icon: '📈', label: 'Reports' },
         ] : [
           { id: 'home',         icon: '🏠', label: 'Home' },
           { id: 'appointments', icon: '🗓️', label: 'Schedule' },
@@ -2486,7 +2490,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin || isViewer },
     { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin },
     { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer },
-    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: true },
+    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: isAdmin || isManager },
     { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer },
     { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
@@ -3419,6 +3423,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               <button onClick={() => setViewMode('calendario')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'calendario' ? 600 : 400, background: viewMode === 'calendario' ? 'var(--color-background-primary)' : 'transparent', color: viewMode === 'calendario' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
                 🚐 Vans
               </button>
+              {(isAdmin || isGroomer) && (
+                <button onClick={() => setViewMode('ruta')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'ruta' ? 600 : 400, background: viewMode === 'ruta' ? '#f0fdfa' : 'transparent', color: viewMode === 'ruta' ? '#0f766e' : 'var(--color-text-secondary)' }}>
+                  🗺️ Ruta
+                </button>
+              )}
               {isAdmin && (
                 <button onClick={() => setViewMode('recurrentes')} style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: viewMode === 'recurrentes' ? 600 : 400, background: viewMode === 'recurrentes' ? '#fef3c7' : 'transparent', color: viewMode === 'recurrentes' ? '#92400e' : 'var(--color-text-secondary)' }}>
                   🔄 Due
