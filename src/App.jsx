@@ -237,6 +237,24 @@ const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// ===== SMS =====
+const sendSMS = async (phone, message, companyId) => {
+  if (!phone) return { success: false, error: 'No phone number' };
+  const cleanPhone = phone.replace(/\D/g, '');
+  const formattedPhone = cleanPhone.startsWith('1') ? `+${cleanPhone}` : `+1${cleanPhone}`;
+  try {
+    const response = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: formattedPhone, message, companyId }),
+    });
+    return await response.json();
+  } catch (err) {
+    console.error('SMS error:', err);
+    return { success: false, error: err.message };
+  }
+};
+
 // ===== CONSTANTES =====
 const PAYMENT_METHODS = ['Cash', 'Zelle', 'Credit Card', 'Check'];
 const METHOD_STYLES = {
@@ -3283,6 +3301,15 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const handleCheckin = async (apptId) => {
     await updateApptStatus(apptId, 'in_progress');
     await refreshAppointments();
+    // SMS: groomer on the way
+    const appt = appointments.find(a => a.id === apptId);
+    if (appt?.client?.phone) {
+      const van = vans.find(v => v.id === appt.vanId);
+      const companyId = van?.companyId || appt.companyId || 'epw';
+      const petNames = (appt.pets || []).map(ap => ap.pet?.name).filter(Boolean).join(' & ');
+      const msg = `Hi ${appt.client.name}! 🐾 Your groomer is on the way for ${petNames || 'your pet'}. Please have them ready. Thank you! — ${companyId === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}`;
+      sendSMS(appt.client.phone, msg, companyId);
+    }
   };
 
   const handleSaveSignature = async (appt, signatureData) => {
@@ -3381,6 +3408,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
     await updateApptStatus(appt.id, 'completed');
     await refreshAppointments();
+
+    // SMS: service completed
+    if (appt.client?.phone) {
+      const petNames = (appt.pets || []).map(ap => ap.pet?.name).filter(Boolean).join(' & ');
+      const smsMsg = `Hi ${appt.client.name}! 🐾 ${petNames || 'Your pet'} is ready and looking great! Total: $${total.toFixed(2)} (${method}). Thank you for choosing ${companyId === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}! 🐾`;
+      sendSMS(appt.client.phone, smsMsg, companyId);
+    }
+
     setSaving(false);
     setShowCobroForm(null);
     setSelectedAppt(null);
@@ -3515,6 +3550,19 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
         await saveAppointmentPet({ ...ap, appointmentId: appt.id });
       }
     }
+
+    // SMS: appointment confirmation (solo si no es pending_review y el client tiene phone)
+    if (appt.status !== 'pending_review') {
+      const client = clients.find(c => String(c.id) === String(newApptForm.clientId));
+      if (client?.phone) {
+        const petNames = petsList.map(ap => ap.pet?.name).filter(Boolean).join(' & ');
+        const apptCompanyId = newApptForm.companyId || van?.companyId || 'epw';
+        const dateFormatted = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        const confirmMsg = `Hi ${client.name}! ✅ Your grooming appointment is confirmed for ${dateFormatted} at ${newApptForm.timeStart}${petNames ? ` for ${petNames}` : ''}. Thank you! — ${apptCompanyId === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}`;
+        sendSMS(client.phone, confirmMsg, apptCompanyId);
+      }
+    }
+
     setSaving(false);
     setShowNewAppt(false);
     setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
