@@ -5898,8 +5898,11 @@ function BoardingTab({ clients, pets, session, settings }) {
 
   const loadReservations = async () => {
     setLoading(true);
-    const { data } = await supabase.from('boarding_reservations').select('*').order('check_in', { ascending: false });
-    setReservations(data || []);
+    try {
+      const { data, error } = await supabase.from('boarding_reservations').select('*').order('check_in', { ascending: false });
+      if (error) { console.warn('Boarding table not ready:', error.message); setReservations([]); }
+      else setReservations(data || []);
+    } catch(e) { console.warn('Boarding error:', e); setReservations([]); }
     setLoading(false);
   };
 
