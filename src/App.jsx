@@ -867,7 +867,7 @@ const deleteGroomingPhoto = async (id) => {
 };
 
 // ===== ADDRESS AUTOCOMPLETE =====
-const GOOGLE_PLACES_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
+const GOOGLE_PLACES_KEY = 'AIzaSyDjIrZHfloSCZHo4wOi9p0t3VFwIiPY2dI';
 
 function AddressAutocomplete({ value, onChange, placeholder = 'Start typing address...', style = {} }) {
   const containerRef = useRef(null);
@@ -4257,7 +4257,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
                 {/* ===== MAPA INTERACTIVO CON RUTA ===== */}
                 {allAddresses.length > 0 && (
-                  <RouteMap addresses={allAddresses} apiKey="AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE" />
+                  <RouteMap addresses={allAddresses} apiKey="AIzaSyDjIrZHfloSCZHo4wOi9p0t3VFwIiPY2dI" />
                 )}
 
                 {/* Resumen de la ruta */}
