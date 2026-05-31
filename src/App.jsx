@@ -4123,6 +4123,28 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   })}
                 </div>
 
+                {/* ===== MAPA EMBEBIDO CON RUTA ===== */}
+                {allAddresses.length > 0 && (() => {
+                  const BASE = '6501 Plantation Rd, Plantation, FL 33317';
+                  const waypoints = allAddresses.slice(0, -1).map(a => encodeURIComponent(a)).join('|');
+                  const dest = encodeURIComponent(allAddresses[allAddresses.length - 1]);
+                  const origin = encodeURIComponent(BASE);
+                  const embedUrl = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}&mode=driving`;
+                  return (
+                    <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 16, marginTop: 16 }}>
+                      <iframe
+                        title="Route Map"
+                        width="100%"
+                        height="320"
+                        style={{ border: 0, display: 'block' }}
+                        loading="lazy"
+                        allowFullScreen
+                        src={embedUrl}
+                      />
+                    </div>
+                  );
+                })()}
+
                 {/* Resumen de la ruta */}
                 <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--color-background-secondary)', borderRadius: 12 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 8 }}>Resumen del day</div>
