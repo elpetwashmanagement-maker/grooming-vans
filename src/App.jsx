@@ -2443,7 +2443,7 @@ function RouteMap({ addresses, apiKey }) {
   useEffect(() => {
     if (!mapRef.current) return;
     const initMap = () => {
-      if (!window.google) return;
+      if (!window.google?.maps) return;
       const map = new window.google.maps.Map(mapRef.current, {
         zoom: 11,
         center: { lat: 26.1224, lng: -80.1373 },
@@ -2455,19 +2455,15 @@ function RouteMap({ addresses, apiKey }) {
       mapInstanceRef.current = map;
       renderRoute(orderedAddresses, map);
     };
-    if (window.google) { initMap(); }
-    else {
-      const existing = document.getElementById('gmaps-script');
-      if (!existing) {
-        const script = document.createElement('script');
-        script.id = 'gmaps-script';
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-        script.async = true;
-        script.onload = initMap;
-        document.head.appendChild(script);
-      } else {
-        existing.addEventListener('load', initMap);
-      }
+    // Google Maps ya está cargado por el autocomplete de la app
+    if (window.google?.maps) {
+      initMap();
+    } else {
+      // Esperar a que cargue
+      const interval = setInterval(() => {
+        if (window.google?.maps) { clearInterval(interval); initMap(); }
+      }, 200);
+      return () => clearInterval(interval);
     }
   }, []);
 
