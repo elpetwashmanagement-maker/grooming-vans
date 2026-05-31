@@ -1597,6 +1597,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
+        {tab === 'boarding' && (isAdmin || isManager) && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
@@ -2485,6 +2486,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin || isViewer },
     { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin },
     { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer },
+    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: isAdmin || isManager },
     { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer },
     { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
@@ -5847,6 +5849,381 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
             ))}
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ===== BOARDING MODULE =====
+const BOARDING_PRICES = {
+  small:  { label: 'Small (1-20 lbs)',   price: 40 },
+  medium: { label: 'Medium (21-40 lbs)', price: 45 },
+  large:  { label: 'Large (41-60 lbs)',  price: 45 },
+  giant:  { label: 'Giant (61+ lbs)',    price: 59 },
+};
+
+function BoardingTab({ clients, pets, session, settings }) {
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingRes, setEditingRes] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // list | calendar
+  const [form, setForm] = useState({
+    clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
+    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0,
+  });
+  const [clientSearch, setClientSearch] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { loadReservations(); }, []);
+
+  const loadReservations = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('boarding_reservations').select('*').order('check_in', { ascending: false });
+    setReservations(data || []);
+    setLoading(false);
+  };
+
+  const nights = (checkIn, checkOut) => {
+    if (!checkIn || !checkOut) return 0;
+    const d1 = new Date(checkIn), d2 = new Date(checkOut);
+    return Math.max(0, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)));
+  };
+
+  const calcTotal = (f) => {
+    const n = nights(f.checkIn, f.checkOut);
+    const nightly = BOARDING_PRICES[f.size]?.price || 40;
+    const bath = f.includesBath ? (f.bathPrice || 0) : 0;
+    return n * nightly + bath;
+  };
+
+  const resetForm = () => setForm({
+    clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
+    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0,
+  });
+
+  const handleSave = async () => {
+    if (!form.clientId || !form.petId || !form.checkIn || !form.checkOut) {
+      alert('Please fill in all required fields'); return;
+    }
+    const n = nights(form.checkIn, form.checkOut);
+    if (n < 1) { alert('Check-out must be after check-in'); return; }
+    if (n > 90) { alert('Maximum stay is 90 nights'); return; }
+    setSaving(true);
+    const payload = {
+      client_id: form.clientId, pet_id: form.petId,
+      check_in: form.checkIn, check_out: form.checkOut,
+      size: form.size, includes_bath: form.includesBath,
+      bath_price: form.includesBath ? (form.bathPrice || 0) : 0,
+      notes: form.notes, status: form.status,
+      deposit_paid: parseFloat(form.depositPaid) || 0,
+      total: calcTotal(form),
+    };
+    if (editingRes) {
+      await supabase.from('boarding_reservations').update(payload).eq('id', editingRes.id);
+    } else {
+      await supabase.from('boarding_reservations').insert([payload]);
+    }
+    await loadReservations();
+    setShowForm(false); setEditingRes(null); resetForm(); setSaving(false);
+  };
+
+  const handleEdit = (res) => {
+    setForm({
+      clientId: res.client_id, petId: res.pet_id,
+      checkIn: res.check_in, checkOut: res.check_out,
+      size: res.size, includesBath: res.includes_bath,
+      bathPrice: res.bath_price || 0, notes: res.notes || '',
+      status: res.status, depositPaid: res.deposit_paid || 0,
+    });
+    setEditingRes(res); setShowForm(true);
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this reservation?')) return;
+    await supabase.from('boarding_reservations').delete().eq('id', id);
+    await loadReservations();
+  };
+
+  const updateStatus = async (id, status) => {
+    await supabase.from('boarding_reservations').update({ status }).eq('id', id);
+    await loadReservations();
+  };
+
+  const filteredClients = clients.filter(c =>
+    clientSearch ? c.name.toLowerCase().includes(clientSearch.toLowerCase()) : true
+  ).slice(0, 8);
+
+  const clientPets = pets.filter(p => String(p.clientId || p.client_id) === String(form.clientId));
+  const selectedClient = clients.find(c => String(c.id) === String(form.clientId));
+  const selectedPet = pets.find(p => String(p.id) === String(form.petId));
+
+  const statusColors = {
+    pending:   { bg: '#fef9c3', text: '#854d0e', border: '#fbbf24' },
+    active:    { bg: '#dcfce7', text: '#14532d', border: '#22c55e' },
+    completed: { bg: '#f1f5f9', text: '#475569', border: '#94a3b8' },
+    cancelled: { bg: '#fee2e2', text: '#7f1d1d', border: '#f87171' },
+  };
+
+  // Stats
+  const today = todayISO();
+  const activeNow = reservations.filter(r => r.status === 'active' && r.check_in <= today && r.check_out > today).length;
+  const checkInsToday = reservations.filter(r => r.check_in === today).length;
+  const checkOutsToday = reservations.filter(r => r.check_out === today).length;
+  const monthRevenue = reservations.filter(r => r.status !== 'cancelled' && r.check_in?.startsWith(today.slice(0,7)))
+    .reduce((sum, r) => sum + (r.total || 0), 0);
+
+  const cardStyle = { background: '#fff', borderRadius: 16, padding: '16px', border: '1px solid #e2e8f0', marginBottom: 12 };
+
+  return (
+    <div style={{ padding: '16px', maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800 }}>🏠 Boarding</div>
+          <div style={{ fontSize: 12, color: '#64748b' }}>Group Guerrero</div>
+        </div>
+        <button onClick={() => { resetForm(); setEditingRes(null); setShowForm(true); setClientSearch(''); }}
+          style={{ background: '#0f766e', border: 'none', borderRadius: 12, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+          + New Reservation
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+        {[
+          { label: 'Dogs In House', value: activeNow, icon: '🐶', color: '#0f766e' },
+          { label: 'Check-ins Today', value: checkInsToday, icon: '📥', color: '#7c3aed' },
+          { label: 'Check-outs Today', value: checkOutsToday, icon: '📤', color: '#ea580c' },
+          { label: 'Month Revenue', value: `$${monthRevenue.toFixed(0)}`, icon: '💰', color: '#0369a1' },
+        ].map((s, i) => (
+          <div key={i} style={{ background: '#fff', borderRadius: 14, padding: '14px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+            <div style={{ fontSize: 24 }}>{s.icon}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* New/Edit Form */}
+      {showForm && (
+        <div style={{ ...cardStyle, border: '2px solid #0f766e' }}>
+          <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 16 }}>
+            {editingRes ? '✏️ Edit Reservation' : '🏠 New Reservation'}
+          </div>
+
+          {/* Client Search */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Client *</label>
+            {!form.clientId ? (
+              <div>
+                <input value={clientSearch} onChange={e => setClientSearch(e.target.value)}
+                  placeholder="Search client by name..."
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
+                {clientSearch && (
+                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 10, marginTop: 4, overflow: 'hidden' }}>
+                    {filteredClients.map(c => (
+                      <div key={c.id} onClick={() => { setForm(f => ({...f, clientId: String(c.id), petId: ''})); setClientSearch(''); }}
+                        style={{ padding: '10px 12px', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', fontSize: 14 }}
+                        onMouseEnter={e => e.target.style.background='#f0fdfa'}
+                        onMouseLeave={e => e.target.style.background='#fff'}>
+                        {c.name} <span style={{ color: '#94a3b8', fontSize: 12 }}>{c.phone}</span>
+                      </div>
+                    ))}
+                    {filteredClients.length === 0 && <div style={{ padding: '10px 12px', color: '#94a3b8', fontSize: 13 }}>No clients found</div>}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
+                <span style={{ fontWeight: 600, flex: 1 }}>{selectedClient?.name}</span>
+                <button onClick={() => setForm(f => ({...f, clientId: '', petId: ''}))}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: 16 }}>✕</button>
+              </div>
+            )}
+          </div>
+
+          {/* Pet */}
+          {form.clientId && (
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Pet *</label>
+              <select value={form.petId} onChange={e => {
+                const p = pets.find(p => String(p.id) === e.target.value);
+                const sizeMap = w => w <= 20 ? 'small' : w <= 40 ? 'medium' : w <= 60 ? 'large' : 'giant';
+                setForm(f => ({...f, petId: e.target.value, size: p?.weight ? sizeMap(p.weight) : f.size}));
+              }}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}>
+                <option value="">Select pet...</option>
+                {clientPets.map(p => <option key={p.id} value={p.id}>{p.name} ({p.breed})</option>)}
+              </select>
+            </div>
+          )}
+
+          {/* Dates */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Check-in *</label>
+              <input type="date" value={form.checkIn} onChange={e => setForm(f => ({...f, checkIn: e.target.value}))}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Check-out *</label>
+              <input type="date" value={form.checkOut} onChange={e => setForm(f => ({...f, checkOut: e.target.value}))}
+                min={form.checkIn}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          {/* Size */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Size</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+              {Object.entries(BOARDING_PRICES).map(([key, val]) => (
+                <button key={key} onClick={() => setForm(f => ({...f, size: key}))}
+                  style={{ padding: '10px', border: `2px solid ${form.size === key ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, background: form.size === key ? '#f0fdfa' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: form.size === key ? '#0f766e' : '#0f172a' }}>{val.label}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>${val.price}/night</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Bath */}
+          <div style={{ marginBottom: 12, padding: '12px', background: '#f8fafc', borderRadius: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={form.includesBath} onChange={e => setForm(f => ({...f, includesBath: e.target.checked}))}
+                style={{ width: 18, height: 18 }} />
+              <span style={{ fontWeight: 600, fontSize: 14 }}>🛁 Include bath on check-out</span>
+            </label>
+            {form.includesBath && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 12, color: '#64748b', display: 'block', marginBottom: 4 }}>Bath price ($)</label>
+                <input type="number" value={form.bathPrice} onChange={e => setForm(f => ({...f, bathPrice: parseFloat(e.target.value)||0}))}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+            )}
+          </div>
+
+          {/* Status & Deposit */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Status</label>
+              <select value={form.status} onChange={e => setForm(f => ({...f, status: e.target.value}))}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }}>
+                <option value="pending">Pending</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Deposit Paid ($)</label>
+              <input type="number" value={form.depositPaid} onChange={e => setForm(f => ({...f, depositPaid: e.target.value}))}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Notes</label>
+            <textarea value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))}
+              placeholder="Feeding instructions, special needs..."
+              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, resize: 'vertical', minHeight: 80, boxSizing: 'border-box' }} />
+          </div>
+
+          {/* Total preview */}
+          {form.checkIn && form.checkOut && (
+            <div style={{ background: '#f0fdfa', borderRadius: 10, padding: '12px', marginBottom: 16, border: '1px solid #99f6e4' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span>{nights(form.checkIn, form.checkOut)} nights × ${BOARDING_PRICES[form.size]?.price}</span>
+                <span>${(nights(form.checkIn, form.checkOut) * (BOARDING_PRICES[form.size]?.price || 0)).toFixed(2)}</span>
+              </div>
+              {form.includesBath && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginTop: 4 }}>
+                <span>Bath</span><span>${form.bathPrice || 0}</span>
+              </div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, marginTop: 8, borderTop: '1px solid #99f6e4', paddingTop: 8 }}>
+                <span>Total</span><span style={{ color: '#0f766e' }}>${calcTotal(form).toFixed(2)}</span>
+              </div>
+              {form.depositPaid > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginTop: 4 }}>
+                <span>Balance due</span><span>${(calcTotal(form) - parseFloat(form.depositPaid||0)).toFixed(2)}</span>
+              </div>}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={handleSave} disabled={saving}
+              style={{ flex: 1, padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+              {saving ? '...' : editingRes ? '✅ Save Changes' : '✅ Create Reservation'}
+            </button>
+            <button onClick={() => { setShowForm(false); setEditingRes(null); resetForm(); }}
+              style={{ padding: '14px 16px', background: 'none', border: '1.5px solid #e2e8f0', borderRadius: 12, cursor: 'pointer', fontSize: 14, color: '#64748b' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>Loading...</div>
+      ) : reservations.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏠</div>
+          <div style={{ fontWeight: 600 }}>No reservations yet</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Create your first boarding reservation above</div>
+        </div>
+      ) : (
+        reservations.map(res => {
+          const client = clients.find(c => String(c.id) === String(res.client_id));
+          const pet = pets.find(p => String(p.id) === String(res.pet_id));
+          const sc = statusColors[res.status] || statusColors.pending;
+          const n = nights(res.check_in, res.check_out);
+          const balance = (res.total || 0) - (res.deposit_paid || 0);
+          return (
+            <div key={res.id} style={{ ...cardStyle, borderLeft: `4px solid ${sc.border}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{client?.name || 'Unknown'}</div>
+                  <div style={{ fontSize: 13, color: '#64748b' }}>🐾 {pet?.name} · {pet?.breed}</div>
+                </div>
+                <span style={{ background: sc.bg, color: sc.text, border: `1px solid ${sc.border}`, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>
+                  {res.status.charAt(0).toUpperCase() + res.status.slice(1)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#374151', marginBottom: 8 }}>
+                <span>📥 {res.check_in}</span>
+                <span>📤 {res.check_out}</span>
+                <span>🌙 {n} nights</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13 }}>
+                  <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 16 }}>${res.total?.toFixed(2)}</span>
+                  {res.deposit_paid > 0 && <span style={{ color: '#64748b', marginLeft: 8 }}>Balance: ${balance.toFixed(2)}</span>}
+                  {res.includes_bath && <span style={{ marginLeft: 8, background: '#e0f2fe', color: '#0369a1', borderRadius: 6, padding: '2px 6px', fontSize: 11 }}>🛁 Bath</span>}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {res.status === 'pending' && (
+                    <button onClick={() => updateStatus(res.id, 'active')}
+                      style={{ background: '#dcfce7', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#14532d', fontWeight: 700 }}>
+                      Check In
+                    </button>
+                  )}
+                  {res.status === 'active' && (
+                    <button onClick={() => updateStatus(res.id, 'completed')}
+                      style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#475569', fontWeight: 700 }}>
+                      Check Out
+                    </button>
+                  )}
+                  <button onClick={() => handleEdit(res)}
+                    style={{ background: '#f0fdfa', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#0f766e' }}>✏️</button>
+                  <button onClick={() => handleDelete(res.id)}
+                    style={{ background: '#fee2e2', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>🗑️</button>
+                </div>
+              </div>
+              {res.notes && <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', background: '#f8fafc', borderRadius: 8, padding: '6px 10px' }}>📝 {res.notes}</div>}
+            </div>
+          );
+        })
       )}
     </div>
   );
