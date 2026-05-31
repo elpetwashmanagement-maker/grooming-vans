@@ -6596,6 +6596,8 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
   );
 }
 
+}
+
 // ===== REPORTE SEMANAL =====
 function WeekTab({ vans, services, expenses, settings, appointments, groomers }) {
   const [refDate, setRefDate] = useState(todayISO());
@@ -10360,5 +10362,3 @@ const styles = {
   pinBtn: { height: 60, background: '#fafaf7', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 22, fontWeight: 600, color: '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   pinBackBtn: { display: 'block', margin: '20px auto 0', background: 'transparent', border: 'none', fontSize: 13, color: '#64748b', fontWeight: 600, cursor: 'pointer', padding: 8 },
 };
-
-}
