@@ -2406,93 +2406,33 @@ function HomeTab({ session, appointments, vans, clients, pets, settings, setTab,
 // ===== VAN TRACKER TAB =====
 // ===== ROUTE MAP COMPONENT =====
 function RouteMap({ addresses, apiKey }) {
-  const mapRef = React.useRef(null);
-  const mapInstanceRef = React.useRef(null);
-  const [optimized, setOptimized] = React.useState(false);
-  const [orderedAddresses, setOrderedAddresses] = React.useState(addresses);
   const BASE = '6501 Plantation Rd, Plantation, FL 33317';
-
-  const renderRoute = React.useCallback((addrs, mapInstance) => {
-    if (!window.google || !mapInstance) return;
-    const directionsService = new window.google.maps.DirectionsService();
-    const directionsRenderer = new window.google.maps.DirectionsRenderer({
-      map: mapInstance,
-      suppressMarkers: false,
-      polylineOptions: { strokeColor: '#0f766e', strokeWeight: 4, strokeOpacity: 0.8 },
-    });
-    const waypts = addrs.slice(1, -1).map(addr => ({ location: addr, stopover: true }));
-    directionsService.route({
-      origin: BASE,
-      destination: addrs[addrs.length - 1],
-      waypoints: waypts,
-      optimizeWaypoints: optimized,
-      travelMode: window.google.maps.TravelMode.DRIVING,
-    }, (result, status) => {
-      if (status === 'OK') {
-        directionsRenderer.setDirections(result);
-        if (optimized && result.routes[0].waypoint_order) {
-          const order = result.routes[0].waypoint_order;
-          const middle = addrs.slice(1, -1);
-          const reordered = [addrs[0], ...order.map(i => middle[i]), addrs[addrs.length - 1]];
-          setOrderedAddresses(reordered);
-        }
-      }
-    });
-  }, [optimized, BASE]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    const initMap = () => {
-      if (!window.google?.maps) return;
-      const map = new window.google.maps.Map(mapRef.current, {
-        zoom: 11,
-        center: { lat: 26.1224, lng: -80.1373 },
-        mapTypeControl: false,
-        streetViewControl: false,
-        fullscreenControl: true,
-        zoomControl: true,
-      });
-      mapInstanceRef.current = map;
-      renderRoute(orderedAddresses, map);
-    };
-    // Google Maps ya está cargado por el autocomplete de la app
-    if (window.google?.maps) {
-      initMap();
-    } else {
-      // Esperar a que cargue
-      const interval = setInterval(() => {
-        if (window.google?.maps) { clearInterval(interval); initMap(); }
-      }, 200);
-      return () => clearInterval(interval);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (mapInstanceRef.current) renderRoute(orderedAddresses, mapInstanceRef.current);
-  }, [optimized, orderedAddresses, renderRoute]);
+  const all = [BASE, ...addresses];
+  const origin = encodeURIComponent(BASE);
+  const dest = encodeURIComponent(addresses[addresses.length - 1]);
+  const waypoints = addresses.slice(0, -1).map(a => encodeURIComponent(a)).join('|');
+  const embedUrl = `https://www.google.com/maps/embed/v1/directions?key=${apiKey}&origin=${origin}&destination=${dest}${waypoints ? `&waypoints=${waypoints}` : ''}&mode=driving`;
+  const mapsUrl = `https://www.google.com/maps/dir/${all.map(a => encodeURIComponent(a)).join('/')}`;
 
   return (
     <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0', marginBottom: 16, marginTop: 16 }}>
-      {/* Header del mapa */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
-          🗺️ Route · {addresses.length} stops
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setOptimized(o => !o)}
-            style={{ padding: '6px 12px', borderRadius: 20, border: `1.5px solid ${optimized ? '#0f766e' : '#e2e8f0'}`, background: optimized ? '#f0fdfa' : '#fff', color: optimized ? '#0f766e' : '#64748b', fontWeight: optimized ? 700 : 400, fontSize: 12, cursor: 'pointer' }}>
-            ⚡ {optimized ? 'Optimized!' : 'Optimize Route'}
-          </button>
-          <button onClick={() => {
-            const url = `https://www.google.com/maps/dir/${BASE}/${orderedAddresses.join('/')}`;
-            window.open(url, '_blank');
-          }} style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid #1a73e8', background: '#fff', color: '#1a73e8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
-            📍 Open in Maps
-          </button>
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a' }}>🗺️ Route · {addresses.length} stops</div>
+        <button onClick={() => window.open(mapsUrl, '_blank')}
+          style={{ padding: '6px 12px', borderRadius: 20, border: '1.5px solid #1a73e8', background: '#fff', color: '#1a73e8', fontWeight: 600, fontSize: 12, cursor: 'pointer' }}>
+          📍 Open in Maps & Navigate
+        </button>
       </div>
-      {/* Mapa */}
-      <div ref={mapRef} style={{ width: '100%', height: 380 }} />
+      <iframe
+        title="Route Map"
+        width="100%"
+        height="380"
+        style={{ border: 0, display: 'block' }}
+        loading="lazy"
+        allowFullScreen
+        referrerPolicy="no-referrer-when-downgrade"
+        src={embedUrl}
+      />
     </div>
   );
 }
