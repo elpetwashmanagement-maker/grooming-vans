@@ -5855,6 +5855,37 @@ function CierreTab({ vans, services, expenses, isAdmin, settings }) {
 }
 
 // ===== BOARDING MODULE =====
+const BOARDING_AGREEMENT = `BOARDING SERVICE AGREEMENT — Group Guerrero
+
+1. HEALTH REQUIREMENTS
+All pets must be current on Rabies, Bordetella, and DHPP vaccinations. Owner must provide proof upon request. We reserve the right to refuse boarding to any pet that appears ill or poses a health risk to other animals.
+
+2. FEEDING & CARE
+Owner must provide pet's regular food to avoid digestive upset. Feeding schedule will follow owner's instructions. We will provide fresh water at all times. Additional feeding costs may apply for special diets.
+
+3. PET BEHAVIOR
+Owner must disclose any history of aggression, anxiety, or behavioral issues. We reserve the right to contact the owner or terminate boarding if the pet poses a danger to staff or other animals.
+
+4. MEDICAL EMERGENCIES
+In case of a medical emergency, we will attempt to contact the owner immediately. If unreachable, we reserve the right to seek veterinary care at the owner's expense. Owner authorizes emergency veterinary treatment if necessary.
+
+5. PERSONAL BELONGINGS
+We are not responsible for loss or damage to personal items brought by the pet (toys, beds, bowls, etc.). Label all items with your pet's name.
+
+6. MEDICATIONS
+We will administer medications as instructed. Owner must provide clear written instructions and all necessary supplies.
+
+7. CANCELLATION POLICY
+Cancellations must be made at least 48 hours in advance. No-show or late cancellations may result in forfeiture of deposit.
+
+8. PAYMENT
+Full payment is due at check-out. A deposit may be required to hold the reservation. We accept cash, Zelle, and credit card (5.5% processing fee applies).
+
+9. LIABILITY
+Owner agrees that Group Guerrero, its staff, and associates are not liable for illness, injury, or death that may occur during boarding, except in cases of gross negligence. Owner assumes full financial responsibility for any damage caused by their pet.
+
+By signing below, the owner acknowledges reading and agreeing to all terms above.`;
+
 const BOARDING_PRICES = {
   small:  { label: 'Small (1-20 lbs)',   price: 40 },
   medium: { label: 'Medium (21-40 lbs)', price: 45 },
