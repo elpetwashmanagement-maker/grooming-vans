@@ -5869,9 +5869,15 @@ function BoardingTab({ clients, pets, session, settings }) {
   const [editingRes, setEditingRes] = useState(null);
   const [showAgreement, setShowAgreement] = useState(false);
   const [agreementSigned, setAgreementSigned] = useState(false);
+  const [viewMode, setViewMode] = useState('list'); // list | calendar
+  const [showPayment, setShowPayment] = useState(null); // reservation
+  const [paymentForm, setPaymentForm] = useState({ method: 'Cash', amount: '', tip: '' });
+  const [maxCapacity, setMaxCapacity] = useState(5);
+  const [showCapacityEdit, setShowCapacityEdit] = useState(false);
   const emptyForm = {
     clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
     includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0,
+    rating: 0,
     // Feeding
     foodType: '', foodBrand: '', foodAmount: '', feedingTimes: ['8:00 AM', '6:00 PM'], foodNotes: '',
     // Inventory
@@ -5937,6 +5943,7 @@ function BoardingTab({ clients, pets, session, settings }) {
       other_vaccines: form.otherVaccines, vet_name: form.vetName,
       vet_phone: form.vetPhone, medical_conditions: form.medicalConditions,
       agreement_signed: form.agreementSigned,
+      rating: form.rating || 0,
     };
     if (editingRes) {
       await supabase.from('boarding_reservations').update(payload).eq('id', editingRes.id);
@@ -5963,9 +5970,9 @@ function BoardingTab({ clients, pets, session, settings }) {
       otherVaccines: res.other_vaccines || '', vetName: res.vet_name || '',
       vetPhone: res.vet_phone || '', medicalConditions: res.medical_conditions || '',
       agreementSigned: res.agreement_signed || false,
+      rating: res.rating || 0,
     });
     setEditingRes(res); setShowForm(true); setActiveSection('basic');
-  };
 
   const handleDelete = async (id) => {
     if (!confirm('Delete this reservation?')) return;
@@ -6047,6 +6054,95 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
     </div>
   );
 
+  // ---- PAYMENT PANEL ----
+  const handlePayment = async () => {
+    if (!paymentForm.amount) { alert('Enter amount'); return; }
+    const paid = parseFloat(paymentForm.amount);
+    const tip = parseFloat(paymentForm.tip) || 0;
+    const newDeposit = (showPayment.deposit_paid || 0) + paid + tip;
+    await supabase.from('boarding_reservations').update({
+      deposit_paid: newDeposit,
+      status: newDeposit >= (showPayment.total || 0) ? 'completed' : showPayment.status,
+    }).eq('id', showPayment.id);
+    await loadReservations();
+    setShowPayment(null);
+    setPaymentForm({ method: 'Cash', amount: '', tip: '' });
+  };
+
+  if (showPayment) {
+    const bal = (showPayment.total || 0) - (showPayment.deposit_paid || 0);
+    const client = clients.find(c => String(c.id) === String(showPayment.client_id));
+    const pet = pets.find(p => String(p.id) === String(showPayment.pet_id));
+    return (
+      <div style={{ padding: 16, maxWidth: 500, margin: '0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <button onClick={() => setShowPayment(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>←</button>
+          <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 800 }}>💰 Collect Payment</div>
+        </div>
+        <div style={{ background: '#f0fdfa', borderRadius: 16, padding: 16, marginBottom: 16, border: '1px solid #99f6e4' }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{client?.name}</div>
+          <div style={{ fontSize: 13, color: '#64748b' }}>🐾 {pet?.name} · {showPayment.check_in} → {showPayment.check_out}</div>
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#64748b' }}>Total</span>
+            <span style={{ fontWeight: 700 }}>${showPayment.total?.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#64748b' }}>Paid</span>
+            <span style={{ color: '#0f766e', fontWeight: 600 }}>${showPayment.deposit_paid?.toFixed(2) || '0.00'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 18, borderTop: '1px solid #99f6e4', paddingTop: 8, marginTop: 8 }}>
+            <span>Balance Due</span>
+            <span style={{ color: bal > 0 ? '#dc2626' : '#0f766e' }}>${bal.toFixed(2)}</span>
+          </div>
+        </div>
+        {/* Payment method */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 8 }}>Payment Method</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {['Cash', 'Zelle', 'Card'].map(m => (
+              <button key={m} onClick={() => setPaymentForm(f => ({...f, method: m}))}
+                style={{ flex: 1, padding: '12px', border: `2px solid ${paymentForm.method===m?'#0f766e':'#e2e8f0'}`, borderRadius: 12, background: paymentForm.method===m?'#f0fdfa':'#fff', fontWeight: paymentForm.method===m?700:400, cursor: 'pointer', fontSize: 14 }}>
+                {m === 'Cash' ? '💵' : m === 'Zelle' ? '📱' : '💳'} {m}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Amount ($)</label>
+            <input type="number" value={paymentForm.amount} onChange={e => setPaymentForm(f => ({...f, amount: e.target.value}))}
+              placeholder={bal.toFixed(2)}
+              style={{ width: '100%', padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 16, boxSizing: 'border-box', fontWeight: 700 }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Tip ($)</label>
+            <input type="number" value={paymentForm.tip} onChange={e => setPaymentForm(f => ({...f, tip: e.target.value}))}
+              placeholder="0.00"
+              style={{ width: '100%', padding: '12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 16, boxSizing: 'border-box' }} />
+          </div>
+        </div>
+        {/* Quick amounts */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+          {[bal, Math.ceil(bal/2), 50, 100].filter((v,i,a) => v > 0 && a.indexOf(v) === i).map(amt => (
+            <button key={amt} onClick={() => setPaymentForm(f => ({...f, amount: amt.toFixed(2)}))}
+              style={{ padding: '8px 14px', border: '1.5px solid #e2e8f0', borderRadius: 20, background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              ${amt.toFixed(0)}
+            </button>
+          ))}
+        </div>
+        {paymentForm.method === 'Card' && (
+          <div style={{ background: '#fef9c3', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#854d0e' }}>
+            ⚠️ Card payments include a 5.5% processing fee
+          </div>
+        )}
+        <button onClick={handlePayment}
+          style={{ width: '100%', padding: 16, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>
+          ✅ Collect ${paymentForm.amount || bal.toFixed(2)} {paymentForm.tip > 0 ? `+ $${paymentForm.tip} tip` : ''}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '16px', maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
       {/* Header */}
@@ -6055,16 +6151,43 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
           <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800 }}>🏠 Boarding</div>
           <div style={{ fontSize: 12, color: '#64748b' }}>Group Guerrero</div>
         </div>
-        <button onClick={() => { resetForm(); setEditingRes(null); setShowForm(true); setClientSearch(''); }}
-          style={{ background: '#0f766e', border: 'none', borderRadius: 12, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
-          + New
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => setShowCapacityEdit(s => !s)}
+            style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '8px 12px', cursor: 'pointer', fontSize: 13, color: '#64748b' }}>
+            🏠 {maxCapacity} max
+          </button>
+          <button onClick={() => { resetForm(); setEditingRes(null); setShowForm(true); setClientSearch(''); }}
+            style={{ background: '#0f766e', border: 'none', borderRadius: 12, padding: '10px 16px', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>
+            + New
+          </button>
+        </div>
+      </div>
+
+      {/* Capacity edit */}
+      {showCapacityEdit && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #e2e8f0', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Max capacity:</span>
+          <input type="number" value={maxCapacity} onChange={e => setMaxCapacity(parseInt(e.target.value)||1)} min={1} max={50}
+            style={{ width: 70, padding: '6px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, textAlign: 'center' }} />
+          <span style={{ fontSize: 13, color: '#64748b' }}>dogs</span>
+          <button onClick={() => setShowCapacityEdit(false)} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', cursor: 'pointer', fontSize: 13 }}>Save</button>
+        </div>
+      )}
+
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+        {[['list','📋 List'],['calendar','📅 Calendar']].map(([m,l]) => (
+          <button key={m} onClick={() => setViewMode(m)}
+            style={{ padding: '8px 16px', borderRadius: 20, border: `1.5px solid ${viewMode===m?'#0f766e':'#e2e8f0'}`, background: viewMode===m?'#f0fdfa':'#fff', color: viewMode===m?'#0f766e':'#64748b', fontWeight: viewMode===m?700:400, fontSize: 13, cursor: 'pointer' }}>
+            {l}
+          </button>
+        ))}
       </div>
 
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
         {[
-          { label: 'Dogs In House', value: activeNow, icon: '🐶', color: '#0f766e' },
+          { label: 'Dogs In House', value: `${activeNow}/${maxCapacity}`, icon: '🐶', color: activeNow >= maxCapacity ? '#dc2626' : '#0f766e' },
           { label: 'Check-ins Today', value: checkInsToday, icon: '📥', color: '#7c3aed' },
           { label: 'Check-outs Today', value: checkOutsToday, icon: '📤', color: '#ea580c' },
           { label: 'Month Revenue', value: `$${monthRevenue.toFixed(0)}`, icon: '💰', color: '#0369a1' },
@@ -6076,6 +6199,57 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
           </div>
         ))}
       </div>
+
+      {/* Capacity bar */}
+      {activeNow > 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: '12px 16px', border: '1px solid #e2e8f0', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
+            <span>Occupancy</span>
+            <span style={{ fontWeight: 700, color: activeNow >= maxCapacity ? '#dc2626' : '#0f766e' }}>{activeNow}/{maxCapacity}</span>
+          </div>
+          <div style={{ background: '#f1f5f9', borderRadius: 20, height: 10, overflow: 'hidden' }}>
+            <div style={{ background: activeNow >= maxCapacity ? '#dc2626' : '#0f766e', height: '100%', width: `${Math.min(100, (activeNow/maxCapacity)*100)}%`, borderRadius: 20, transition: 'width 0.3s' }} />
+          </div>
+        </div>
+      )}
+
+      {/* CALENDAR VIEW */}
+      {viewMode === 'calendar' && (() => {
+        const today2 = new Date();
+        const days = Array.from({length: 14}, (_, i) => {
+          const d = new Date(today2);
+          d.setDate(d.getDate() + i);
+          return d.toISOString().split('T')[0];
+        });
+        return (
+          <div style={{ background: '#fff', borderRadius: 16, padding: 16, border: '1px solid #e2e8f0', marginBottom: 16, overflowX: 'auto' }}>
+            <div style={{ fontWeight: 700, marginBottom: 12, fontSize: 14 }}>📅 Next 14 Days</div>
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${days.length}, 1fr)`, gap: 4, minWidth: 560 }}>
+              {days.map(day => {
+                const count = reservations.filter(r => r.status !== 'cancelled' && r.check_in <= day && r.check_out > day).length;
+                const pct = maxCapacity > 0 ? count / maxCapacity : 0;
+                const isToday2 = day === todayISO();
+                return (
+                  <div key={day} style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: 10, color: isToday2 ? '#0f766e' : '#94a3b8', fontWeight: isToday2 ? 700 : 400, marginBottom: 4 }}>
+                      {new Date(day + 'T12:00:00').toLocaleDateString('en', {weekday: 'short'}).slice(0,1)}
+                      <br/>{day.slice(8)}
+                    </div>
+                    <div style={{ height: 40, background: count === 0 ? '#f1f5f9' : pct >= 1 ? '#fee2e2' : pct >= 0.7 ? '#fef9c3' : '#dcfce7', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', border: isToday2 ? '2px solid #0f766e' : 'none' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: count === 0 ? '#94a3b8' : pct >= 1 ? '#dc2626' : '#0f766e' }}>{count > 0 ? count : ''}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginTop: 10, fontSize: 11, color: '#64748b' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#dcfce7', borderRadius: 3, display: 'inline-block' }}/>Available</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#fef9c3', borderRadius: 3, display: 'inline-block' }}/>Almost full</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, background: '#fee2e2', borderRadius: 3, display: 'inline-block' }}/>Full</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Form */}
       {showForm && (
@@ -6399,6 +6573,12 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
                       Check Out
                     </button>
                   )}
+                  {balance > 0 && (
+                    <button onClick={() => setShowPayment(res)}
+                      style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#fff', fontWeight: 700 }}>
+                      💰 Collect
+                    </button>
+                  )}
                   <button onClick={() => handleEdit(res)}
                     style={{ background: '#f0fdfa', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#0f766e' }}>✏️</button>
                   <button onClick={() => handleDelete(res.id)}
@@ -6407,6 +6587,7 @@ By signing below, the owner acknowledges reading and agreeing to all terms above
               </div>
               {res.notes && <div style={{ marginTop: 8, fontSize: 12, color: '#64748b', background: '#f8fafc', borderRadius: 8, padding: '6px 10px' }}>📝 {res.notes}</div>}
               {res.medical_conditions && <div style={{ marginTop: 4, fontSize: 12, color: '#7c3aed', background: '#faf5ff', borderRadius: 8, padding: '6px 10px' }}>🏥 {res.medical_conditions}</div>}
+              {res.rating > 0 && <div style={{ marginTop: 6, fontSize: 13 }}>{'⭐'.repeat(res.rating)} <span style={{ fontSize: 11, color: '#94a3b8' }}>{['','Difficult','Challenging','Neutral','Good','Excellent'][res.rating]}</span></div>}
             </div>
           );
         })
@@ -10179,3 +10360,5 @@ const styles = {
   pinBtn: { height: 60, background: '#fafaf7', border: '1px solid #e2e8f0', borderRadius: 12, fontSize: 22, fontWeight: 600, color: '#0f172a', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   pinBackBtn: { display: 'block', margin: '20px auto 0', background: 'transparent', border: 'none', fontSize: 13, color: '#64748b', fontWeight: 600, cursor: 'pointer', padding: 8 },
 };
+
+}
