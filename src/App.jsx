@@ -1597,7 +1597,7 @@ export default function App() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'boarding' && (isAdmin || isManager) && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
+        {tab === 'boarding' && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
@@ -2486,7 +2486,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin || isViewer },
     { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin },
     { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer },
-    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: isAdmin || isManager },
+    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: true },
     { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer },
     { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
