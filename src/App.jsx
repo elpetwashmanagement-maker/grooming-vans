@@ -1676,7 +1676,7 @@ export default function App() {
                 ? appointments.filter(a => a.status === 'pending_review').length
                 : 0;
               return (
-                <button key={t.id} onClick={() => setTab(t.id === 'more' ? 'week' : t.id)}
+                <button key={t.id} onClick={() => setTab(t.id === 'more' ? 'cierre' : t.id)}
                   style={{
                     flex: 1, padding: '10px 4px 8px', border: 'none', background: 'none',
                     cursor: 'pointer', display: 'flex', flexDirection: 'column',
