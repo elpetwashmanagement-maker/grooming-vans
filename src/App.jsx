@@ -4075,7 +4075,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             onClick={() => {
                               setPetServices(prev => ({
                                 ...prev,
-                                [String(petId)]: { service: svc.id, price: autoPrice }
+                                [String(petId)]: { service: svc.id, price: autoPrice, basePrice: autoPrice, addons: [] }
                               }));
                             }}
                             style={{ padding: '8px 6px', borderRadius: 8, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#64748b', textAlign: 'center' }}>
@@ -4096,36 +4096,78 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 );
               })}
 
-              {/* Total general */}
+              {/* Total general con add-ons */}
               {newApptForm.petIds.some(id => petServices[String(id)]) && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#0f766e', borderRadius: 10, color: '#fff', fontWeight: 800, fontSize: 15 }}>
-                  <span>Total</span>
-                  <span>${newApptForm.petIds.reduce((sum, id) => sum + (petServices[String(id)]?.price || 0), 0)}</span>
+                <div style={{ marginTop: 8 }}>
+                  {newApptForm.petIds.map(id => {
+                    const svc = petServices[String(id)];
+                    if (!svc) return null;
+                    const pet = pets.find(p => String(p.id) === String(id));
+                    const addonsTotal = (svc.addons || []).reduce((s, a) => s + a.price, 0);
+                    const petTotal = (svc.basePrice || svc.price || 0) + addonsTotal;
+                    return (
+                      <div key={id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#374151', padding: '4px 10px' }}>
+                        <span>🐾 {pet?.name} — {svc.service}</span>
+                        <span style={{ fontWeight: 600 }}>${petTotal}</span>
+                      </div>
+                    );
+                  })}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#0f766e', borderRadius: 10, color: '#fff', fontWeight: 800, fontSize: 15, marginTop: 6 }}>
+                    <span>Total</span>
+                    <span>${newApptForm.petIds.reduce((sum, id) => {
+                      const svc = petServices[String(id)];
+                      if (!svc) return sum;
+                      const addonsTotal = (svc.addons || []).reduce((s, a) => s + a.price, 0);
+                      return sum + (svc.basePrice || svc.price || 0) + addonsTotal;
+                    }, 0)}</span>
+                  </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* STEP 7: Add-ons */}
-          {newApptForm.clientId && (
+          {/* STEP 7: Add-ons por mascota */}
+          {newApptForm.clientId && newApptForm.petIds.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <label style={styles.lbl}>➕ Add-ons</label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                {(servicePrices || []).filter(p => p.category === 'Add-on' || p.category === 'Add-ons').map(addon => {
-                  const selected = (newApptForm.addons || []).some(a => a.id === addon.id);
-                  return (
-                    <button key={addon.id} type="button"
-                      onClick={() => setNewApptForm(f => ({
-                        ...f, addons: selected
-                          ? (f.addons || []).filter(a => a.id !== addon.id)
-                          : [...(f.addons || []), { id: addon.id, name: addon.name, price: addon.price }]
-                      }))}
-                      style={{ padding: '6px 12px', background: selected ? '#f0fdfa' : '#f8fafc', border: `1px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 600 : 400, color: selected ? '#0f766e' : '#64748b' }}>
-                      {selected ? '✅ ' : '+ '}{addon.name} ${addon.price}
-                    </button>
-                  );
-                })}
-              </div>
+              <label style={styles.lbl}>➕ Add-ons por mascota</label>
+              {newApptForm.petIds.map(petId => {
+                const pet = pets.find(p => String(p.id) === String(petId));
+                if (!pet) return null;
+                const petSvc = petServices[String(petId)];
+                if (!petSvc) return null; // solo mostrar add-ons si tiene servicio
+
+                const addons = (servicePrices || []).filter(p => p.category === 'Add-on');
+                const uniqueAddons = [...new Map(addons.map(a => [a.name, a])).values()];
+
+                const currentAddons = petSvc.addons || [];
+
+                return (
+                  <div key={petId} style={{ marginBottom: 10, padding: '10px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>🐾 {pet.name}</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {uniqueAddons.map(addon => {
+                        const selected = currentAddons.some(a => a.name === addon.name);
+                        return (
+                          <button key={addon.id} type="button"
+                            onClick={() => {
+                              const newAddons = selected
+                                ? currentAddons.filter(a => a.name !== addon.name)
+                                : [...currentAddons, { name: addon.name, price: addon.price }];
+                              const addonsTotal = newAddons.reduce((sum, a) => sum + a.price, 0);
+                              setPetServices(prev => ({
+                                ...prev,
+                                [String(petId)]: { ...prev[String(petId)], addons: newAddons, price: (prev[String(petId)]?.basePrice || prev[String(petId)]?.price || 0) + addonsTotal }
+                              }));
+                            }}
+                            style={{ padding: '5px 10px', background: selected ? '#f0fdfa' : '#fff', border: `1.5px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 700 : 400, color: selected ? '#0f766e' : '#64748b' }}>
+                            {selected ? '✅ ' : '+ '}{addon.name} ${addon.price}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
