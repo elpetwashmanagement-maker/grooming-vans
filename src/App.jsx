@@ -5616,20 +5616,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         </div>
                       </div>
                     ))}
-
-                    <div style={{ borderTop: '1.5px dashed #e2e8f0', paddingTop: 10, marginTop: 4 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                        <span style={{ color: '#64748b' }}>Subtotal</span>
-                        <span>${subtotal.toFixed(2)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                        <span style={{ color: '#64748b' }}>⛽ Gas fee</span>
-                        <span style={{ color: '#dc2626' }}>-${gasFee.toFixed(2)}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, marginTop: 8, paddingTop: 8, borderTop: '1px solid #e2e8f0' }}>
-                        <span>Groomer earns</span>
-                        <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif' }}>${Math.max(0, (subtotal - gasFee) * ((settings.commissionPct || 45) / 100)).toFixed(2)}</span>
-                      </div>
+                    <div style={{ borderTop: '1.5px dashed #e2e8f0', paddingTop: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800 }}>
+                      <span>Total</span>
+                      <span style={{ color: '#0f766e', fontFamily: 'Fraunces, serif' }}>${subtotal.toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -5663,11 +5652,43 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
                   {!isGuarantee && (
                     <div style={{ marginBottom: 16 }}>
-                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 6, display: 'block' }}>💝 Tip (optional)</label>
-                      <input type="number" step="0.01" value={cobroForm.tip}
-                        onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
-                        style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15, boxSizing: 'border-box' }}
-                        placeholder="$0.00" />
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8, display: 'block' }}>💝 Tip</label>
+                      {/* Tip percentage buttons */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
+                        {[18, 20, 25, 'Custom'].map(pct => {
+                          const tipAmt = pct === 'Custom' ? null : parseFloat((subtotal * pct / 100).toFixed(2));
+                          const isSelected = pct === 'Custom'
+                            ? cobroForm.customTip
+                            : parseFloat(cobroForm.tip || 0) === tipAmt && !cobroForm.customTip;
+                          return (
+                            <button key={pct} type="button"
+                              onClick={() => {
+                                if (pct === 'Custom') {
+                                  setCobroForm(f => ({...f, customTip: true, tip: ''}));
+                                } else {
+                                  setCobroForm(f => ({...f, customTip: false, tip: tipAmt}));
+                                }
+                              }}
+                              style={{ padding: '10px 4px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#374151', textAlign: 'center' }}>
+                              <div>{pct === 'Custom' ? '✏️' : `${pct}%`}</div>
+                              {tipAmt !== null && <div style={{ fontSize: 11, color: isSelected ? '#0f766e' : '#94a3b8', marginTop: 2 }}>${tipAmt}</div>}
+                              {pct === 'Custom' && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Custom</div>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {/* Custom tip input */}
+                      {cobroForm.customTip && (
+                        <input type="number" step="0.01" value={cobroForm.tip}
+                          onChange={e => setCobroForm(f => ({...f, tip: e.target.value}))}
+                          style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 15, boxSizing: 'border-box' }}
+                          placeholder="Enter tip amount..." autoFocus />
+                      )}
+                      {/* No tip option */}
+                      <button type="button" onClick={() => setCobroForm(f => ({...f, tip: 0, customTip: false}))}
+                        style={{ marginTop: 8, width: '100%', padding: '8px', background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#94a3b8' }}>
+                        No tip
+                      </button>
                     </div>
                   )}
 
