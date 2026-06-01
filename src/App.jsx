@@ -206,7 +206,7 @@ const processSquarePayment = async (amountCents, note = '') => {
     // Obtener token de Square
     const result = await paymentMethod.tokenize();
     if (result.status !== 'OK') {
-      return { success: false, error: result.errors?.[0]?.monthsage || 'Tokenization failed' };
+      return { success: false, error: result.errors?.[0]?.message || 'Tokenization failed' };
     }
 
     // Enviar token al backend para procesar el pago real
@@ -228,7 +228,7 @@ const processSquarePayment = async (amountCents, note = '') => {
     return { success: true, paymentId: data.paymentId, token: result.token };
   } catch (err) {
     console.error('Square error:', err);
-    return { success: false, error: err.monthsage };
+    return { success: false, error: err.message };
   }
 };
 
@@ -1378,7 +1378,7 @@ function AppMain() {
     const updateLocation = (pos) => {
       saveVanLocation({ vanId: session.vanId, groomerId: session.userId, groomerName: session.userName, latitude: pos.coords.latitude, longitude: pos.coords.longitude, accuracy: pos.coords.accuracy });
     };
-    gpsWatchRef.current = navigator.geolocation.watchPosition(updateLocation, (err) => console.log('GPS:', err.monthsage), { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 });
+    gpsWatchRef.current = navigator.geolocation.watchPosition(updateLocation, (err) => console.log('GPS:', err.message), { enableHighAccuracy: true, timeout: 30000, maximumAge: 60000 });
     return () => { if (gpsWatchRef.current) { navigator.geolocation.clearWatch(gpsWatchRef.current); deactivateVanLocation(session.vanId); } };
   }, [session?.vanId]);
 
@@ -1604,9 +1604,9 @@ function AppMain() {
     <div style={styles.app}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
-        @keyframonth spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframonth fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframonth shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
         * { box-sizing: border-box; }
         body { margin: 0; }
         input:focus, select:focus { outline: 2px solid #0f766e; outline-offset: 1px; }
@@ -3407,22 +3407,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     const companyId = van?.companyId || appt.companyId || 'epw';
 
     // Si es tarjeta → procesar con Square primero
-    if (method === 'Credit Card') {
-      const isGuaranteeCheck = (appt.pets || []).every(ap =>
-        (ap.service || '').toLowerCase().includes('guarantee') || (ap.amount || 0) === 0
-      );
-      if (!isGuaranteeCheck) {
-        const subtotalCheck = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
-        const totalCheck = subtotalCheck + (settings?.gasFee || 7) + tip;
-        const amountCents = Math.round(totalCheck * 100);
-        const squareResult = await processSquarePayment(amountCents, `${appt.client?.name || ''} - ${appt.pets?.map(p => p.pet?.name).join(', ') || ''}`);
-        if (!squareResult.success) {
-          alert(`❌ Payment failed: ${squareResult.error}`);
-          setSaving(false);
-          return;
-        }
-      }
-    }
+    // Square integration is handled via physical terminal — payment recorded manually
 
     // Si todos los services son Guarantee → gasFee = $0
     const isGuarantee = (appt.pets || []).every(ap =>
@@ -7601,7 +7586,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
             setSaving(true);
             const { error } = await supabase.auth.updateUser({ password: passwordForm.newPass });
             setSaving(false);
-            if (error) { alert('Error: ' + error.monthsage); return; }
+            if (error) { alert('Error: ' + error.message); return; }
             setPasswordForm({ current: '', newPass: '', confirm: '' });
             alert('✅ Password updated successfully!');
           }} style={{ padding: '12px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
@@ -8214,7 +8199,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
     } catch(err) {
       console.error('Error creating client:', err);
-      alert(`❌ Error: ${err.monthsage}`);
+      alert(`❌ Error: ${err.message}`);
       setSaving(false);
     }
   };
@@ -8840,13 +8825,13 @@ function BreedsTab({ session }) {
         r.readAsDataURL(imageFile);
       });
 
-      const response = await fetch('https://api.anthropic.com/v1/monthsages', {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 1000,
-          monthsages: [{
+          messages: [{
             role: 'user',
             content: [
               { type: 'image', source: { type: 'base64', media_type: imageFile.type || 'image/jpeg', data: base64 } },
@@ -10293,7 +10278,7 @@ function InventoryTab({ vans, session, isAdmin, inventoryItems, setInventoryItem
     if (!newItemName.trim()) { alert('Ingresa el name del artículo'); return; }
     const item = { id: `item-${uid().slice(0,8)}`, name: newItemName.trim(), category: newItemCategory || 'General', unit: newItemUnit || 'unidad', active: true, sort_order: inventoryItems.length + 1 };
     const { error } = await supabase.from('inventory_items').insert(item);
-    if (error) { alert(`Error: ${error.monthsage}`); return; }
+    if (error) { alert(`Error: ${error.message}`); return; }
     setInventoryItems(prev => [...prev, item]);
     setNewItemName('');
     alert(`✅ "${item.name}" agregado`);
