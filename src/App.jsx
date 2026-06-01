@@ -3264,6 +3264,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
   const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
+  const [petServices, setPetServices] = useState({}); // { petId: { service, price } }
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -3546,14 +3547,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     const finalPrice = discountedPrice + addonsTotal;
     const van = vans.find(v => v.id === newApptForm.vanId);
 
-    // Si no pets seleccionadas pero hay service, crear un pet genérico
+    // Usar servicio por mascota (petServices) o el global si no hay por mascota
     const petsList = newApptForm.petIds.length > 0
       ? newApptForm.petIds.map(pid => {
           const p = pets.find(pt => String(pt.id) === String(pid));
+          const petSvc = petServices[String(pid)];
           return {
             id: uid(), petId: String(pid),
-            service: newApptForm.serviceName || '',
-            amount: finalPrice, tip: 0, cardFee: 0,
+            service: petSvc?.service || newApptForm.serviceName || '',
+            amount: petSvc?.price || 0,
+            tip: 0, cardFee: 0,
             method: 'Cash', status: 'pending',
             checkinTime: '', checkoutTime: '',
             pet: p ? { id: p.id, name: p.name, breed: p.breed, size: p.size, allergies: p.allergies, behavior_notes: p.behavior_notes } : null,
@@ -3601,6 +3604,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     setSaving(false);
     setShowNewAppt(false);
     setNewApptForm({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
+    setPetServices({});
     setClientSearch('');
   };
 
@@ -4019,109 +4023,86 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
             );
           })()}
 
-          {/* STEP 6: Service + Smart Pricing */}
-          {newApptForm.clientId && (
+          {/* STEP 6: Servicio por mascota */}
+          {newApptForm.clientId && newApptForm.petIds.length > 0 && (
             <div style={{ marginBottom: 16 }}>
-              <label style={styles.lbl}>🛁 Service</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
-                {[
-                  { id: 'Signature Bath',                         icon: '🛁',    label: 'Signature Bath' },
-                  { id: 'Full Groom',                             icon: '✂️',   label: 'Full Groom' },
-                  { id: 'Signature Bath + UltraSonic',            icon: '🛁🦷',  label: 'Bath + Ultrasonic' },
-                  { id: 'Full Groom + UltraSonic',                icon: '✂️🦷', label: 'Groom + Ultrasonic' },
-                ].map(svc => {
-                  const isSelected = newApptForm.serviceName === svc.id;
-                  return (
-                    <button key={svc.id} type="button"
-                      onClick={() => {
-                        let autoPrice = 0;
-                        if (newApptForm.petIds.length > 0) {
-                          const petId = newApptForm.petIds[0];
-                          const pet = pets?.find(p => String(p.id) === String(petId));
-                          if (pet?.size && pet?.hair_type) {
-                            // Base service name (before +)
-                            const baseName = svc.id.split(' + ')[0];
-                            const baseMatch = servicePrices?.find(p => {
-                              const nameMatch = p.category === baseName || p.name === baseName;
-                              const sizeMatch = !p.size || p.size === pet.size;
-                              const hairMatch = !p.hair_type || p.hair_type === pet.hair_type;
-                              return nameMatch && sizeMatch && hairMatch;
-                            });
-                            autoPrice += baseMatch?.price || 0;
-                            // Add UltraSonic if combo
-                            if (svc.id.includes('UltraSonic')) {
-                              const ultraMatch = servicePrices?.find(p =>
-                                (p.category === 'UltraSonic Teeth Deep Cleaning' || p.name?.includes('UltraSonic')) &&
-                                (!p.size || p.size === pet.size)
-                              );
-                              autoPrice += ultraMatch?.price || 0;
-                            }
-                          }
-                        }
-                        setNewApptForm(f => ({ ...f, serviceName: svc.id, serviceId: '', servicePrice: autoPrice }));
-                      }}
-                      style={{ padding: '12px 8px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#64748b', textAlign: 'center', lineHeight: 1.4 }}>
-                      <div style={{ fontSize: 20, marginBottom: 4 }}>{svc.icon}</div>
-                      {svc.label}
-                    </button>
-                  );
-                })}
-              </div>
+              <label style={styles.lbl}>🛁 Service por mascota</label>
+              {newApptForm.petIds.map(petId => {
+                const pet = pets.find(p => String(p.id) === String(petId));
+                if (!pet) return null;
+                const currentSvc = petServices[String(petId)];
 
-              {/* Smart Pricing — muestra precio por mascota */}
-              {newApptForm.serviceName && newApptForm.petIds.length > 0 && (() => {
-                const baseName = newApptForm.serviceName.split(' + ')[0];
-                const isUltrasonic = newApptForm.serviceName.includes('UltraSonic');
+                const getAutoPrice = (svcId) => {
+                  const baseName = svcId.split(' + ')[0];
+                  const isUltra = svcId.includes('UltraSonic');
+                  let price = 0;
+                  if (pet.size && pet.hair_type) {
+                    const baseMatch = servicePrices?.find(sp => {
+                      const nameMatch = sp.category === baseName || sp.name === baseName;
+                      const sizeMatch = !sp.size || sp.size === pet.size;
+                      const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type;
+                      return nameMatch && sizeMatch && hairMatch;
+                    });
+                    price += baseMatch?.price || 0;
+                    if (isUltra) {
+                      const ultraMatch = servicePrices?.find(sp =>
+                        (sp.category === 'UltraSonic Teeth Deep Cleaning' || sp.name?.includes('UltraSonic')) &&
+                        (!sp.size || sp.size === pet.size)
+                      );
+                      price += ultraMatch?.price || 0;
+                    }
+                  }
+                  return price;
+                };
 
-                const results = newApptForm.petIds.map(petId => {
-                  const pet = pets?.find(p => String(p.id) === String(petId));
-                  if (!pet) return null;
-                  const baseMatch = servicePrices?.find(sp => {
-                    const nameMatch = sp.category === baseName || sp.name === baseName;
-                    const sizeMatch = !sp.size || sp.size === pet.size;
-                    const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type;
-                    return nameMatch && sizeMatch && hairMatch;
-                  });
-                  const ultraMatch = isUltrasonic ? servicePrices?.find(sp =>
-                    (sp.category === 'UltraSonic Teeth Deep Cleaning' || sp.name?.includes('UltraSonic')) &&
-                    (!sp.size || sp.size === pet.size)
-                  ) : null;
-                  const total = (baseMatch?.price || 0) + (ultraMatch?.price || 0);
-                  return { pet, baseMatch, ultraMatch, total };
-                }).filter(Boolean);
-
-                if (!results.some(r => r.total > 0)) return (
-                  <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef3c7', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
-                    ⚠️ No price found. Make sure pet has size and hair type set.
-                  </div>
-                );
-
-                const grandTotal = results.reduce((sum, r) => sum + r.total, 0);
                 return (
-                  <div style={{ marginTop: 10, padding: '12px 14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>✅ Smart Pricing</div>
-                    {results.map(({ pet, baseMatch, ultraMatch, total }, i) => (
-                      <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < results.length-1 ? '1px dashed #ccfbf1' : 'none' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
-                          <span>🐾 {pet.name}</span>
-                          <span style={{ color: '#0f766e' }}>${total}</span>
-                        </div>
-                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                          {pet.size?.split(' ')[0]} · {pet.hair_type}
-                          {baseMatch && <span> · {baseName} ${baseMatch.price}</span>}
-                          {ultraMatch && <span> + 🦷 ${ultraMatch.price}</span>}
-                        </div>
-                      </div>
-                    ))}
-                    {results.length > 1 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, paddingTop: 8, borderTop: '1.5px solid #0f766e' }}>
-                        <span>Total</span>
-                        <span style={{ color: '#0f766e' }}>${grandTotal}</span>
+                  <div key={petId} style={{ marginBottom: 12, padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: `1.5px solid ${currentSvc ? '#0f766e' : '#e2e8f0'}` }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
+                      🐾 {pet.name}
+                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>{pet.size?.split(' ')[0]} · {pet.hair_type}</span>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {[
+                        { id: 'Signature Bath',              icon: '🛁',   label: 'Signature Bath' },
+                        { id: 'Full Groom',                  icon: '✂️',  label: 'Full Groom' },
+                        { id: 'Signature Bath + UltraSonic', icon: '🛁🦷', label: 'Bath + Ultrasonic' },
+                        { id: 'Full Groom + UltraSonic',     icon: '✂️🦷',label: 'Groom + Ultrasonic' },
+                      ].map(svc => {
+                        const isSelected = currentSvc?.service === svc.id;
+                        const autoPrice = getAutoPrice(svc.id);
+                        return (
+                          <button key={svc.id} type="button"
+                            onClick={() => {
+                              setPetServices(prev => ({
+                                ...prev,
+                                [String(petId)]: { service: svc.id, price: autoPrice }
+                              }));
+                            }}
+                            style={{ padding: '8px 6px', borderRadius: 8, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#64748b', textAlign: 'center' }}>
+                            <div style={{ fontSize: 16, marginBottom: 2 }}>{svc.icon}</div>
+                            <div>{svc.label}</div>
+                            {autoPrice > 0 && <div style={{ fontSize: 11, color: isSelected ? '#0f766e' : '#94a3b8', fontWeight: 700, marginTop: 2 }}>${autoPrice}</div>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {currentSvc && (
+                      <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8 }}>
+                        <span>✅ {currentSvc.service}</span>
+                        <span style={{ fontWeight: 700, color: '#0f766e' }}>${currentSvc.price}</span>
                       </div>
                     )}
                   </div>
                 );
-              })()}
+              })}
+
+              {/* Total general */}
+              {newApptForm.petIds.some(id => petServices[String(id)]) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#0f766e', borderRadius: 10, color: '#fff', fontWeight: 800, fontSize: 15 }}>
+                  <span>Total</span>
+                  <span>${newApptForm.petIds.reduce((sum, id) => sum + (petServices[String(id)]?.price || 0), 0)}</span>
+                </div>
+              )}
             </div>
           )}
 
