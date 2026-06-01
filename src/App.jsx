@@ -4025,8 +4025,24 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               <label style={styles.lbl}>🛁 Service</label>
               <select value={newApptForm.serviceName || ''}
                 onChange={e => {
-                  const sp = servicePrices?.find(p => p.name === e.target.value || `${p.category} · ${p.size} · ${p.hair_type}` === e.target.value);
-                  setNewApptForm(f => ({ ...f, serviceName: e.target.value, serviceId: sp?.id || '', servicePrice: sp?.price || 0 }));
+                  const svcName = e.target.value;
+                  const sp = servicePrices?.find(p => p.name === svcName || `${p.category} · ${p.size} · ${p.hair_type}` === svcName);
+                  // Auto-apply Smart Pricing if pet has size+hair_type
+                  let autoPrice = sp?.price || 0;
+                  if (svcName && newApptForm.petIds.length > 0) {
+                    const petId = newApptForm.petIds[0];
+                    const pet = pets?.find(p => String(p.id) === String(petId));
+                    if (pet?.size && pet?.hair_type) {
+                      const match = servicePrices?.find(p => {
+                        const nameMatch = p.category === svcName || p.name === svcName;
+                        const sizeMatch = !p.size || p.size === pet.size;
+                        const hairMatch = !p.hair_type || p.hair_type === pet.hair_type;
+                        return nameMatch && sizeMatch && hairMatch;
+                      });
+                      if (match) autoPrice = match.price;
+                    }
+                  }
+                  setNewApptForm(f => ({ ...f, serviceName: svcName, serviceId: sp?.id || '', servicePrice: autoPrice }));
                 }}
                 style={styles.input}>
                 <option value="">— Select service —</option>
@@ -4041,15 +4057,15 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 ))}
               </select>
 
-              {/* Smart Pricing */}
+              {/* Smart Pricing — confirmación automática */}
               {newApptForm.petIds.length > 0 && newApptForm.serviceName && (() => {
                 const suggestions = newApptForm.petIds.map(petId => {
                   const pet = pets.find(p => String(p.id) === String(petId));
                   if (!pet) return null;
                   const match = servicePrices?.find(sp => {
                     const nameMatch = sp.category === newApptForm.serviceName || sp.name === newApptForm.serviceName;
-                    const sizeMatch = !sp.size || sp.size === pet.size || sp.size.toLowerCase().startsWith((pet.size || '').split(' ')[0].toLowerCase());
-                    const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type || sp.hair_type.toLowerCase().startsWith((pet.hair_type || '').split(' ')[0].toLowerCase());
+                    const sizeMatch = !sp.size || sp.size === pet.size;
+                    const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type;
                     return nameMatch && sizeMatch && hairMatch;
                   });
                   return { pet, match };
@@ -4057,16 +4073,12 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
                 if (!suggestions.some(s => s.match)) return null;
                 return (
-                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#92400e', marginBottom: 6 }}>💡 Smart Pricing</div>
+                  <div style={{ marginTop: 8, padding: '10px 12px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #6ee7b7' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', marginBottom: 6 }}>✅ Smart Pricing aplicado</div>
                     {suggestions.map(({ pet, match }, i) => match && (
                       <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 12 }}>🐾 {pet.name} — {pet.size?.split(' ')[0]} · {pet.hair_type?.split(' ')[0]}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontWeight: 700, color: '#0f766e' }}>${match.price}</span>
-                          <button onClick={() => setNewApptForm(f => ({...f, servicePrice: match.price}))}
-                            style={{ fontSize: 10, padding: '3px 8px', background: '#0f766e', border: 'none', borderRadius: 6, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Use</button>
-                        </div>
+                        <span style={{ fontSize: 12, color: '#374151' }}>🐾 {pet.name} — {pet.size?.split(' ')[0]} · {pet.hair_type?.split(' ')[0]}</span>
+                        <span style={{ fontWeight: 700, color: '#0f766e', fontSize: 15 }}>${match.price}</span>
                       </div>
                     ))}
                   </div>
