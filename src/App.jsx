@@ -323,12 +323,9 @@ Driver fee will be applied even if we can't do the service because of aggressive
 
 // ===== ESPECIES =====
 const SPECIES = [
-  { id: 'dog',    label: 'Perro',   icon: '🐕', hasSize: true,  hasHair: true  },
-  { id: 'cat',    label: 'Gato',    icon: '🐈', hasSize: false, hasHair: false },
-  { id: 'rabbit', label: 'Conejo',  icon: '🐇', hasSize: false, hasHair: false },
-  { id: 'bird',   label: 'Ave',     icon: '🦜', hasSize: false, hasHair: false },
-  { id: 'goat',   label: 'Cabra',   icon: '🐐', hasSize: false, hasHair: false },
-  { id: 'exotic', label: 'Exótico', icon: '🦔', hasSize: false, hasHair: false },
+  { id: 'dog',   label: 'Dog',   icon: '🐕', hasSize: true,  hasHair: true  },
+  { id: 'cat',   label: 'Cat',   icon: '🐈', hasSize: false, hasHair: false },
+  { id: 'other', label: 'Other', icon: '🐾', hasSize: false, hasHair: false },
 ];
 const getSpecies = (id) => SPECIES.find(s => s.id === id) || SPECIES[0];
 
