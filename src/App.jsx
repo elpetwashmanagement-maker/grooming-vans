@@ -330,33 +330,52 @@ const SPECIES = [
 const getSpecies = (id) => SPECIES.find(s => s.id === id) || SPECIES[0];
 
 const CAT_BREEDS = [
-  'Persian','Maine Coon','Siamonthe','British Shorthair','Ragdoll','Bengal',
-  'Abyssinian','Sphynx','Scottish Fold','Norwegian Forest Cat','Turkish Angora',
-  'Russian Blue','Birman','Burmonthe','Himalayan','Devon Rex','Cornish Rex',
-  'American Shorthair','Domonthtic Shorthair','Domonthtic Longhair','Mixed Breed',
+  'Abyssinian','Bengal','Birman','British Shorthair',
+  'Burmese','Cornish Rex','Devon Rex',
+  'Domestic Longhair','Domestic Shorthair','Himalayan',
+  'Maine Coon','Norwegian Forest Cat','Persian',
+  'Ragdoll','Russian Blue','Scottish Fold',
+  'Siamese','Sphynx','Turkish Angora','Mixed Breed',
 ];
 
 // ===== RAZAS POPULARES =====
 const DOG_BREEDS = [
-  'Affenpinscher','Afghan Hound','Airedale Terrier','Akita','Alaskan Malamute',
-  'American Bulldog','American Eskimo Dog','American Staffordshire Terrier',
-  'Australian Shepherd','Basenji','Basset Hound','Beagle','Bichon Frise',
-  'Border Collie','Boston Terrier','Boxer','Bulldog','Bullmastiff',
-  'Cairn Terrier','Cavalier King Charles Spaniel','Chihuahua','Chow Chow',
-  'Cocker Spaniel','Dachshund','Dalmatian','Doberman Pinscher',
-  'English Springer Spaniel','French Bulldog','German Shepherd',
-  'German Shorthaired Pointer','Golden Retriever','Great Dane','Greyhound',
-  'Havanese','Irish Setter','Jack Russell Terrier','Labrador Retriever',
-  'Lhasa Apso','Maltese','Miniature Pinscher','Miniature Schnauzer',
-  'Newfoundland','Pekingese','Pembroke Welsh Corgi','Pit Bull','Pointer',
-  'Pomeranian','Poodle (Miniature)','Poodle (Standard)','Poodle (Toy)',
-  'Portuguese Water Dog','Pug','Rottweiler','Saint Bernard',
-  'Samoyed','Schnauzer','Shetland Sheepdog','Shih Tzu','Siberian Husky',
-  'Staffordshire Bull Terrier','Vizsla','Weimaraner','West Highland White Terrier',
-  'Whippet','Yorkshire Terrier','Goldendoodle','Labradoodle','Cockapoo',
-  'Maltipoo','Morkie','Pomsky','Schnoodle','Sheepadoodle','Teddy Bear',
-  'Bernedoodle','Aussiedoodle','Cavapoo','Belgian Malinois','Doberman',
-  'Abyssinian','Persian','Siamonthe','Mixed Breed','Monthtizo',
+  'Affenpinscher','Afghan Hound','Airedale Terrier','Akita',
+  'Alaskan Husky','Alaskan Klee Kai','Alaskan Malamute',
+  'American Bulldog','American Coonhound','American Eskimo Dog',
+  'American Pit Bull Terrier','American Staffordshire Terrier',
+  'Australian Labradoodle','Australian Shepherd','Aussiedoodle',
+  'Basenji','Basset Hound','Beagle','Belgian Malinois',
+  'Bernedoodle','Bernese Mountain Dog','Bernadoodle',
+  'Bich Poo','Bichon Frise','Bijian Havanese','Border Collie',
+  'Border Terrier','Boston Terrier','Boxer','Bulldog','Bullmastiff',
+  'Cairn Terrier','Cane Corso Italiano','Cavapoo',
+  'Cavalier King Charles Spaniel','Chihuahua','Chow Chow',
+  'Cockapoo','Cocker Spaniel','Coton De Tulear',
+  'Dachshund','Dalmatian','Doberman','Doberman Pinscher',
+  'Dutch Shepherd','English Bulldog','English Cocker Spaniel',
+  'English Setter','English Springer Spaniel',
+  'French Bulldog','German Shepherd','German Shorthaired Pointer',
+  'Goldendoodle','Golden Retriever','Great Dane','Greyhound',
+  'Havanese','Havapoo','Irish Setter','Italian Greyhound',
+  'Jack Russell Terrier','Keeshond',
+  'Lab Shepherd','Labradoodle','Labrador Husky','Labrador Retriever',
+  'Lagotto Romagnolo','Lhasa Apso',
+  'Maltese','Maltipoo','Miniature Australian Shepherd',
+  'Miniature Pinscher','Miniature Poodle','Miniature Schnauzer',
+  'Mini Poodle Mix','Morkie',
+  'Papillon','Pekingese','Pembroke Welsh Corgi','Pit Bull',
+  'Pitbull','Pointer','Pomeranian','Pomsky','Poodle (Miniature)',
+  'Poodle (Standard)','Poodle (Toy)','Portuguese Water Dog','Pug',
+  'Rhodesian Ridgeback','Rottweiler',
+  'Saint Bernard','Samoyed','Schnauzer','Shetland Sheepdog',
+  'Sheepadoodle','Sheepdoodle','Shih Poo','Shih Tzu','Shorkie',
+  'Siberian Husky','Shnoodle','Soft Coated Wheaten Terrier',
+  'Staffordshire Bull Terrier','Standard Schnauzer','Standard Poodle',
+  'Teddy Bear','Terrier Mix','Toy Poodle',
+  'Vizsla','Weimaraner','West Highland White Terrier','Whippet',
+  'Yorkshire Terrier','Yorkie/Poodle Mix',
+  'Mixed Breed',
 ];
 
 // ===== PRECIO AUTOMÁTICO POR PESO =====
@@ -439,7 +458,7 @@ const saveAuditLog = async (session, action, description, entity = null, entityI
 
 // ===== CLIENTES =====
 const loadClients = async () => {
-  const { data, error } = await supabase.from('clients').select('*').eq('active', true).order('name');
+  const { data, error } = await supabase.from('clients').select('*').eq('active', true).order('name').limit(5000);
   if (error) { console.error(error); return []; }
   return data || [];
 };
@@ -474,7 +493,7 @@ const saveClient = async (client) => {
 
 // ===== MASCOTAS =====
 const loadPets = async () => {
-  const { data, error } = await supabase.from('pets').select('*').order('name');
+  const { data, error } = await supabase.from('pets').select('*').order('name').limit(5000);
   if (error) { console.error(error); return []; }
   return data || [];
 };
