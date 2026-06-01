@@ -1558,6 +1558,7 @@ function AppMain() {
     return ok;
   };
   const updatePet = async (pet) => {
+    if (pet._deleted) { setPets(prev => prev.filter(p => p.id !== pet.id)); return true; }
     const ok = await savePet(pet);
     if (ok) setPets(prev => prev.map(p => p.id === pet.id ? pet : p));
     return ok;
@@ -8556,6 +8557,11 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                           {isAdmin && <button onClick={() => startEditPet(p)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}><Edit2 size={12} /> Edit</button>}
+                          {isAdmin && <button onClick={async () => {
+                            if (!confirm(`Delete ${p.name}? This cannot be undone.`)) return;
+                            await supabase.from('pets').delete().eq('id', p.id);
+                            updatePet({ ...p, _deleted: true });
+                          }} style={{ ...styles.iconBtn, color: 'var(--color-text-danger)', padding: '4px 8px' }}><Trash2 size={12} /></button>}
                           <button onClick={() => loadPetHistory(p.id)} style={{ ...styles.btnSecondary, padding: '4px 8px', fontSize: 11 }}>📋 Fichas</button>
                         </div>
                       </div>
