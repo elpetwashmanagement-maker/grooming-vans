@@ -4023,70 +4023,100 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
           {newApptForm.clientId && (
             <div style={{ marginBottom: 16 }}>
               <label style={styles.lbl}>🛁 Service</label>
-              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-                {['Signature Bath', 'Full Groom'].map(svcName => {
-                  const isSelected = newApptForm.serviceName === svcName;
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
+                {[
+                  { id: 'Signature Bath',                         icon: '🛁',    label: 'Signature Bath' },
+                  { id: 'Full Groom',                             icon: '✂️',   label: 'Full Groom' },
+                  { id: 'Signature Bath + UltraSonic',            icon: '🛁🦷',  label: 'Bath + Ultrasonic' },
+                  { id: 'Full Groom + UltraSonic',                icon: '✂️🦷', label: 'Groom + Ultrasonic' },
+                ].map(svc => {
+                  const isSelected = newApptForm.serviceName === svc.id;
                   return (
-                    <button key={svcName} type="button"
+                    <button key={svc.id} type="button"
                       onClick={() => {
-                        // Auto-apply price based on first pet's size + hair type
                         let autoPrice = 0;
                         if (newApptForm.petIds.length > 0) {
                           const petId = newApptForm.petIds[0];
                           const pet = pets?.find(p => String(p.id) === String(petId));
                           if (pet?.size && pet?.hair_type) {
-                            const match = servicePrices?.find(p => {
-                              const nameMatch = p.category === svcName || p.name === svcName;
+                            // Base service name (before +)
+                            const baseName = svc.id.split(' + ')[0];
+                            const baseMatch = servicePrices?.find(p => {
+                              const nameMatch = p.category === baseName || p.name === baseName;
                               const sizeMatch = !p.size || p.size === pet.size;
                               const hairMatch = !p.hair_type || p.hair_type === pet.hair_type;
                               return nameMatch && sizeMatch && hairMatch;
                             });
-                            if (match) autoPrice = match.price;
+                            autoPrice += baseMatch?.price || 0;
+                            // Add UltraSonic if combo
+                            if (svc.id.includes('UltraSonic')) {
+                              const ultraMatch = servicePrices?.find(p =>
+                                (p.category === 'UltraSonic Teeth Deep Cleaning' || p.name?.includes('UltraSonic')) &&
+                                (!p.size || p.size === pet.size)
+                              );
+                              autoPrice += ultraMatch?.price || 0;
+                            }
                           }
                         }
-                        setNewApptForm(f => ({ ...f, serviceName: svcName, serviceId: '', servicePrice: autoPrice }));
+                        setNewApptForm(f => ({ ...f, serviceName: svc.id, serviceId: '', servicePrice: autoPrice }));
                       }}
-                      style={{ flex: 1, padding: '12px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 14, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#64748b', textAlign: 'center' }}>
-                      {svcName === 'Signature Bath' ? '🛁' : '✂️'} {svcName}
+                      style={{ padding: '12px 8px', borderRadius: 10, border: `2px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, background: isSelected ? '#f0fdfa' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: isSelected ? 700 : 400, color: isSelected ? '#0f766e' : '#64748b', textAlign: 'center', lineHeight: 1.4 }}>
+                      <div style={{ fontSize: 20, marginBottom: 4 }}>{svc.icon}</div>
+                      {svc.label}
                     </button>
                   );
                 })}
               </div>
 
-              {/* Smart Pricing — muestra precio aplicado */}
+              {/* Smart Pricing — muestra precio por mascota */}
               {newApptForm.serviceName && newApptForm.petIds.length > 0 && (() => {
+                const baseName = newApptForm.serviceName.split(' + ')[0];
+                const isUltrasonic = newApptForm.serviceName.includes('UltraSonic');
+
                 const results = newApptForm.petIds.map(petId => {
                   const pet = pets?.find(p => String(p.id) === String(petId));
                   if (!pet) return null;
-                  const match = servicePrices?.find(sp => {
-                    const nameMatch = sp.category === newApptForm.serviceName || sp.name === newApptForm.serviceName;
+                  const baseMatch = servicePrices?.find(sp => {
+                    const nameMatch = sp.category === baseName || sp.name === baseName;
                     const sizeMatch = !sp.size || sp.size === pet.size;
                     const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type;
                     return nameMatch && sizeMatch && hairMatch;
                   });
-                  return { pet, match };
+                  const ultraMatch = isUltrasonic ? servicePrices?.find(sp =>
+                    (sp.category === 'UltraSonic Teeth Deep Cleaning' || sp.name?.includes('UltraSonic')) &&
+                    (!sp.size || sp.size === pet.size)
+                  ) : null;
+                  const total = (baseMatch?.price || 0) + (ultraMatch?.price || 0);
+                  return { pet, baseMatch, ultraMatch, total };
                 }).filter(Boolean);
 
-                if (!results.some(r => r.match)) return (
+                if (!results.some(r => r.total > 0)) return (
                   <div style={{ marginTop: 8, padding: '8px 12px', background: '#fef3c7', borderRadius: 8, fontSize: 12, color: '#92400e' }}>
-                    ⚠️ No price found for this pet's size/hair type. Add prices in Settings.
+                    ⚠️ No price found. Make sure pet has size and hair type set.
                   </div>
                 );
 
-                const totalPrice = results.reduce((sum, r) => sum + (r.match?.price || 0), 0);
+                const grandTotal = results.reduce((sum, r) => sum + r.total, 0);
                 return (
-                  <div style={{ marginTop: 8, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', marginBottom: 6 }}>✅ Smart Pricing</div>
-                    {results.map(({ pet, match }, i) => match && (
-                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
-                        <span>🐾 {pet.name} — {pet.size?.split(' ')[0]} · {pet.hair_type}</span>
-                        <span style={{ fontWeight: 700, color: '#0f766e' }}>${match.price}</span>
+                  <div style={{ marginTop: 10, padding: '12px 14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0f766e', marginBottom: 8 }}>✅ Smart Pricing</div>
+                    {results.map(({ pet, baseMatch, ultraMatch, total }, i) => (
+                      <div key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < results.length-1 ? '1px dashed #ccfbf1' : 'none' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600 }}>
+                          <span>🐾 {pet.name}</span>
+                          <span style={{ color: '#0f766e' }}>${total}</span>
+                        </div>
+                        <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                          {pet.size?.split(' ')[0]} · {pet.hair_type}
+                          {baseMatch && <span> · {baseName} ${baseMatch.price}</span>}
+                          {ultraMatch && <span> + 🦷 ${ultraMatch.price}</span>}
+                        </div>
                       </div>
                     ))}
                     {results.length > 1 && (
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 800, paddingTop: 6, borderTop: '1px solid #ccfbf1', marginTop: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, paddingTop: 8, borderTop: '1.5px solid #0f766e' }}>
                         <span>Total</span>
-                        <span style={{ color: '#0f766e' }}>${totalPrice}</span>
+                        <span style={{ color: '#0f766e' }}>${grandTotal}</span>
                       </div>
                     )}
                   </div>
