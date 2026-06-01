@@ -1873,7 +1873,6 @@ function InvoiceModal({ invoice, onClose }) {
           <div class="section">
             <div class="section-title">Summary</div>
             <div class="total-row"><span>Subtotal</span><span>$${invoice.subtotal?.toFixed(2)}</span></div>
-            <div class="total-row"><span>Gas fee</span><span>$${invoice.gasFee?.toFixed(2)}</span></div>
             ${invoice.cardFee > 0 ? `<div class="total-row"><span>Credit card fee (${invoice.companyId === 'epw' ? '5.5' : '5.5'}%)</span><span>$${invoice.cardFee?.toFixed(2)}</span></div>` : ''}
             ${invoice.tip > 0 ? `<div class="total-row"><span>Tip</span><span>$${invoice.tip?.toFixed(2)}</span></div>` : ''}
             <div class="grand-total"><span>TOTAL</span><span>$${invoice.total?.toFixed(2)}</span></div>
@@ -1938,9 +1937,6 @@ function InvoiceModal({ invoice, onClose }) {
           <div style={{ background: '#f8fafc', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 6 }}>
               <span>Subtotal</span><span>${invoice.subtotal?.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#64748b', marginBottom: 6 }}>
-              <span>Fee gas</span><span>${invoice.gasFee?.toFixed(2)}</span>
             </div>
             {invoice.cardFee > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#7c3aed', marginBottom: 6 }}>
@@ -3416,10 +3412,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     );
     const gasFee = isGuarantee ? 0 : (settings?.gasFee || 7);
 
-    // Calcular totales
+    // Calcular totales — gas fee es INTERNO (no se cobra al cliente)
     const subtotal = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
     const cardFee = method === 'Credit Card' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : 0;
-    const total = subtotal + gasFee + cardFee + tip;
+    const total = subtotal + cardFee + tip; // Gas fee NO va al total del cliente
 
     // Registrar cada pet como service en el cierre diario
     for (const ap of (appt.pets || [])) {
