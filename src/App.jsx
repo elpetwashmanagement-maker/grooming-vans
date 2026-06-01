@@ -4033,10 +4033,18 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 const currentSvc = petServices[String(petId)];
 
                 const getAutoPrice = (svcId) => {
+                  // Standalone Ultrasonic
+                  if (svcId === 'Ultrasonic Clear Dental') {
+                    const match = servicePrices?.find(sp =>
+                      sp.category === 'Ultrasonic Clear Dental' &&
+                      (!sp.size || sp.size === pet.size)
+                    );
+                    return match?.price || 0;
+                  }
                   const baseName = svcId.split(' + ')[0];
                   const isUltra = svcId.includes('UltraSonic');
                   let price = 0;
-                  if (pet.size && pet.hair_type) {
+                  if (pet.size) {
                     const baseMatch = servicePrices?.find(sp => {
                       const nameMatch = sp.category === baseName || sp.name === baseName;
                       const sizeMatch = !sp.size || sp.size === pet.size;
@@ -4061,12 +4069,13 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       🐾 {pet.name}
                       <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>{pet.size?.split(' ')[0]} · {pet.hair_type}</span>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                       {[
                         { id: 'Signature Bath',              icon: '🛁',   label: 'Signature Bath' },
                         { id: 'Full Groom',                  icon: '✂️',  label: 'Full Groom' },
                         { id: 'Signature Bath + UltraSonic', icon: '🛁🦷', label: 'Bath + Ultrasonic' },
                         { id: 'Full Groom + UltraSonic',     icon: '✂️🦷',label: 'Groom + Ultrasonic' },
+                        { id: 'Ultrasonic Clear Dental',     icon: '🦷',   label: 'Ultrasonic Dental' },
                       ].map(svc => {
                         const isSelected = currentSvc?.service === svc.id;
                         const autoPrice = getAutoPrice(svc.id);
