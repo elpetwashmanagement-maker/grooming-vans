@@ -4737,7 +4737,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         </button>
                       )}
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
-                        <button onClick={() => { if (confirm('¿Cancel esta appointment?')) updateApptStatus(appt.id, 'cancelled'); }}
+                        <button onClick={async () => {
+                          if (!confirm('¿Cancel esta appointment?')) return;
+                          await updateApptStatus(appt.id, 'cancelled');
+                          // Si tiene pago registrado, preguntar si borrarlo
+                          const hasPayment = appt.pets?.some(p => p.amount > 0 || p.status === 'paid');
+                          if (hasPayment && confirm('⚠️ This appointment has a payment recorded. Delete the payment too?')) {
+                            await supabase.from('services').delete().eq('appointment_id', appt.id);
+                            await refreshAppointments();
+                          }
+                        }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
                           <X size={14} /> Cancel
                         </button>
@@ -4749,7 +4758,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         </button>
                       )}
                       {appt.status === 'cancelled' && isAdmin && (
-                        <button onClick={() => { if (confirm('¿Delete esta appointment permanentemente? No se puede deshacer.')) deleteAppt(appt.id); }}
+                        <button onClick={async () => {
+                          if (!confirm('¿Delete esta appointment permanentemente? No se puede deshacer.')) return;
+                          await supabase.from('services').delete().eq('appointment_id', appt.id);
+                          deleteAppt(appt.id);
+                        }}
                           style={{ ...styles.btnDanger, justifyContent: 'center', background: 'var(--color-background-danger)' }}>
                           <Trash2 size={14} /> Delete
                         </button>
