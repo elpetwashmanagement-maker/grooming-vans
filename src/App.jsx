@@ -1759,7 +1759,7 @@ function AppMain() {
               const active = tab === t.id;
               // Count pending_review appointments for badge
               const pendingCount = t.id === 'appointments' && !isGroomer
-                ? appointments.filter(a => a.status === 'pending_review').length
+                ? appointments.filter(a => a.status === 'pending_review' || a.status === 'admin_review').length
                 : t.id === 'requests'
                 ? bookingRequests.filter(r => r.status === 'pending').length
                 : 0;
@@ -3270,8 +3270,8 @@ const COMBOS = ['#0 (5/8")','#1 (1/2")','#2 (3/8")','#4 (1/4")','#5 (1/8")','#A 
 const SIZES = ['Small (1-20 lbs)','Medium (21-40 lbs)','Large (41-60 lbs)','Big (61-80 lbs)','Extra Large (81-100 lbs)','Giant (100-120 lbs)','Extra Giant (+120 lbs)'];
 const HAIR_TYPES = ['Short Hair','Long Hair'];
 const getStatusLabels = (t) => ({ unconfirmed: t('status_unconfirmed'), confirmed: t('status_confirmed'), in_progress: t('status_in_progress'), completed: t('status_completed'), cancelled: t('status_cancelled') });
-const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' }, pending_review: { bg: '#fdf2f8', text: '#86198f', border: '#d946ef' } };
-const STATUS_LABELS = { unconfirmed: 'Unconfirmed', confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled', pending_review: '🔔 Needs Review' };
+const STATUS_COLORS = { unconfirmed: { bg: '#FAEEDA', text: '#633806', border: '#BA7517' }, confirmed: { bg: '#EAF3DE', text: '#27500A', border: '#3B6D11' }, in_progress: { bg: '#E6F1FB', text: '#0C447C', border: '#185FA5' }, completed: { bg: '#F1EFE8', text: '#5F5E5A', border: '#888780' }, cancelled: { bg: '#FCEBEB', text: '#791F1F', border: '#A32D2D' }, pending_review: { bg: '#fdf2f8', text: '#86198f', border: '#d946ef' }, admin_review: { bg: '#fff7ed', text: '#9a3412', border: '#f97316' } };
+const STATUS_LABELS = { unconfirmed: 'Unconfirmed', confirmed: 'Confirmed', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled', pending_review: '🔔 Needs Review', admin_review: '⏳ Pending Admin Review' };
 
 function AppointmentsTab({ appointments, vans, clients, pets, session, settings, isAdmin, canViewAllSchedule, updateApptStatus, addAppointment, addClient, addPet, refreshAppointments, deleteAppt, servicePrices, deposits = [], setDeposits = () => {}, groomers = [] }) {
   const t = useT('en');
@@ -3417,60 +3417,50 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     const cardFee = method === 'Credit Card' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : 0;
     const total = subtotal + cardFee + tip; // Gas fee NO va al total del cliente
 
-    // Registrar cada pet como service en el cierre diario
+    // Guardar método de pago, tip y card fee en appointment_pets para que el admin pueda revisarlo
     for (const ap of (appt.pets || [])) {
-      const amount = ap.amount || appt.servicePrice || 0;
-      const apCardFee = method === 'Credit Card' ? parseFloat(((amount + tip) * cardFeePct / 100).toFixed(2)) : 0;
-      await supabase.from('services').insert({
-        id: uid(), date: appt.date, van_id: appt.vanId,
-        client: appt.client?.name || '', pet: ap.pet?.name || '',
-        service: ap.service || appt.serviceName || '',
-        method, amount, tip, card_fee: apCardFee,
-      });
+      const apCardFee = method === 'Credit Card' ? parseFloat(((( ap.amount || 0) + tip) * cardFeePct / 100).toFixed(2)) : 0;
+      await supabase.from('appointment_pets').update({
+        method, tip, card_fee: apCardFee, status: 'pending_admin_review',
+      }).eq('id', ap.id);
     }
 
-    // Generar invoice
-    const invoiceNumber = await getNextInvoiceNumber(companyId);
-    const invoice = {
-      id: uid(),
-      invoiceNumber,
-      companyId,
-      appointmentId: appt.id,
-      clientId: appt.clientId,
-      clientName: appt.client?.name || '',
-      clientAddress: appt.client?.address || '',
-      groomerName: session?.userName || van?.groomer || '',
-      vanName: van?.name || '',
-      date: appt.date,
-      services: (appt.pets || []).map(ap => ({
-        petName: ap.pet?.name || 'Pet',
-        service: ap.service || '',
-        amount: ap.amount || 0,
-      })),
-      subtotal,
-      gasFee,
-      cardFee,
-      tip,
-      total,
-      method,
-    };
-    await saveInvoice(invoice);
+    // Guardar payment info en el appointment para review del admin
+    await supabase.from('appointments').update({
+      payment_method: method,
+      payment_tip: tip,
+      payment_total: total,
+      payment_card_fee: cardFee,
+      payment_gas_fee: gasFee,
+    }).eq('id', appt.id);
 
-    await updateApptStatus(appt.id, 'completed');
+    // → Admin debe revisar y aprobar antes de que aparezca en reportes
+    await updateApptStatus(appt.id, 'admin_review');
     await refreshAppointments();
 
-    // SMS: service completed
+    // SMS: service completed (se envía igual aunque esté pendiente de review)
     if (appt.client?.phone) {
       const petNames = (appt.pets || []).map(ap => ap.pet?.name).filter(Boolean).join(' & ');
       const smsMsg = `Hi ${appt.client.name}! 🐾 ${petNames || 'Your pet'} is ready and looking great! Total: $${total.toFixed(2)} (${method}). Thank you for choosing ${companyId === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}! 🐾`;
       sendSMS(appt.client.phone, smsMsg, companyId);
     }
 
+    // Mostrar resumen al groomer
+    const summaryInvoice = {
+      id: uid(), invoiceNumber: '—', companyId,
+      appointmentId: appt.id, clientId: appt.clientId,
+      clientName: appt.client?.name || '',
+      clientAddress: appt.client?.address || '',
+      groomerName: session?.userName || van?.groomer || '',
+      vanName: van?.name || '', date: appt.date,
+      services: (appt.pets || []).map(ap => ({ petName: ap.pet?.name || 'Pet', service: ap.service || '', amount: ap.amount || 0 })),
+      subtotal, gasFee, cardFee, tip, total, method,
+    };
+
     setSaving(false);
     setShowCobroForm(null);
     setSelectedAppt(null);
-    // Mostrar invoice
-    setShowInvoice(invoice);
+    setShowInvoice(summaryInvoice);
   };
 
   const handleSaveGrooming = async (apptId, petId) => {
@@ -3832,7 +3822,109 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
         );
       })()}
 
-      {showNewAppt && (
+      {/* ===== ADMIN REVIEW PANEL — citas cobradas por groomer, pendientes de aprobación ===== */}
+      {isAdmin && (() => {
+        const adminReviewAppts = appointments.filter(a => a.status === 'admin_review');
+        if (!adminReviewAppts.length) return null;
+        return (
+          <div style={{ background: '#fff7ed', border: '2px solid #f97316', borderRadius: 16, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20 }}>💰</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: '#9a3412' }}>Pending Admin Review — Close Review</div>
+                <div style={{ fontSize: 12, color: '#c2410c' }}>{adminReviewAppts.length} appointment{adminReviewAppts.length !== 1 ? 's' : ''} collected by groomers, waiting for approval</div>
+              </div>
+            </div>
+            {adminReviewAppts.map(appt => {
+              const van = vans.find(v => v.id === appt.vanId);
+              const companyId = van?.companyId || appt.companyId || 'epw';
+              const subtotal = (appt.pets || []).reduce((sum, ap) => sum + (ap.amount || 0), 0);
+              const method = appt.pets?.[0]?.method || 'Cash';
+              const tip = appt.pets?.[0]?.tip || 0;
+              const cardFee = appt.pets?.[0]?.cardFee || 0;
+              const gasFee = settings?.gasFee || 7;
+              const total = subtotal + (method === 'Credit Card' ? cardFee : 0) + tip;
+
+              return (
+                <div key={appt.id} style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 10, border: '1.5px solid #fed7aa' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{appt.client?.name}</div>
+                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                        📅 {formatDateNice(appt.date)} · 🚐 {van?.name}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 800, color: '#0f766e' }}>${total.toFixed(2)}</div>
+                      <MethodChip method={method} />
+                    </div>
+                  </div>
+
+                  {/* Desglose por mascota */}
+                  {(appt.pets || []).map(ap => (
+                    <div key={ap.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span>🐾 {ap.pet?.name} — {ap.service}</span>
+                      <span style={{ fontWeight: 600 }}>${(ap.amount || 0).toFixed(2)}</span>
+                    </div>
+                  ))}
+
+                  {/* Totales */}
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#f8fafc', borderRadius: 8, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>
+                    {tip > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}><span>Tip</span><span>${tip.toFixed(2)}</span></div>}
+                    {method === 'Credit Card' && cardFee > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7c3aed' }}><span>Card fee</span><span>${cardFee.toFixed(2)}</span></div>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, paddingTop: 4, borderTop: '1px solid #e2e8f0', marginTop: 4 }}><span>Total cliente</span><span>${total.toFixed(2)}</span></div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#94a3b8', marginTop: 2 }}><span>Gas fee (empresa)</span><span>${gasFee.toFixed(2)}</span></div>
+                  </div>
+
+                  {/* Botones admin */}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <button onClick={async () => {
+                      // ✅ APPROVE: guardar en services, generar invoice, marcar completed
+                      for (const ap of (appt.pets || [])) {
+                        const apMethod = ap.method || method;
+                        const apTip = ap.tip || tip;
+                        const apCardFee = ap.cardFee || cardFee;
+                        await supabase.from('services').insert({
+                          id: uid(), date: appt.date, van_id: appt.vanId,
+                          client: appt.client?.name || '', pet: ap.pet?.name || '',
+                          service: ap.service || '', method: apMethod,
+                          amount: ap.amount || 0, tip: apTip, card_fee: apCardFee,
+                        });
+                      }
+                      // Generar invoice
+                      const invoiceNumber = await getNextInvoiceNumber(companyId);
+                      await saveInvoice({
+                        id: uid(), invoiceNumber, companyId,
+                        appointmentId: appt.id, clientId: appt.clientId,
+                        clientName: appt.client?.name || '',
+                        clientAddress: appt.client?.address || '',
+                        groomerName: van?.groomer || '',
+                        vanName: van?.name || '', date: appt.date,
+                        services: (appt.pets || []).map(ap => ({ petName: ap.pet?.name || 'Pet', service: ap.service || '', amount: ap.amount || 0 })),
+                        subtotal, gasFee, cardFee: cardFee, tip, total, method,
+                      });
+                      await updateApptStatus(appt.id, 'completed');
+                      await refreshAppointments();
+                    }} style={{ flex: 2, padding: '10px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                      ✅ Approve & Close
+                    </button>
+                    <button onClick={async () => {
+                      // Reabrir para corrección
+                      await updateApptStatus(appt.id, 'in_progress');
+                      await refreshAppointments();
+                    }} style={{ flex: 1, padding: '10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                      ↩ Reopen
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+
         <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>📅 New Appointment</h3>
@@ -4753,6 +4845,37 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         <button onClick={() => setEditingPets(editingPets === appt.id ? null : appt.id)}
                           style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: editingPets === appt.id ? '#0f766e' : '#e2e8f0', color: editingPets === appt.id ? '#0f766e' : '#64748b', background: editingPets === appt.id ? '#f0fdfa' : '#fff' }}>
                           <Edit2 size={14} /> {editingPets === appt.id ? 'Done editing' : 'Edit pets & prices'}
+                        </button>
+                      )}
+                      {/* Book Again — admin y groomer */}
+                      {(appt.status === 'completed' || appt.status === 'admin_review') && (
+                        <button onClick={() => {
+                          // Pre-fill new appointment with same client, pets, services
+                          setNewApptForm(f => ({
+                            ...f,
+                            clientId: appt.clientId,
+                            vanId: appt.vanId,
+                            companyId: appt.companyId || 'epw',
+                            groomerId: appt.groomerId || '',
+                            timeStart: appt.timeStart || '08:00',
+                            timeEnd: appt.timeEnd || '10:00',
+                            notes: '',
+                            petIds: (appt.pets || []).map(ap => String(ap.petId)).filter(Boolean),
+                          }));
+                          // Pre-fill pet services
+                          const newPetSvcs = {};
+                          (appt.pets || []).forEach(ap => {
+                            if (ap.petId && ap.service) {
+                              newPetSvcs[String(ap.petId)] = { service: ap.service, price: ap.amount || 0, basePrice: ap.amount || 0, addons: [] };
+                            }
+                          });
+                          setPetServices(newPetSvcs);
+                          setClientSearch(appt.client?.name || '');
+                          setSelectedAppt(null);
+                          setShowNewAppt(true);
+                          window.scrollTo(0, 0);
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e', background: '#f0fdfa' }}>
+                          🔁 Book Again
                         </button>
                       )}
                       {/* Reopen — solo admin, solo completadas */}
