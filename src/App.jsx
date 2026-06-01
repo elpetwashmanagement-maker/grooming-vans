@@ -1578,7 +1578,7 @@ function AppMain() {
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
   const isGroomer = session.role === 'groomer';
-  const isViewer = session.role === 'viewer';
+  const isViewer = session.role === 'viewer' || session.role === 'viewer-epw' || session.role === 'viewer-atw';
   // Viewer ve solo su empresa
   const viewerCompanyId = isViewer ? session.companyId : null;
   const canViewFinances = session.permissions?.can_view_finances || isAdmin;
