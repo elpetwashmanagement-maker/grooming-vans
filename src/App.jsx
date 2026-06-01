@@ -4046,7 +4046,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                     price += baseMatch?.price || 0;
                     if (isUltra) {
                       const ultraMatch = servicePrices?.find(sp =>
-                        (sp.category === 'UltraSonic Teeth Deep Cleaning' || sp.name?.includes('UltraSonic')) &&
+                        (sp.category === 'Ultrasonic Clear Dental' || sp.name?.includes('Ultrasonic')) &&
                         (!sp.size || sp.size === pet.size)
                       );
                       price += ultraMatch?.price || 0;
