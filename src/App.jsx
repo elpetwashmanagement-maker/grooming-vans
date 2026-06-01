@@ -5646,7 +5646,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       style={{ flex: 1, padding: 14, background: '#f1f5f9', border: 'none', borderRadius: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#64748b' }}>
                       ← Back
                     </button>
-                    <button onClick={handleCollect} disabled={saving}
+                    <button onClick={handleConfirmarCobro} disabled={saving}
                       style={{ flex: 2, padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                       {saving ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={18} />}
                       {saving ? 'Processing...' : `✅ Collect ${isGuarantee ? 'FREE' : '$' + total.toFixed(2)}`}
