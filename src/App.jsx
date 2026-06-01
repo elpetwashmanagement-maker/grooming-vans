@@ -6828,10 +6828,11 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
 
     return Object.values(groomerMap).map(r => {
       const gasFees = r.appointments * (settings.gasFee || 7);
-      const commission = r.sales * (r.commissionPct / 100);
-      const totalPay = commission; // Gas fee lo paga el client, no se descuenta al groomer
+      const netSales = Math.max(0, r.sales - gasFees); // Gas fee se resta antes de comisión
+      const commission = netSales * (r.commissionPct / 100);
+      const totalPay = commission;
       const company = DEFAULT_COMPANIES.find(c => c.id === r.companyId) || DEFAULT_COMPANIES[0];
-      return { ...r, gasFees, commission, totalPay, company };
+      return { ...r, gasFees, netSales, commission, totalPay, company };
     }).sort((a, b) => a.groomerName.localeCompare(b.groomerName));
   }, [appointments, expenses, start, end, groomers, vans, settings]);
 
@@ -6848,12 +6849,13 @@ function WeekTab({ vans, services, expenses, settings, appointments, groomers })
       const cardFees = items.reduce((sum, i) => sum + (i.cardFee || 0), 0);
       const gasFees = items.length * (settings.gasFee || 7);
       const expTotal = vanExpenses.reduce((sum, e) => sum + e.amount, 0);
-      const commission = sales * (vanCommission / 100);
+      const netSales = Math.max(0, sales - gasFees); // Gas fee se resta antes de comisión
+      const commission = netSales * (vanCommission / 100);
       const tipShare = tips * (settings.tipsToGroomer / 100);
       const totalPay = commission + tipShare;
-      // Company Income = % que queda + fees
+      // Company Income: company % of net + gas fees + card fees
       const companyPct = 100 - vanCommission;
-      const companyShare = sales * (companyPct / 100);
+      const companyShare = netSales * (companyPct / 100);
       const companyTotal = companyShare + gasFees + cardFees;
       const byMethod = PAYMENT_METHODS.reduce((acc, m) => { acc[m] = items.filter(i => i.method === m).reduce((sum, i) => sum + i.amount, 0); return acc; }, {});
       return { van, count: items.length, sales, tips, cardFees, gasFees, expTotal, commission, tipShare, totalPay, companyShare, companyTotal, companyPct, byMethod, vanCommission };
@@ -9683,8 +9685,11 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
 
       const totalSales = groomerServices.reduce((sum, s) => sum + s.amount, 0);
       const totalTips = groomerServices.reduce((sum, s) => sum + (s.tip || 0), 0);
+      const totalCardFees = groomerServices.filter(s => s.method === 'Credit Card').reduce((sum, s) => sum + (s.cardFee || 0), 0);
+      const gasFees = groomerServices.length * (settings?.gasFee || 7);
       const commissionPct = g.commissionPct || 45;
-      const commission = totalSales * commissionPct / 100;
+      const netSales = Math.max(0, totalSales - gasFees); // Gas fee antes de comisión
+      const commission = netSales * commissionPct / 100;
       const tipsShare = totalTips * (settings?.tipsToGroomer || 100) / 100;
       const totalEarned = commission + tipsShare;
 
@@ -9701,7 +9706,7 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
         return apptVan?.id === g.vanId || a.groomerId === g.id;
       });
 
-      return { ...g, van, company, totalSales, totalTips, commission, tipsShare, totalEarned, paidInPeriod, balance, commissionPct, serviceCount: groomerServices.length, alreadyPaid, groomerOpenAppts };
+      return { ...g, van, company, totalSales, totalTips, totalCardFees, gasFees, netSales, commission, tipsShare, totalEarned, paidInPeriod, balance, commissionPct, serviceCount: groomerServices.length, alreadyPaid, groomerOpenAppts };
     }).sort((a, b) => b.balance - a.balance);
   }, [groomers, vans, services, groomerPayments, weekStart, weekEnd, openAppts, settings]);
 
