@@ -4273,6 +4273,39 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
             </div>
           )}
 
+          {/* STEP 7.5: Descuento */}
+          {newApptForm.clientId && newApptForm.petIds.some(id => petServices[String(id)]) && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={styles.lbl}>🏷️ Discount (optional)</label>
+              <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 8, padding: 3, gap: 2 }}>
+                  {['%', '$'].map(type => (
+                    <button key={type} type="button"
+                      onClick={() => setNewApptForm(f => ({...f, discountType: type, discountValue: 0}))}
+                      style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: (newApptForm.discountType || '%') === type ? 700 : 400, background: (newApptForm.discountType || '%') === type ? '#fff' : 'transparent', color: (newApptForm.discountType || '%') === type ? '#0f766e' : '#64748b' }}>
+                      {type}
+                    </button>
+                  ))}
+                </div>
+                <input type="number" step="0.01" min="0"
+                  value={newApptForm.discountValue || ''}
+                  onChange={e => setNewApptForm(f => ({...f, discountValue: parseFloat(e.target.value) || 0}))}
+                  placeholder={(newApptForm.discountType || '%') === '%' ? '0' : '0.00'}
+                  style={{ ...styles.input, flex: 1, fontWeight: 700, color: '#dc2626' }} />
+                {(newApptForm.discountValue > 0) && (() => {
+                  const subtotal = newApptForm.petIds.reduce((sum, id) => {
+                    const svc = petServices[String(id)];
+                    return sum + (svc?.basePrice || 0) + (svc?.addons || []).reduce((s,a) => s+a.price, 0);
+                  }, 0);
+                  const discAmt = (newApptForm.discountType || '%') === '%'
+                    ? subtotal * newApptForm.discountValue / 100
+                    : newApptForm.discountValue;
+                  return <div style={{ display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 700, color: '#dc2626', whiteSpace: 'nowrap' }}>-${discAmt.toFixed(2)}</div>;
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* STEP 8: Notes + Recurrence */}
           {newApptForm.clientId && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -4318,15 +4351,30 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                     </div>
                   );
                 })}
-                {newApptForm.petIds.some(id => petServices[String(id)]) && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, paddingTop: 4, borderTop: '1px solid #ccfbf1', marginTop: 2 }}>
-                    <span>Total</span>
-                    <span style={{ color: '#0f766e' }}>${newApptForm.petIds.reduce((sum, id) => {
-                      const svc = petServices[String(id)];
-                      return sum + (svc?.basePrice || 0) + (svc?.addons || []).reduce((s, a) => s + a.price, 0);
-                    }, 0)}</span>
-                  </div>
-                )}
+                {newApptForm.petIds.some(id => petServices[String(id)]) && (() => {
+                  const subtotal = newApptForm.petIds.reduce((sum, id) => {
+                    const svc = petServices[String(id)];
+                    return sum + (svc?.basePrice || 0) + (svc?.addons || []).reduce((s,a) => s+a.price, 0);
+                  }, 0);
+                  const discAmt = newApptForm.discountValue > 0
+                    ? (newApptForm.discountType || '%') === '%'
+                      ? subtotal * newApptForm.discountValue / 100
+                      : newApptForm.discountValue
+                    : 0;
+                  const finalTotal = subtotal - discAmt;
+                  return (
+                    <>
+                      {discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                        <span>🏷️ Discount {(newApptForm.discountType || '%') === '%' ? `${newApptForm.discountValue}%` : ''}</span>
+                        <span>-${discAmt.toFixed(2)}</span>
+                      </div>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, paddingTop: 4, borderTop: '1px solid #ccfbf1', marginTop: 2 }}>
+                        <span>Total</span>
+                        <span style={{ color: '#0f766e' }}>${finalTotal.toFixed(2)}</span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           )}
