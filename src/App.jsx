@@ -4032,7 +4032,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 if (!pet) return null;
                 const currentSvc = petServices[String(petId)];
 
+                const isCat = pet.species === 'cat';
+                const isOther = pet.species && !['dog', 'cat'].includes(pet.species);
+
                 const getAutoPrice = (svcId) => {
+                  if (isOther) return 0; // Other = custom price
                   // Standalone Ultrasonic
                   if (svcId === 'Ultrasonic Clear Dental') {
                     const match = servicePrices?.find(sp =>
@@ -4041,12 +4045,15 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                     );
                     return match?.price || 0;
                   }
-                  const baseName = svcId.split(' + ')[0];
+                  const baseSvcName = svcId.split(' + ')[0];
+                  // Cat prefix for category lookup
+                  const catPrefix = isCat ? 'Cat ' : '';
+                  const categoryName = `${catPrefix}${baseSvcName}`;
                   const isUltra = svcId.includes('UltraSonic');
                   let price = 0;
                   if (pet.size) {
                     const baseMatch = servicePrices?.find(sp => {
-                      const nameMatch = sp.category === baseName || sp.name === baseName;
+                      const nameMatch = sp.category === categoryName || sp.name === categoryName;
                       const sizeMatch = !sp.size || sp.size === pet.size;
                       const hairMatch = !sp.hair_type || sp.hair_type === pet.hair_type;
                       return nameMatch && sizeMatch && hairMatch;
@@ -4067,8 +4074,45 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   <div key={petId} style={{ marginBottom: 12, padding: '12px 14px', background: '#f8fafc', borderRadius: 12, border: `1.5px solid ${currentSvc ? '#0f766e' : '#e2e8f0'}` }}>
                     <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>
                       🐾 {pet.name}
-                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>{pet.size?.split(' ')[0]} · {pet.hair_type}</span>
+                      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 400, marginLeft: 8 }}>
+                        {isCat ? '🐈 Cat' : isOther ? '🐾 Other' : ''} {pet.size?.split(' ')[0]} · {pet.hair_type}
+                      </span>
                     </div>
+
+                    {/* Other/Exotic → precio manual */}
+                    {isOther ? (
+                      <div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>Enter service and price manually:</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                          {['Signature Bath', 'Full Groom', 'Signature Bath + UltraSonic', 'Full Groom + UltraSonic', 'Ultrasonic Clear Dental'].map(svc => (
+                            <button key={svc} type="button"
+                              onClick={() => setPetServices(prev => ({
+                                ...prev,
+                                [String(petId)]: { ...prev[String(petId)], service: svc, basePrice: prev[String(petId)]?.basePrice || 0, price: prev[String(petId)]?.basePrice || 0, addons: [] }
+                              }))}
+                              style={{ padding: '7px 6px', borderRadius: 8, border: `1.5px solid ${currentSvc?.service === svc ? '#0f766e' : '#e2e8f0'}`, background: currentSvc?.service === svc ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 11, fontWeight: currentSvc?.service === svc ? 700 : 400, color: currentSvc?.service === svc ? '#0f766e' : '#64748b', textAlign: 'center' }}>
+                              {svc}
+                            </button>
+                          ))}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 13, color: '#64748b' }}>Price $</span>
+                          <input type="number" step="0.01"
+                            value={currentSvc?.basePrice || ''}
+                            onChange={e => {
+                              const p = parseFloat(e.target.value) || 0;
+                              const addonsTotal = (currentSvc?.addons || []).reduce((s, a) => s + a.price, 0);
+                              setPetServices(prev => ({
+                                ...prev,
+                                [String(petId)]: { ...prev[String(petId)], basePrice: p, price: p + addonsTotal }
+                              }));
+                            }}
+                            placeholder="0.00"
+                            style={{ flex: 1, padding: '8px 10px', border: '1.5px solid #0f766e', borderRadius: 8, fontSize: 15, fontWeight: 700 }} />
+                        </div>
+                      </div>
+                    ) : (
+                    <div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
                       {[
                         { id: 'Signature Bath',              icon: '🛁',   label: 'Signature Bath' },
@@ -4100,6 +4144,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         <span>✅ {currentSvc.service}</span>
                         <span style={{ fontWeight: 700, color: '#0f766e' }}>${currentSvc.price}</span>
                       </div>
+                    )}
+                    </div>
                     )}
                   </div>
                 );
