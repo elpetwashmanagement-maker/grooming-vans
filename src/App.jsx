@@ -10553,9 +10553,356 @@ function BookingPage({ companyId }) {
 // ===== BOOKING REQUESTS TAB =====
 function BookingRequestsTab({ requests, setRequests, vans, groomers, clients, addAppointment, addClient, addPet, refreshAppointments }) {
   const [schedulingId, setSchedulingId] = useState(null);
-  const [schedForm, setSchedForm] = useState({ vanId: '', date: todayISO(), timeStart: '09:00', timeEnd: '11:00', notes: '' });
+  const [schedForm, setSchedForm] = useState({
+    // Fecha/van
+    vanId: '', date: todayISO(), timeStart: '09:00', timeEnd: '11:00', notes: '',
+    // Cliente editable
+    clientName: '', phone: '', address: '',
+    // Mascota editable
+    petName: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair',
+    // Servicio
+    service: '', servicePrice: 0,
+  });
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState('pending');
+  // Acceder a servicePrices desde contexto global no disponible aquí, 
+  // lo pasamos desde App via prop o usamos lista hardcoded básica
+  const serviceOptions = [
+    { label: 'Signature Bath — Small', price: 55 },
+    { label: 'Signature Bath — Medium', price: 65 },
+    { label: 'Signature Bath — Large', price: 75 },
+    { label: 'Signature Bath — XL', price: 85 },
+    { label: 'Full Groom — Small', price: 75 },
+    { label: 'Full Groom — Medium', price: 85 },
+    { label: 'Full Groom — Large', price: 95 },
+    { label: 'Full Groom — XL', price: 115 },
+    { label: 'Custom', price: 0 },
+  ];
+
+  const filtered = requests.filter(r => filter === 'all' ? true : r.status === filter);
+  const pendingCount = requests.filter(r => r.status === 'pending').length;
+
+  const openSchedule = (req) => {
+    if (schedulingId === req.id) { setSchedulingId(null); return; }
+    setSchedulingId(req.id);
+    setSchedForm({
+      vanId: vans.find(v => v.companyId === req.company_id && v.active !== false)?.id || '',
+      date: todayISO(), timeStart: '09:00', timeEnd: '11:00', notes: '',
+      clientName: req.client_name || '', phone: req.phone || '', address: req.address || '',
+      petName: req.pet_name || '', breed: req.breed || '',
+      size: req.size || 'Small (1-20 lbs)', hairType: 'Short Hair',
+      service: req.service || '', servicePrice: 0,
+    });
+  };
+
+  const handleSchedule = async (req) => {
+    if (!schedForm.vanId || !schedForm.date) { alert('Select van and date'); return; }
+    if (!schedForm.clientName.trim()) { alert('Enter client name'); return; }
+    if (!schedForm.petName.trim()) { alert('Enter pet name'); return; }
+    setSaving(true);
+    try {
+      // 1. Crear o encontrar cliente
+      const existingClient = clients.find(c =>
+        c.phone === schedForm.phone ||
+        c.name.toLowerCase() === schedForm.clientName.toLowerCase()
+      );
+      let clientId = existingClient?.id;
+      if (!clientId) {
+        clientId = uid();
+        await addClient({ id: clientId, name: schedForm.clientName.trim(), phone: schedForm.phone, address: schedForm.address || '', active: true });
+      }
+      // 2. Crear mascota con info corregida
+      const petId = uid();
+      await addPet({
+        id: petId, clientId, client_id: clientId,
+        name: schedForm.petName.trim(), breed: schedForm.breed || '',
+        size: schedForm.size, hairType: schedForm.hairType,
+        hair_type: schedForm.hairType, active: true,
+      });
+      // 3. Crear appointment con servicio y precio correcto
+      const van = vans.find(v => v.id === schedForm.vanId);
+      const serviceAmount = parseFloat(schedForm.servicePrice) || 0;
+      const appt = {
+        id: uid(), date: schedForm.date,
+        timeStart: schedForm.timeStart, timeEnd: schedForm.timeEnd,
+        vanId: schedForm.vanId, clientId, groomerId: null,
+        companyId: van?.companyId || req.company_id || 'epw',
+        status: 'confirmed',
+        notes: `${schedForm.service || ''} — Booked online${schedForm.notes ? ' — ' + schedForm.notes : ''}`,
+        alertNotes: '', agreementSigned: false,
+        servicePrice: serviceAmount, serviceName: schedForm.service || '',
+        recurrenceWeeks: 0,
+        client: { id: clientId, name: schedForm.clientName, phone: schedForm.phone, address: schedForm.address },
+        pets: [{
+          id: uid(), petId,
+          service: schedForm.service || '', amount: serviceAmount,
+          tip: 0, cardFee: 0, method: 'Cash', status: 'pending',
+          pet: { id: petId, name: schedForm.petName, breed: schedForm.breed, size: schedForm.size },
+        }],
+      };
+      await addAppointment(appt);
+      await refreshAppointments();
+      // 4. Marcar request como scheduled
+      await updateBookingRequest(req.id, { status: 'scheduled' });
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'scheduled' } : r));
+      // 5. SMS confirmación con info correcta
+      if (schedForm.phone) {
+        const dateFormatted = new Date(schedForm.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+        sendSMS(schedForm.phone, `Hi ${schedForm.clientName}! ✅ Your grooming appointment is confirmed for ${dateFormatted} at ${schedForm.timeStart} for ${schedForm.petName}${serviceAmount > 0 ? ` · $${serviceAmount}` : ''}. Thank you! — ${req.company_id === 'epw' ? 'El Pet Wash' : 'All Tails Wag'}`, req.company_id);
+      }
+      setSchedulingId(null);
+      alert('✅ Appointment created and SMS sent!');
+    } catch(e) { alert('Error: ' + e.message); }
+    setSaving(false);
+  };
+
+  const handleDecline = async (id) => {
+    if (!confirm('Decline this request?')) return;
+    await updateBookingRequest(id, { status: 'cancelled' });
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status: 'cancelled' } : r));
+  };
+
+  const inp = { width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' };
+  const lbl = { fontSize: 11, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 4 };
+
+  const statusColors = {
+    pending: { bg: '#fef3c7', text: '#92400e', border: '#fcd34d', label: '⏳ Pending' },
+    scheduled: { bg: '#f0fdfa', text: '#0f766e', border: '#6ee7b7', label: '✅ Scheduled' },
+    cancelled: { bg: '#fef2f2', text: '#dc2626', border: '#fca5a5', label: '❌ Declined' },
+  };
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease' }}>
+      <SectionTitle eyebrow="Online Booking" title={`📩 Requests ${pendingCount > 0 ? `· ${pendingCount} pending` : ''}`} />
+
+      {/* Notification permission banner */}
+      {'Notification' in window && Notification.permission === 'default' && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: '#92400e' }}>🔔 Enable notifications</div>
+            <div style={{ fontSize: 12, color: '#78350f', marginTop: 2 }}>Get alerts when new requests arrive</div>
+          </div>
+          <button onClick={() => Notification.requestPermission()}
+            style={{ background: '#f59e0b', border: 'none', borderRadius: 8, padding: '8px 14px', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+            Enable
+          </button>
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, background: '#f1f5f9', padding: 3, borderRadius: 8 }}>
+        {[['pending', '⏳ Pending'], ['scheduled', '✅ Scheduled'], ['cancelled', '❌ Declined'], ['all', '📋 All']].map(([val, label]) => (
+          <button key={val} onClick={() => setFilter(val)}
+            style={{ flex: 1, padding: '7px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: filter === val ? 700 : 400, background: filter === val ? '#fff' : 'transparent', color: filter === val ? '#0f766e' : '#64748b' }}>
+            {label} {val === 'pending' && pendingCount > 0 ? `(${pendingCount})` : ''}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={styles.empty}>
+          <div style={{ fontSize: 40, marginBottom: 10 }}>📩</div>
+          <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>
+            {filter === 'pending' ? 'No pending requests' : 'No requests found'}
+          </p>
+          <p style={{ margin: '8px 0 0', fontSize: 13, color: '#94a3b8' }}>Share your booking link on social media</p>
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {DEFAULT_COMPANIES.map(c => (
+              <div key={c.id} style={{ padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, fontSize: 12, color: '#0f766e', fontFamily: 'monospace' }}>
+                {c.logoEmoji} {window.location.origin}/booking/{c.id}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filtered.map(req => {
+            const sc = statusColors[req.status] || statusColors.pending;
+            const company = DEFAULT_COMPANIES.find(c => c.id === req.company_id);
+            const isScheduling = schedulingId === req.id;
+            return (
+              <div key={req.id} style={{ background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden', borderLeft: `4px solid ${sc.border}` }}>
+                <div style={{ padding: '14px 16px' }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 16 }}>{req.client_name}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>📞 {req.phone}</div>
+                      {req.address && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>📍 {req.address}</div>}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                      <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: sc.bg, color: sc.text }}>{sc.label}</span>
+                      <span style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+
+                  {/* Pet + service chips */}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <span style={{ padding: '4px 10px', background: '#f0fdfa', borderRadius: 999, fontSize: 13, color: '#0f766e', fontWeight: 600 }}>🐾 {req.pet_name}</span>
+                    {req.breed && <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{req.breed}</span>}
+                    {req.size && <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{req.size.split(' ')[0]}</span>}
+                    {req.service && <span style={{ padding: '4px 10px', background: '#fffbeb', borderRadius: 999, fontSize: 12, color: '#92400e', fontWeight: 600 }}>✂️ {req.service}</span>}
+                    <span style={{ padding: '4px 10px', background: '#f8fafc', borderRadius: 999, fontSize: 12, color: '#64748b' }}>{company?.logoEmoji} {company?.name}</span>
+                  </div>
+
+                  {req.notes && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 8, marginBottom: 10 }}>📝 {req.notes}</div>}
+
+                  {/* Actions */}
+                  {req.status === 'pending' && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => openSchedule(req)}
+                        style={{ flex: 2, padding: '10px', background: isScheduling ? '#f0fdfa' : '#0f766e', border: isScheduling ? '2px solid #0f766e' : 'none', borderRadius: 10, color: isScheduling ? '#0f766e' : '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        {isScheduling ? '✕ Cancel' : '📅 Schedule'}
+                      </button>
+                      <button onClick={() => window.open(`https://wa.me/${req.phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi ${req.client_name}! We received your grooming request for ${req.pet_name}. We'll contact you soon to confirm.`)}`, '_blank')}
+                        style={{ flex: 1, padding: '10px', background: '#25d366', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        💬 WA
+                      </button>
+                      <button onClick={() => handleDecline(req.id)}
+                        style={{ flex: 1, padding: '10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ===== SCHEDULE FORM EXPANDIDO ===== */}
+                {isScheduling && req.status === 'pending' && (
+                  <div style={{ borderTop: '1px solid #e2e8f0', padding: '16px', background: '#fafffe' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: '#0f766e', marginBottom: 14 }}>📅 Schedule & Review Info</div>
+
+                    {/* VAN + FECHA + HORA */}
+                    <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>🚐 Appointment</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={lbl}>Van *</label>
+                          <select value={schedForm.vanId} onChange={e => setSchedForm(f => ({...f, vanId: e.target.value}))} style={inp}>
+                            <option value="">Select van</option>
+                            {vans.filter(v => v.active !== false && (!req.company_id || v.companyId === req.company_id)).map(v => {
+                              const g = groomers.find(gr => gr.vanId === v.id);
+                              return <option key={v.id} value={v.id}>{v.name}{g ? ` — ${g.name}` : ''}</option>;
+                            })}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={lbl}>Date *</label>
+                          <input type="date" value={schedForm.date} onChange={e => setSchedForm(f => ({...f, date: e.target.value}))} style={inp} />
+                        </div>
+                        <div>
+                          <label style={lbl}>Start Time</label>
+                          <input type="time" value={schedForm.timeStart} onChange={e => setSchedForm(f => ({...f, timeStart: e.target.value}))} style={inp} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CLIENTE EDITABLE */}
+                    <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>👤 Client Info — review & correct</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={lbl}>Full Name *</label>
+                          <input value={schedForm.clientName} onChange={e => setSchedForm(f => ({...f, clientName: e.target.value}))} style={inp} placeholder="Full name" />
+                        </div>
+                        <div>
+                          <label style={lbl}>Phone</label>
+                          <input value={schedForm.phone} onChange={e => setSchedForm(f => ({...f, phone: e.target.value}))} style={inp} placeholder="(305) 000-0000" />
+                        </div>
+                        <div>
+                          <label style={lbl}>Address</label>
+                          <input value={schedForm.address} onChange={e => setSchedForm(f => ({...f, address: e.target.value}))} style={inp} placeholder="Address" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* MASCOTA EDITABLE */}
+                    <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 12, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>🐾 Pet Info — review & correct</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={lbl}>Pet Name *</label>
+                          <input value={schedForm.petName} onChange={e => setSchedForm(f => ({...f, petName: e.target.value}))} style={inp} placeholder="Pet name" />
+                        </div>
+                        <div>
+                          <label style={lbl}>Breed</label>
+                          <input value={schedForm.breed} onChange={e => setSchedForm(f => ({...f, breed: e.target.value}))} style={inp} placeholder="e.g. Goldendoodle" />
+                        </div>
+                        <div>
+                          <label style={lbl}>Size</label>
+                          <select value={schedForm.size} onChange={e => setSchedForm(f => ({...f, size: e.target.value}))} style={inp}>
+                            {SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={lbl}>Hair Type</label>
+                          <select value={schedForm.hairType} onChange={e => setSchedForm(f => ({...f, hairType: e.target.value}))} style={inp}>
+                            <option value="Short Hair">Short Hair</option>
+                            <option value="Long Hair">Long Hair</option>
+                            <option value="Double Coat">Double Coat</option>
+                            <option value="Curly">Curly</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* SERVICIO + PRECIO */}
+                    <div style={{ background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 14, border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#0f172a', marginBottom: 10 }}>✂️ Service & Price</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={lbl}>Service</label>
+                          <select value={schedForm.service} onChange={e => {
+                            const opt = serviceOptions.find(o => o.label === e.target.value);
+                            setSchedForm(f => ({...f, service: e.target.value, servicePrice: opt?.price || 0}));
+                          }} style={inp}>
+                            <option value="">— Select service —</option>
+                            {serviceOptions.map(o => <option key={o.label} value={o.label}>{o.label}{o.price > 0 ? ` — $${o.price}` : ''}</option>)}
+                          </select>
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={lbl}>Price $</label>
+                          <input type="number" step="0.01" value={schedForm.servicePrice}
+                            onChange={e => setSchedForm(f => ({...f, servicePrice: e.target.value}))}
+                            style={{ ...inp, fontSize: 16, fontWeight: 700, color: '#0f766e' }} placeholder="0.00" />
+                        </div>
+                        <div style={{ gridColumn: 'span 2' }}>
+                          <label style={lbl}>Notes</label>
+                          <input value={schedForm.notes} onChange={e => setSchedForm(f => ({...f, notes: e.target.value}))} style={inp} placeholder="Optional..." />
+                        </div>
+                      </div>
+                    </div>
+
+                    <button onClick={() => handleSchedule(req)} disabled={saving}
+                      style={{ width: '100%', padding: '14px', background: '#0f766e', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 800, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                      {saving ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</> : '✅ Confirm Appointment & Send SMS'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Booking links */}
+      <div style={{ marginTop: 24, padding: '16px', background: '#f8fafc', borderRadius: 14, border: '1px solid #e2e8f0' }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a', marginBottom: 10 }}>🔗 Booking Links — share on social media</div>
+        {DEFAULT_COMPANIES.map(c => (
+          <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fff', borderRadius: 10, marginBottom: 8, border: '1px solid #e2e8f0' }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>{c.logoEmoji} {c.name}</div>
+              <div style={{ fontSize: 11, color: '#64748b', fontFamily: 'monospace', marginTop: 2 }}>{window.location.origin}/booking/{c.id}</div>
+            </div>
+            <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/booking/${c.id}`); alert('✅ Link copied!'); }}
+              style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '6px 12px', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              Copy
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
   const filtered = requests.filter(r => filter === 'all' ? true : r.status === filter);
   const pendingCount = requests.filter(r => r.status === 'pending').length;
