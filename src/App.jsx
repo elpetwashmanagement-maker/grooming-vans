@@ -4256,9 +4256,27 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               <div style={{ fontSize: 12, color: '#374151', display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <div>📅 {formatDateNice(date)} · ⏰ {newApptForm.timeStart} → {newApptForm.timeEnd}</div>
                 <div>🚐 {vans.find(v => v.id === newApptForm.vanId)?.name} · ✂️ {groomers.find(g => g.vanId === newApptForm.vanId)?.name || ''}</div>
-                {newApptForm.petIds.length > 0 && <div>🐾 {newApptForm.petIds.map(id => pets.find(p => String(p.id) === String(id))?.name).filter(Boolean).join(', ')}</div>}
-                {newApptForm.serviceName && <div>🛁 {newApptForm.serviceName} {newApptForm.servicePrice > 0 ? `· $${newApptForm.servicePrice}` : ''}</div>}
-                {(newApptForm.addons || []).length > 0 && <div>➕ {newApptForm.addons.map(a => a.name).join(', ')}</div>}
+                {newApptForm.petIds.map(id => {
+                  const pet = pets.find(p => String(p.id) === String(id));
+                  const svc = petServices[String(id)];
+                  const addonsTotal = (svc?.addons || []).reduce((s, a) => s + a.price, 0);
+                  const total = (svc?.basePrice || 0) + addonsTotal;
+                  return (
+                    <div key={id} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>🐾 {pet?.name} {svc ? `— ${svc.service}` : ''}{svc?.addons?.length > 0 ? ` + ${svc.addons.map(a => a.name).join(', ')}` : ''}</span>
+                      {total > 0 && <span style={{ fontWeight: 700, color: '#0f766e' }}>${total}</span>}
+                    </div>
+                  );
+                })}
+                {newApptForm.petIds.some(id => petServices[String(id)]) && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, paddingTop: 4, borderTop: '1px solid #ccfbf1', marginTop: 2 }}>
+                    <span>Total</span>
+                    <span style={{ color: '#0f766e' }}>${newApptForm.petIds.reduce((sum, id) => {
+                      const svc = petServices[String(id)];
+                      return sum + (svc?.basePrice || 0) + (svc?.addons || []).reduce((s, a) => s + a.price, 0);
+                    }, 0)}</span>
+                  </div>
+                )}
               </div>
             </div>
           )}
