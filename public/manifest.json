@@ -1,7 +1,7 @@
 {
-  "name": "Groomora",
-  "short_name": "Groomora",
-  "description": "Grooming management app for mobile and salon businesses",
+  "name": "Raykota",
+  "short_name": "Raykota",
+  "description": "Intelligent operating system for pet care businesses",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f766e",
@@ -9,13 +9,13 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/Groomora.jpg",
+      "src": "/Raykota.jpg",
       "sizes": "192x192",
       "type": "image/jpeg",
       "purpose": "any maskable"
     },
     {
-      "src": "/Groomora.jpg",
+      "src": "/Raykota.jpg",
       "sizes": "512x512",
       "type": "image/jpeg",
       "purpose": "any maskable"
