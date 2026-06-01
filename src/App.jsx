@@ -3295,7 +3295,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     notes: '', healthSkin: 'ok', healthEars: 'ok', healthNails: 'ok', healthBehavior: 'calm'
   });
   const [newApptForm, setNewApptForm] = useState({ clientId: '', vanId: session?.vanId || vans[0]?.id || '', companyId: vans[0]?.companyId || 'epw', groomerId: '', timeStart: '08:00', timeEnd: '10:00', notes: '', alertNotes: '', petIds: [], serviceId: '', serviceName: '', servicePrice: 0, discountPct: 0, addons: [], recurrenceWeeks: 0 });
-  const [petServices, setPetServices] = useState({}); // { petId: { service, price } }
+  const [petServices, setPetServices] = useState({});
+  const [apptClientPets, setApptClientPets] = useState([]); // pets del cliente seleccionado en new appt
+  const [loadingApptPets, setLoadingApptPets] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [addingPet, setAddingPet] = useState(false);
@@ -3904,7 +3906,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   <div style={{ fontWeight: 700, fontSize: 14 }}>✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name}</div>
                   <div style={{ fontSize: 11, color: '#64748b' }}>{clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}</div>
                 </div>
-                <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); }}
+                <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); setApptClientPets([]); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 20 }}>×</button>
               </div>
             ) : (
@@ -3914,7 +3916,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 {clientSearch && filteredClients.length > 0 && (
                   <div style={styles.suggestionsBox}>
                     {filteredClients.slice(0, 6).map(c => (
-                      <button key={c.id} onMouseDown={() => { setNewApptForm(f => ({...f, clientId: c.id, petIds: []})); setClientSearch(c.name); }}
+                      <button key={c.id} onMouseDown={async () => {
+                        setNewApptForm(f => ({...f, clientId: c.id, petIds: []}));
+                        setClientSearch(c.name);
+                        setPetServices({});
+                        // Carga mascotas del cliente inmediatamente
+                        setLoadingApptPets(true);
+                        const { data } = await supabase.from('pets').select('*').eq('client_id', c.id).order('name');
+                        setApptClientPets(data || []);
+                        setLoadingApptPets(false);
+                      }}
                         className="suggestion-hover" style={styles.suggestionItem}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>{c.address}</div>
@@ -4012,7 +4023,12 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
           {/* STEP 5: Pets */}
           {newApptForm.clientId && (() => {
-            const clientPetsLocal = pets.filter(p => String(p.client_id) === String(newApptForm.clientId));
+            const clientPetsLocal = apptClientPets.length > 0 ? apptClientPets : pets.filter(p => String(p.client_id) === String(newApptForm.clientId));
+            if (loadingApptPets) return (
+              <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', fontSize: 13, color: '#0f766e', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Loading pets...
+              </div>
+            );
             if (!clientPetsLocal.length) return (
               <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fffbeb', borderRadius: 10, border: '1px solid #fcd34d', fontSize: 13, color: '#92400e' }}>
                 ⚠️ No pets found for this client. Add pets in the Clients tab first.
