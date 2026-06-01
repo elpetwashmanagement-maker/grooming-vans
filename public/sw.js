@@ -1,6 +1,5 @@
-// Groomora SW v7 - Minimal, no caching
-const CACHE_NAME = 'groomora-v7';
-
+// Raykota SW v1 - Minimal, no caching
+const CACHE_NAME = 'raykota-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => {
   event.waitUntil(
@@ -8,7 +7,6 @@ self.addEventListener('activate', event => {
   );
   self.clients.claim();
 });
-
 // NO caching — always network
 self.addEventListener('fetch', event => {
   event.respondWith(fetch(event.request));
