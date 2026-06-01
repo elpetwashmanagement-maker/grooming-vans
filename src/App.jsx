@@ -1,4 +1,4 @@
-// Groomora v2.3 - Clean client form
+// Raykota v2.3 - Clean client form
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -994,7 +994,7 @@ const exportToPDF = (title, columns, rows, filename) => {
   const doc = new jsPDF();
   doc.setFontSize(18);
   doc.setTextColor(15, 118, 110);
-  doc.text('Groomora', 14, 18);
+  doc.text('Raykota', 14, 18);
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
   doc.text(title, 14, 28);
@@ -1015,7 +1015,7 @@ const exportToPDF = (title, columns, rows, filename) => {
 
 const exportToExcel = (title, columns, rows, filename) => {
   const ws = XLSX.utils.aoa_to_sheet([
-    ['Groomora — ' + title],
+    ['Raykota — ' + title],
     [`Generated: ${new Date().toLocaleDateString()}`],
     [],
     columns,
@@ -1109,7 +1109,7 @@ const exportTaxReportPDF = (expenses, vans, dateStart, dateEnd) => {
   const doc = new jsPDF();
   doc.setFontSize(18);
   doc.setTextColor(15, 118, 110);
-  doc.text('Groomora', 14, 18);
+  doc.text('Raykota', 14, 18);
   doc.setFontSize(13);
   doc.setTextColor(0, 0, 0);
   doc.text(`Tax Deductible Expenses Report`, 14, 28);
@@ -1160,7 +1160,7 @@ const exportTaxReportExcel = (expenses, vans, dateStart, dateEnd) => {
   DEFAULT_COMPANIES.forEach(company => {
     const compExp = expenses.filter(e => e.companyId === company.id && inRange(e.date, dateStart, dateEnd));
     const rows = [
-      ['Groomora — Tax Deductible Expenses'],
+      ['Raykota — Tax Deductible Expenses'],
       [`${company.name} · Period: ${dateStart} to ${dateEnd}`],
       [],
       ['Date', 'Category', 'Description', 'Base Amount', 'Tax', 'Total', 'Method', 'Van'],
@@ -2227,9 +2227,9 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f766e 0%, #0d9488 40%, #0f172a 100%)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div style={{ width: 72, height: 72, borderRadius: 20, overflow: 'hidden', margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
-          <img src="/Groomora.jpg" alt="Groomora" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src="/Raykota.jpg" alt="Raykota" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
-        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff' }}>Groomora</div>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 32, fontWeight: 800, color: '#fff' }}>Raykota</div>
         <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>
           {step === 'input' ? 'Enter your username or PIN' : step === 'password' ? 'Enter your password' : 'Enter your PIN'}
         </div>
@@ -2698,11 +2698,11 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
         </button>
 
         {/* Logo */}
-        <img src="/Groomora.jpg" alt="Groomora" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
+        <img src="/Raykota.jpg" alt="Raykota" style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} />
 
         {/* Título */}
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 16, color: '#0f172a', lineHeight: 1.2 }}>Groomora</div>
+          <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 700, fontSize: 16, color: '#0f172a', lineHeight: 1.2 }}>Raykota</div>
           <div style={{ fontSize: 11, color: '#94a3b8' }}>
             {isGroomer ? `${currentVan?.name || ''} · ${session?.userName}` : (activeCompany?.name || 'Group Guerrero Orejarena')}
           </div>
@@ -2742,9 +2742,9 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
             {/* Drawer header */}
             <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(135deg, #0f766e, #134e4a)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <img src="/Groomora.jpg" alt="Groomora" style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover' }} />
+                <img src="/Raykota.jpg" alt="Raykota" style={{ width: 44, height: 44, borderRadius: 12, objectFit: 'cover' }} />
                 <div>
-                  <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>Groomora</div>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontWeight: 800, fontSize: 20, color: '#fff' }}>Raykota</div>
                   <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>{roleLabels[session?.role] || ''} · {session?.userName}</div>
                 </div>
               </div>
@@ -10369,7 +10369,7 @@ const playNotificationSound = () => {
 };
 const showBrowserNotification = (title, body) => {
   if (!('Notification' in window)) return;
-  const show = () => new Notification(title, { body, icon: '/Groomora.jpg' });
+  const show = () => new Notification(title, { body, icon: '/Raykota.jpg' });
   if (Notification.permission === 'granted') show();
   else if (Notification.permission !== 'denied') {
     Notification.requestPermission().then(p => { if (p === 'granted') show(); });
