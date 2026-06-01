@@ -458,9 +458,16 @@ const saveAuditLog = async (session, action, description, entity = null, entityI
 
 // ===== CLIENTES =====
 const loadClients = async () => {
-  const { data, error } = await supabase.from('clients').select('*').eq('active', true).order('name').limit(5000);
-  if (error) { console.error(error); return []; }
-  return data || [];
+  let all = [], from = 0, batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase.from('clients').select('*').eq('active', true).order('name').range(from, from + batchSize - 1);
+    if (error) { console.error(error); break; }
+    if (!data || data.length === 0) break;
+    all = [...all, ...data];
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return all;
 };
 
 const loadServicePrices = async () => {
@@ -493,9 +500,16 @@ const saveClient = async (client) => {
 
 // ===== MASCOTAS =====
 const loadPets = async () => {
-  const { data, error } = await supabase.from('pets').select('*').order('name').limit(5000);
-  if (error) { console.error(error); return []; }
-  return data || [];
+  let all = [], from = 0, batchSize = 1000;
+  while (true) {
+    const { data, error } = await supabase.from('pets').select('*').order('name').range(from, from + batchSize - 1);
+    if (error) { console.error(error); break; }
+    if (!data || data.length === 0) break;
+    all = [...all, ...data];
+    if (data.length < batchSize) break;
+    from += batchSize;
+  }
+  return all;
 };
 const savePet = async (pet) => {
   const { error } = await supabase.from('pets').upsert({
@@ -7875,13 +7889,15 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
   const [search, setSearch] = useState('');
   const [selectedClient, setSelectedClient] = useState(null);
   const [showNewForm, setShowNewForm] = useState(false);
-  const [showSchedulePrompt, setShowSchedulePrompt] = useState(null); // { clientId, clientName, pets }
+  const [showSchedulePrompt, setShowSchedulePrompt] = useState(null);
   const [editingClient, setEditingClient] = useState(null);
   const [editingPet, setEditingPet] = useState(null);
   const [saving, setSaving] = useState(false);
   const [petGroomingHistory, setPetGroomingHistory] = useState({});
   const [loadingHistory, setLoadingHistory] = useState({});
   const [apptDate, setApptDate] = useState(todayISO());
+  const [clientsPage, setClientsPage] = useState(1);
+  const CLIENTS_PER_PAGE = 50;
 
   // Formulario unificado
   const emptyClient = { name: '', phone: '', email: '', address: '', notes: '' };
@@ -7894,9 +7910,14 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
   const canViewPhone = isAdmin || session?.permissions?.can_view_clients;
 
   const filteredClients = useMemo(() => {
+    setClientsPage(1);
     if (!search.trim()) return clients;
-    return clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.address?.toLowerCase().includes(search.toLowerCase()));
+    return clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.address?.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search));
   }, [clients, search]);
+
+  const visibleClients = useMemo(() => {
+    return filteredClients.slice(0, clientsPage * CLIENTS_PER_PAGE);
+  }, [filteredClients, clientsPage]);
 
   const clientPets = useMemo(() => {
     if (!selectedClient) return [];
@@ -8292,7 +8313,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-secondary)', marginBottom: 8 }}>{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 500, overflowY: 'auto' }}>
-            {filteredClients.map(c => (
+            {visibleClients.map(c => (
               <div key={c.id} onClick={() => setSelectedClient(selectedClient?.id === c.id ? null : c)}
                 className="row-hover" style={{ padding: '10px 12px', background: selectedClient?.id === c.id ? 'var(--color-background-info)' : 'var(--color-background-primary)', border: `0.5px solid ${selectedClient?.id === c.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 10, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -8314,6 +8335,12 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
               <div style={{ textAlign: 'center', padding: 20, color: 'var(--color-text-secondary)', fontSize: 13 }}>
                 {search ? 'No se encontraron clients' : 'Sin clients aún'}
               </div>
+            )}
+            {visibleClients.length < filteredClients.length && (
+              <button onClick={() => setClientsPage(p => p + 1)}
+                style={{ width: '100%', padding: '10px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+                Load more ({filteredClients.length - visibleClients.length} remaining)
+              </button>
             )}
           </div>
         </div>
