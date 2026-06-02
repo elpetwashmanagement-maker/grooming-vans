@@ -11300,6 +11300,30 @@ function BookingRequestsTab({ requests, setRequests, vans, groomers, clients, ad
                       </button>
                     </div>
                   )}
+
+                  {/* Acciones para scheduled */}
+                  {req.status === 'scheduled' && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => window.open(`https://wa.me/${req.phone?.replace(/\D/g,'')}?text=${encodeURIComponent(`Hi ${req.client_name}! Your appointment for ${req.pet_name} is confirmed. See you soon!`)}`, '_blank')}
+                        style={{ flex: 1, padding: '10px', background: '#25d366', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        💬 WA
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm('Move back to pending to reschedule?')) return;
+                        await updateBookingRequest(req.id, { status: 'pending' });
+                        setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'pending' } : r));
+                      }} style={{ flex: 1, padding: '10px', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, color: '#92400e', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        🔄 Reschedule
+                      </button>
+                      <button onClick={async () => {
+                        if (!confirm('Cancel this request?')) return;
+                        await updateBookingRequest(req.id, { status: 'cancelled' });
+                        setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'cancelled' } : r));
+                      }} style={{ flex: 1, padding: '10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+                        ✕ Cancel
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* ===== SCHEDULE FORM EXPANDIDO ===== */}
