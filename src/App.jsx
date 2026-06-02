@@ -10886,13 +10886,30 @@ function MessagesTab({ clients, vans, session }) {
   const handleSend = async () => {
     if (!newMessage.trim() || !selectedConversation) return;
     setSending(true);
+    const msgText = newMessage.trim();
+    setNewMessage('');
+
+    // Mostrar mensaje inmediatamente (optimistic update)
+    const tempMsg = {
+      id: `temp-${Date.now()}`,
+      client_id: selectedConversation.clientId,
+      client_name: selectedConversation.clientName,
+      phone: selectedConversation.phone,
+      company_id: selectedConversation.companyId || 'epw',
+      direction: 'outbound',
+      body: msgText,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, tempMsg]);
+
     try {
       const response = await fetch('/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: selectedConversation.phone,
-          message: newMessage.trim(),
+          message: msgText,
           companyId: selectedConversation.companyId || 'epw',
           clientId: selectedConversation.clientId,
           clientName: selectedConversation.clientName,
@@ -10900,12 +10917,18 @@ function MessagesTab({ clients, vans, session }) {
       });
       const data = await response.json();
       if (data.success) {
-        setNewMessage('');
-        await loadMessages();
+        // Reemplazar mensaje temporal con el real
+        setMessages(prev => prev.map(m => m.id === tempMsg.id
+          ? { ...tempMsg, id: data.sid, twilio_sid: data.sid, status: 'sent' }
+          : m
+        ));
       } else {
+        // Remover mensaje temporal si falló
+        setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
         alert('Error sending: ' + data.error);
       }
     } catch (err) {
+      setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       alert('Error: ' + err.message);
     }
     setSending(false);
