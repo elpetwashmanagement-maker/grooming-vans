@@ -2466,7 +2466,7 @@ function HomeTab({ session, appointments, vans, clients, pets, settings, setTab,
         <div style={{ background: '#fff', borderRadius: 16, padding: '24px', border: '1px solid #e2e8f0', textAlign: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 40, marginBottom: 8 }}>🎉</div>
           <div style={{ fontWeight: 700, fontSize: 16, color: '#0f172a' }}>No appointments today!</div>
-          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Enjoy your day off or add a new appointment.</div>
+          <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Enjoy your day off.</div>
         </div>
       )}
 
@@ -3659,7 +3659,17 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 </button>
               )}
             </div>
-            <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> {t('new_appt')}</button>
+            {isGroomer ? (
+              <button onClick={() => {
+                const van = vans.find(v => v.id === session?.vanId);
+                const companyId = van?.companyId || 'epw';
+                window.open(`${window.location.origin}/booking/${companyId}`, '_blank');
+              }} style={{ ...styles.btnSecondary, borderColor: '#0f766e', color: '#0f766e' }}>
+                📋 New Booking
+              </button>
+            ) : (
+              <button onClick={() => setShowNewAppt(true)} style={styles.btnPrimary}><Plus size={15} /> {t('new_appt')}</button>
+            )}
           </div>
         }
       />
@@ -3835,6 +3845,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
 
 
+      {showNewAppt && !isGroomer && (
         <div style={{ ...styles.card, marginBottom: 20, border: '1px solid var(--color-border-info)', background: 'var(--color-background-info)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h3 style={{ ...styles.cardH3, margin: 0, color: 'var(--color-text-info)' }}>📅 New Appointment</h3>
@@ -3887,7 +3898,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 700, fontSize: 14 }}>✅ {clients.find(c => String(c.id) === String(newApptForm.clientId))?.name}</div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>{clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}</div>
+                  {!isGroomer && <div style={{ fontSize: 11, color: '#64748b' }}>{clients.find(c => String(c.id) === String(newApptForm.clientId))?.address}</div>}
                 </div>
                 <button onClick={() => { setNewApptForm(f => ({...f, clientId: '', petIds: []})); setClientSearch(''); setApptClientPets([]); }}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 20 }}>×</button>
@@ -3903,7 +3914,6 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         setNewApptForm(f => ({...f, clientId: c.id, petIds: []}));
                         setClientSearch(c.name);
                         setPetServices({});
-                        // Carga mascotas del cliente inmediatamente
                         setLoadingApptPets(true);
                         const { data } = await supabase.from('pets').select('*').eq('client_id', c.id).order('name');
                         setApptClientPets(data || []);
@@ -3911,7 +3921,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       }}
                         className="suggestion-hover" style={styles.suggestionItem}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
-                        <div style={{ fontSize: 11, color: '#64748b' }}>{c.address}</div>
+                        {/* Groomers solo ven el nombre, no info personal */}
+                        {!isGroomer && <div style={{ fontSize: 11, color: '#64748b' }}>{c.address}</div>}
                       </button>
                     ))}
                   </div>
