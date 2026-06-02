@@ -1,4 +1,7 @@
 // api/send-sms.js — Raykota SMS via Twilio
+const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -9,12 +12,11 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing fields' });
   }
 
-  const accountSid        = process.env.TWILIO_ACCOUNT_SID;
-  const authToken         = process.env.TWILIO_AUTH_TOKEN;
-  const messagingService  = process.env.TWILIO_MESSAGING_SERVICE_SID;
+  const accountSid       = process.env.TWILIO_ACCOUNT_SID;
+  const authToken        = process.env.TWILIO_AUTH_TOKEN;
+  const messagingService = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
   if (!accountSid || !authToken || !messagingService) {
-    console.error('Twilio env vars missing:', { accountSid: !!accountSid, authToken: !!authToken, messagingService: !!messagingService });
     return res.status(500).json({ error: 'Twilio not configured' });
   }
 
@@ -29,10 +31,7 @@ export default async function handler(req, res) {
 
     // Guardar en tabla messages
     const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      'https://lpzwnbrjpayjhlwjmuda.supabase.co',
-      process.env.VITE_SUPABASE_KEY || process.env.SUPABASE_KEY
-    );
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     await supabase.from('messages').insert({
       id: msg.sid,
       client_id: clientId || null,
