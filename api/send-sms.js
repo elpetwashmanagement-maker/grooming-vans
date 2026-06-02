@@ -1,7 +1,7 @@
 // api/send-sms.js — Raykota SMS via Twilio
 const twilio = require('twilio');
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -14,15 +14,17 @@ export default async function handler(req, res) {
 
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken  = process.env.TWILIO_AUTH_TOKEN;
-  const fromEPW    = process.env.TWILIO_PHONE_EPW; // +17868336807
-  const fromATW    = process.env.TWILIO_PHONE_ATW; // +15615627689
+  const fromEPW    = process.env.TWILIO_PHONE_EPW;
+  const fromATW    = process.env.TWILIO_PHONE_ATW;
 
   if (!accountSid || !authToken) {
+    console.error('Twilio credentials missing');
     return res.status(500).json({ error: 'Twilio not configured' });
   }
 
-  // Seleccionar número según la empresa
   const from = companyId === 'atw' ? fromATW : fromEPW;
+
+  console.log(`Sending SMS to ${to} from ${from} (${companyId})`);
 
   try {
     const client = twilio(accountSid, authToken);
@@ -31,9 +33,10 @@ export default async function handler(req, res) {
       from,
       to,
     });
+    console.log('SMS sent:', msg.sid);
     return res.status(200).json({ success: true, sid: msg.sid });
   } catch (err) {
-    console.error('Twilio error:', err);
+    console.error('Twilio error:', err.message);
     return res.status(500).json({ success: false, error: err.message });
   }
-}
+};
