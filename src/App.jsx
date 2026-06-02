@@ -3562,15 +3562,29 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     const finalPrice = discountedPrice + addonsTotal;
     const van = vans.find(v => v.id === newApptForm.vanId);
 
-    // Usar servicio por mascota (petServices) o el global si no hay por mascota
+    // Calcular descuento total y aplicarlo proporcionalmente por mascota
+    const subtotalAllPets = newApptForm.petIds.reduce((sum, pid) => {
+      const petSvc = petServices[String(pid)];
+      return sum + (petSvc?.price || 0);
+    }, 0);
+    const discountValue = newApptForm.discountValue || 0;
+    const discountType = newApptForm.discountType || '%';
+    const totalDiscountAmt = discountValue > 0
+      ? discountType === '%' ? subtotalAllPets * discountValue / 100 : discountValue
+      : 0;
+    const discountRatio = subtotalAllPets > 0 ? totalDiscountAmt / subtotalAllPets : 0;
+
+    // Usar servicio por mascota (petServices) con descuento aplicado
     const petsList = newApptForm.petIds.length > 0
       ? newApptForm.petIds.map(pid => {
           const p = pets.find(pt => String(pt.id) === String(pid));
           const petSvc = petServices[String(pid)];
+          const baseAmount = petSvc?.price || 0;
+          const discountedAmount = parseFloat((baseAmount - baseAmount * discountRatio).toFixed(2));
           return {
             id: uid(), petId: String(pid),
             service: petSvc?.service || newApptForm.serviceName || '',
-            amount: petSvc?.price || 0,
+            amount: discountedAmount,
             tip: 0, cardFee: 0,
             method: 'Cash', status: 'pending',
             checkinTime: '', checkoutTime: '',
@@ -6206,18 +6220,30 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
   const [viewMode, setViewMode] = useState('day');
   const [date, setDate] = useState(todayISO());
   const [saving, setSaving] = useState(false);
+  const [filterCompany, setFilterCompany] = useState('all');
+  const [filterVan, setFilterVan] = useState('all');
 
   const { start: weekStart, end: weekEnd } = getWeekRange(date);
+
+  // Vans filtradas por company
+  const companyVans = useMemo(() => {
+    if (filterCompany === 'all') return vans;
+    return vans.filter(v => v.companyId === filterCompany);
+  }, [vans, filterCompany]);
 
   const reviewAppts = useMemo(() => {
     return appointments
       .filter(a => {
         if (a.status !== 'admin_review') return false;
-        if (viewMode === 'day') return a.date === date;
-        return inRange(a.date, weekStart, weekEnd);
+        if (viewMode === 'day') { if (a.date !== date) return false; }
+        else { if (!inRange(a.date, weekStart, weekEnd)) return false; }
+        const van = vans.find(v => v.id === a.vanId);
+        if (filterCompany !== 'all' && van?.companyId !== filterCompany) return false;
+        if (filterVan !== 'all' && a.vanId !== filterVan) return false;
+        return true;
       })
       .sort((a, b) => a.date.localeCompare(b.date) || (a.timeStart || '').localeCompare(b.timeStart || ''));
-  }, [appointments, viewMode, date, weekStart, weekEnd]);
+  }, [appointments, viewMode, date, weekStart, weekEnd, filterCompany, filterVan, vans]);
 
   const approveAppt = async (appt) => {
     const van = vans.find(v => v.id === appt.vanId);
@@ -6294,9 +6320,10 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Admin" title="💰 Close Review" />
 
-      {/* Filtro día / semana */}
+      {/* Filtros */}
       <div style={{ ...styles.card, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        {/* Day / Week */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 12 }}>
           <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
             <button onClick={() => setViewMode('day')}
               style={{ padding: '7px 18px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: viewMode === 'day' ? 700 : 400, background: viewMode === 'day' ? '#fff' : 'transparent', color: viewMode === 'day' ? '#0f766e' : '#64748b' }}>
@@ -6312,6 +6339,36 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
           {viewMode === 'week' && (
             <div style={{ fontSize: 12, color: '#64748b' }}>{formatDateNice(weekStart)} — {formatDateNice(weekEnd)}</div>
           )}
+        </div>
+
+        {/* Company filter */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', alignSelf: 'center' }}>Company:</span>
+          {[{ id: 'all', label: '🏢 All' }, ...DEFAULT_COMPANIES.map(c => ({ id: c.id, label: `${c.logoEmoji} ${c.name}` }))].map(c => (
+            <button key={c.id} onClick={() => { setFilterCompany(c.id); setFilterVan('all'); }}
+              style={{ padding: '5px 12px', borderRadius: 999, border: `1.5px solid ${filterCompany === c.id ? '#0f766e' : '#e2e8f0'}`, background: filterCompany === c.id ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: filterCompany === c.id ? 700 : 400, color: filterCompany === c.id ? '#0f766e' : '#64748b' }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Groomer/Van filter */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', alignSelf: 'center' }}>Groomer:</span>
+          <button onClick={() => setFilterVan('all')}
+            style={{ padding: '5px 12px', borderRadius: 999, border: `1.5px solid ${filterVan === 'all' ? '#0f766e' : '#e2e8f0'}`, background: filterVan === 'all' ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: filterVan === 'all' ? 700 : 400, color: filterVan === 'all' ? '#0f766e' : '#64748b' }}>
+            All
+          </button>
+          {companyVans.filter(v => v.active !== false).map(v => {
+            const pendingForVan = appointments.filter(a => a.status === 'admin_review' && a.vanId === v.id).length;
+            return (
+              <button key={v.id} onClick={() => setFilterVan(v.id)}
+                style={{ padding: '5px 12px', borderRadius: 999, border: `1.5px solid ${filterVan === v.id ? '#0f766e' : '#e2e8f0'}`, background: filterVan === v.id ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: filterVan === v.id ? 700 : 400, color: filterVan === v.id ? '#0f766e' : '#64748b', display: 'flex', alignItems: 'center', gap: 5 }}>
+                {v.groomer || v.name}
+                {pendingForVan > 0 && <span style={{ background: '#f97316', color: '#fff', borderRadius: '50%', width: 16, height: 16, fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{pendingForVan}</span>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
