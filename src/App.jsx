@@ -1710,6 +1710,9 @@ function AppMain() {
           />
         )}
         {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
+        {tab === 'messages' && isAdmin && (
+          <MessagesTab clients={clients} vans={vans} session={session} />
+        )}
         {tab === 'close-review' && isAdmin && (
           <CloseReviewTab
             appointments={appointments} vans={vans} settings={settings}
@@ -1750,7 +1753,7 @@ function AppMain() {
           { id: 'home',         icon: '🏠', label: 'Home' },
           { id: 'appointments', icon: '🗓️', label: 'Schedule' },
           { id: 'clients',      icon: '👥', label: 'Clients' },
-          { id: 'close-review', icon: '💰', label: 'Review' },
+          { id: 'messages',     icon: '💬', label: 'Messages' },
           { id: 'more',         icon: '⋯', label: 'More' },
         ];
 
@@ -1769,6 +1772,8 @@ function AppMain() {
                 ? appointments.filter(a => a.status === 'pending_review').length
                 : t.id === 'close-review'
                 ? appointments.filter(a => a.status === 'admin_review').length
+                : t.id === 'messages'
+                ? 0 // will be updated by MessagesTab
                 : t.id === 'requests'
                 ? bookingRequests.filter(r => r.status === 'pending').length
                 : 0;
@@ -2696,6 +2701,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'home',           label: 'Home',          icon: '🏠', show: true },
     { id: 'appointments',   label: 'Schedule',      icon: '🗓️', show: true },
     { id: 'clients',        label: 'Clients',       icon: '👥', show: isAdmin || isManager },
+    { id: 'messages',       label: 'Messages',      icon: '💬', show: isAdmin || isManager },
     { id: 'requests',       label: 'Booking Requests', icon: '📩', show: isAdmin || isManager },
     { id: 'close-review',   label: 'Close Review',  icon: '💰', show: isAdmin },
     { id: 'breeds',         label: 'AI Breeds',     icon: '🐾', show: !isViewer },
@@ -10778,6 +10784,214 @@ function InventoryTab({ vans, session, isAdmin, inventoryItems, setInventoryItem
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===== MESSAGES TAB =====
+function MessagesTab({ clients, vans, session }) {
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedConversation, setSelectedConversation] = useState(null);
+  const [newMessage, setNewMessage] = useState('');
+  const [sending, setSending] = useState(false);
+  const [filterCompany, setFilterCompany] = useState('all');
+  const [search, setSearch] = useState('');
+  const messagesEndRef = useRef(null);
+
+  const loadMessages = async () => {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (!error) setMessages(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadMessages();
+    // Poll every 10s for new messages
+    const interval = setInterval(loadMessages, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [selectedConversation, messages]);
+
+  // Agrupar por conversación (por teléfono)
+  const conversations = useMemo(() => {
+    const map = {};
+    messages.forEach(m => {
+      const key = m.phone?.replace(/\D/g, '').slice(-10);
+      if (!map[key]) {
+        map[key] = {
+          phone: m.phone,
+          clientName: m.client_name || m.phone,
+          clientId: m.client_id,
+          companyId: m.company_id,
+          messages: [],
+          lastMessage: m,
+          unread: 0,
+        };
+      }
+      map[key].messages.push(m);
+      if (m.direction === 'inbound') map[key].unread++;
+    });
+    return Object.values(map)
+      .filter(c => {
+        if (filterCompany !== 'all' && c.companyId !== filterCompany) return false;
+        if (search && !c.clientName.toLowerCase().includes(search.toLowerCase()) && !c.phone.includes(search)) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.lastMessage.created_at) - new Date(a.lastMessage.created_at));
+  }, [messages, filterCompany, search]);
+
+  const conversationMessages = useMemo(() => {
+    if (!selectedConversation) return [];
+    const key = selectedConversation.phone?.replace(/\D/g, '').slice(-10);
+    return messages
+      .filter(m => m.phone?.replace(/\D/g, '').slice(-10) === key)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  }, [messages, selectedConversation]);
+
+  const handleSend = async () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+    setSending(true);
+    try {
+      const response = await fetch('/api/send-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: selectedConversation.phone,
+          message: newMessage.trim(),
+          companyId: selectedConversation.companyId || 'epw',
+          clientId: selectedConversation.clientId,
+          clientName: selectedConversation.clientName,
+        }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setNewMessage('');
+        await loadMessages();
+      } else {
+        alert('Error sending: ' + data.error);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+    setSending(false);
+  };
+
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
+
+  return (
+    <div style={{ animation: 'fadeIn 0.3s ease', height: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
+      <SectionTitle eyebrow="Communications" title={`💬 Messages${totalUnread > 0 ? ` · ${totalUnread} new` : ''}`} />
+
+      <div style={{ display: 'flex', gap: 12, flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        {/* Lista de conversaciones */}
+        <div style={{ width: selectedConversation ? '35%' : '100%', display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto' }}>
+          {/* Filtros */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
+            {[{ id: 'all', label: '🏢 All' }, ...DEFAULT_COMPANIES.map(c => ({ id: c.id, label: `${c.logoEmoji} ${c.name}` }))].map(c => (
+              <button key={c.id} onClick={() => setFilterCompany(c.id)}
+                style={{ padding: '4px 10px', borderRadius: 999, border: `1.5px solid ${filterCompany === c.id ? '#0f766e' : '#e2e8f0'}`, background: filterCompany === c.id ? '#f0fdfa' : '#fff', cursor: 'pointer', fontSize: 12, fontWeight: filterCompany === c.id ? 700 : 400, color: filterCompany === c.id ? '#0f766e' : '#64748b' }}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            style={styles.input} placeholder="Search client..." />
+
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>Loading...</div>
+          ) : conversations.length === 0 ? (
+            <div style={styles.empty}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>💬</div>
+              <p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 16 }}>No messages yet</p>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#94a3b8' }}>SMS will appear here automatically</p>
+            </div>
+          ) : conversations.map(conv => {
+            const isSelected = selectedConversation?.phone === conv.phone;
+            const company = DEFAULT_COMPANIES.find(c => c.id === conv.companyId);
+            const lastMsg = conv.lastMessage;
+            return (
+              <div key={conv.phone} onClick={() => setSelectedConversation(conv)}
+                style={{ padding: '12px 14px', background: isSelected ? '#f0fdfa' : '#fff', border: `1.5px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 12, cursor: 'pointer', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#0f172a' }}>{conv.clientName}</div>
+                    <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1 }}>{company?.logoEmoji} {company?.name} · {conv.phone}</div>
+                    <div style={{ fontSize: 12, color: lastMsg.direction === 'inbound' ? '#0f766e' : '#64748b', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {lastMsg.direction === 'inbound' ? '← ' : '→ '}{lastMsg.body}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0, marginLeft: 8 }}>
+                    <div style={{ fontSize: 10, color: '#94a3b8' }}>
+                      {new Date(lastMsg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {conv.unread > 0 && (
+                      <div style={{ background: '#0f766e', color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {conv.unread}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Conversación abierta */}
+        {selectedConversation && (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+            {/* Header */}
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setSelectedConversation(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#64748b' }}>←</button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{selectedConversation.clientName}</div>
+                <div style={{ fontSize: 11, color: '#94a3b8' }}>{selectedConversation.phone}</div>
+              </div>
+              <button onClick={() => window.open(`tel:${selectedConversation.phone}`, '_blank')}
+                style={{ background: '#f0fdfa', border: '1px solid #ccfbf1', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#0f766e', fontWeight: 600 }}>
+                📞 Call
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {conversationMessages.map(msg => {
+                const isOutbound = msg.direction === 'outbound';
+                return (
+                  <div key={msg.id} style={{ display: 'flex', justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
+                    <div style={{ maxWidth: '75%', padding: '10px 14px', borderRadius: isOutbound ? '18px 18px 4px 18px' : '18px 18px 18px 4px', background: isOutbound ? '#0f766e' : '#f1f5f9', color: isOutbound ? '#fff' : '#0f172a', fontSize: 14 }}>
+                      <div>{msg.body}</div>
+                      <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: isOutbound ? 'right' : 'left' }}>
+                        {new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        {isOutbound && ' ✓'}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Input */}
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8 }}>
+              <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                style={{ ...styles.input, flex: 1 }} placeholder="Type a message..." />
+              <button onClick={handleSend} disabled={sending || !newMessage.trim()}
+                style={{ padding: '10px 16px', background: sending || !newMessage.trim() ? '#94a3b8' : '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
+                {sending ? '...' : '→'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
