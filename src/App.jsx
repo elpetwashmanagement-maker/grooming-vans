@@ -10813,7 +10813,6 @@ function MessagesTab({ clients, vans, session }) {
   }, [clients, newMsgSearch]);
 
   const startConversation = (client) => {
-    const company = vans.find(v => v.companyId)?.companyId || 'epw';
     setSelectedConversation({
       phone: client.phone,
       clientName: client.name,
@@ -10821,6 +10820,7 @@ function MessagesTab({ clients, vans, session }) {
       companyId: newMsgCompany,
       messages: [],
     });
+    loadConversationHistory(client.phone);
     setShowNewMsg(false);
     setNewMsgSearch('');
     setNewMsgClient(null);
@@ -10831,9 +10831,27 @@ function MessagesTab({ clients, vans, session }) {
       .from('messages')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(200);
-    if (!error) setMessages(data || []);
+      .limit(500);
+    if (!error && data) setMessages(data);
     setLoading(false);
+  };
+
+  // Cargar historial completo de una conversación específica
+  const loadConversationHistory = async (phone) => {
+    const cleanPhone = phone?.replace(/\D/g, '').slice(-10);
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .ilike('phone', `%${cleanPhone}`)
+      .order('created_at', { ascending: true });
+    if (data && data.length > 0) {
+      // Merge con mensajes existentes
+      setMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id));
+        const newMsgs = data.filter(m => !existingIds.has(m.id));
+        return [...prev, ...newMsgs];
+      });
+    }
   };
 
   useEffect(() => {
@@ -11024,7 +11042,10 @@ function MessagesTab({ clients, vans, session }) {
             const company = DEFAULT_COMPANIES.find(c => c.id === conv.companyId);
             const lastMsg = conv.lastMessage;
             return (
-              <div key={conv.phone} onClick={() => setSelectedConversation(conv)}
+              <div key={conv.phone} onClick={() => {
+                setSelectedConversation(conv);
+                loadConversationHistory(conv.phone);
+              }}
                 style={{ padding: '12px 14px', background: isSelected ? '#f0fdfa' : '#fff', border: `1.5px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 12, cursor: 'pointer', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
