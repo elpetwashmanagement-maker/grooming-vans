@@ -9,27 +9,29 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing fields' });
   }
 
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken  = process.env.TWILIO_AUTH_TOKEN;
-  const fromEPW    = process.env.TWILIO_PHONE_EPW;
-  const fromATW    = process.env.TWILIO_PHONE_ATW;
+  const accountSid        = process.env.TWILIO_ACCOUNT_SID;
+  const authToken         = process.env.TWILIO_AUTH_TOKEN;
+  const messagingService  = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-  if (!accountSid || !authToken) {
+  if (!accountSid || !authToken || !messagingService) {
+    console.error('Twilio env vars missing:', { accountSid: !!accountSid, authToken: !!authToken, messagingService: !!messagingService });
     return res.status(500).json({ error: 'Twilio not configured' });
   }
-
-  const from = companyId === 'atw' ? fromATW : fromEPW;
 
   try {
     const twilio = (await import('twilio')).default;
     const client = twilio(accountSid, authToken);
-    const msg = await client.messages.create({ body: message, from, to });
+    const msg = await client.messages.create({
+      body: message,
+      messagingServiceSid: messagingService,
+      to,
+    });
 
     // Guardar en tabla messages
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
-      process.env.VITE_SUPABASE_URL || 'https://lpzwnbrjpayjhlwjmuda.supabase.co',
-      process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_KEY
+      'https://lpzwnbrjpayjhlwjmuda.supabase.co',
+      process.env.VITE_SUPABASE_KEY || process.env.SUPABASE_KEY
     );
     await supabase.from('messages').insert({
       id: msg.sid,
