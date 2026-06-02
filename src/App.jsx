@@ -10917,11 +10917,8 @@ function MessagesTab({ clients, vans, session }) {
       });
       const data = await response.json();
       if (data.success) {
-        // Reemplazar mensaje temporal con el real
-        setMessages(prev => prev.map(m => m.id === tempMsg.id
-          ? { ...tempMsg, id: data.sid, twilio_sid: data.sid, status: 'sent' }
-          : m
-        ));
+        // Recargar mensajes reales desde Supabase
+        await loadMessages();
       } else {
         // Remover mensaje temporal si falló
         setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
