@@ -10797,7 +10797,34 @@ function MessagesTab({ clients, vans, session }) {
   const [sending, setSending] = useState(false);
   const [filterCompany, setFilterCompany] = useState('all');
   const [search, setSearch] = useState('');
+  const [showNewMsg, setShowNewMsg] = useState(false);
+  const [newMsgSearch, setNewMsgSearch] = useState('');
+  const [newMsgClient, setNewMsgClient] = useState(null);
+  const [newMsgCompany, setNewMsgCompany] = useState('epw');
   const messagesEndRef = useRef(null);
+
+  // Clientes filtrados para nuevo mensaje
+  const newMsgClients = useMemo(() => {
+    if (!newMsgSearch.trim()) return [];
+    return clients.filter(c =>
+      c.name.toLowerCase().includes(newMsgSearch.toLowerCase()) ||
+      c.phone?.includes(newMsgSearch)
+    ).slice(0, 8);
+  }, [clients, newMsgSearch]);
+
+  const startConversation = (client) => {
+    const company = vans.find(v => v.companyId)?.companyId || 'epw';
+    setSelectedConversation({
+      phone: client.phone,
+      clientName: client.name,
+      clientId: client.id,
+      companyId: newMsgCompany,
+      messages: [],
+    });
+    setShowNewMsg(false);
+    setNewMsgSearch('');
+    setNewMsgClient(null);
+  };
 
   const loadMessages = async () => {
     const { data, error } = await supabase
@@ -10888,7 +10915,66 @@ function MessagesTab({ clients, vans, session }) {
 
   return (
     <div style={{ animation: 'fadeIn 0.3s ease', height: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
-      <SectionTitle eyebrow="Communications" title={`💬 Messages${totalUnread > 0 ? ` · ${totalUnread} new` : ''}`} />
+      <SectionTitle eyebrow="Communications" title={`💬 Messages${totalUnread > 0 ? ` · ${totalUnread} new` : ''}`}
+        right={
+          <button onClick={() => setShowNewMsg(true)} style={styles.btnPrimary}>
+            <Plus size={14} /> New Message
+          </button>
+        }
+      />
+
+      {/* Modal nuevo mensaje */}
+      {showNewMsg && (
+        <div style={{ ...styles.card, marginBottom: 16, border: '1px solid #0f766e', background: '#f0fdfa' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>💬 New Message</div>
+            <button onClick={() => { setShowNewMsg(false); setNewMsgSearch(''); setNewMsgClient(null); }} style={styles.iconBtn}><X size={16} /></button>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <label style={styles.lbl}>Company</label>
+            <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+              {DEFAULT_COMPANIES.map(c => (
+                <button key={c.id} onClick={() => setNewMsgCompany(c.id)}
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: `2px solid ${newMsgCompany === c.id ? '#0f766e' : '#e2e8f0'}`, background: newMsgCompany === c.id ? '#fff' : '#f8fafc', cursor: 'pointer', fontSize: 13, fontWeight: newMsgCompany === c.id ? 700 : 400, color: newMsgCompany === c.id ? '#0f766e' : '#64748b' }}>
+                  {c.logoEmoji} {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+          {newMsgClient ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#fff', borderRadius: 10, border: '1.5px solid #0f766e', marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700 }}>{newMsgClient.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>{newMsgClient.phone}</div>
+              </div>
+              <button onClick={() => setNewMsgClient(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: 18 }}>×</button>
+            </div>
+          ) : (
+            <div style={{ position: 'relative', marginBottom: 10 }}>
+              <input value={newMsgSearch} onChange={e => setNewMsgSearch(e.target.value)}
+                style={styles.input} placeholder="Search client by name or phone..." autoComplete="off" />
+              {newMsgClients.length > 0 && (
+                <div style={styles.suggestionsBox}>
+                  {newMsgClients.map(c => (
+                    <button key={c.id} onMouseDown={() => setNewMsgClient(c)}
+                      className="suggestion-hover" style={styles.suggestionItem}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: '#64748b' }}>{c.phone || 'No phone'}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {newMsgClient && (
+            <button onClick={() => startConversation(newMsgClient)}
+              disabled={!newMsgClient?.phone}
+              style={{ ...styles.btnPrimary, width: '100%', justifyContent: 'center', background: !newMsgClient?.phone ? '#94a3b8' : '#0f766e' }}>
+              {!newMsgClient?.phone ? '⚠️ Client has no phone' : '💬 Start Conversation'}
+            </button>
+          )}
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 12, flex: 1, overflow: 'hidden', minHeight: 0 }}>
         {/* Lista de conversaciones */}
@@ -10903,7 +10989,7 @@ function MessagesTab({ clients, vans, session }) {
             ))}
           </div>
           <input value={search} onChange={e => setSearch(e.target.value)}
-            style={styles.input} placeholder="Search client..." />
+            style={styles.input} placeholder="Search conversations..." />
 
           {loading ? (
             <div style={{ textAlign: 'center', padding: 20, color: '#94a3b8' }}>Loading...</div>
@@ -10911,7 +10997,7 @@ function MessagesTab({ clients, vans, session }) {
             <div style={styles.empty}>
               <div style={{ fontSize: 36, marginBottom: 8 }}>💬</div>
               <p style={{ margin: 0, color: '#64748b', fontFamily: 'Fraunces, serif', fontSize: 16 }}>No messages yet</p>
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#94a3b8' }}>SMS will appear here automatically</p>
+              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#94a3b8' }}>Click "New Message" to start</p>
             </div>
           ) : conversations.map(conv => {
             const isSelected = selectedConversation?.phone === conv.phone;
