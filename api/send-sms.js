@@ -1,6 +1,6 @@
 // api/send-sms.js — Raykota SMS via Twilio
-const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
