@@ -11889,11 +11889,52 @@ function BookingRequestsTab({ requests, setRequests, vans, groomers, clients, ad
   );
 }
 // ===== EXPORT — detecta /booking/epw o /booking/atw =====
+function ResetPasswordPage() {
+  const [newPass, setNewPass] = React.useState('');
+  const [confirm, setConfirm] = React.useState('');
+  const [done, setDone] = React.useState(false);
+  const [error, setError] = React.useState('');
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+      <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: 340, boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
+        <div style={{ fontSize: 28, textAlign: 'center', marginBottom: 8 }}>🔐</div>
+        <h2 style={{ textAlign: 'center', fontSize: 20, fontWeight: 800, marginBottom: 20 }}>New Password</h2>
+        {done ? (
+          <div style={{ textAlign: 'center', color: '#0f766e', fontWeight: 700 }}>
+            ✅ Password updated! <a href="/" style={{ color: '#0f766e' }}>Sign in</a>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <input type="password" placeholder="New password" value={newPass} onChange={e => setNewPass(e.target.value)}
+              style={{ padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15 }} />
+            <input type="password" placeholder="Confirm password" value={confirm} onChange={e => setConfirm(e.target.value)}
+              style={{ padding: '12px 14px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 15 }} />
+            {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
+            <button onClick={async () => {
+              if (newPass.length < 6) { setError('At least 6 characters'); return; }
+              if (newPass !== confirm) { setError('Passwords do not match'); return; }
+              const { error: err } = await supabase.auth.updateUser({ password: newPass });
+              if (err) { setError(err.message); return; }
+              setDone(true);
+            }} style={{ padding: '13px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+              Update Password
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const pathname = window.location.pathname;
+  const hash = window.location.hash;
   if (pathname.startsWith('/booking/')) {
     const companyId = pathname.split('/')[2] || 'epw';
     return <BookingPage companyId={companyId} />;
+  }
+  if (hash.includes('type=recovery')) {
+    return <ResetPasswordPage />;
   }
   return <AppMain />;
 }
