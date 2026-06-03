@@ -2365,7 +2365,15 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
             <button onClick={() => { setStep('input'); setPassword(''); setError(''); }}
               style={{ width: '100%', marginTop: 10, padding: '12px', background: 'none', border: 'none', color: '#64748b', fontSize: 14, cursor: 'pointer' }}>
               ← Back
+            </button><button onClick={async () => {
+              if (!userInput || !userInput.includes('@')) { setError('Enter your email first'); return; }
+              const { error } = await supabase.auth.resetPasswordForEmail(userInput, { redirectTo: window.location.origin });
+              if (error) { setError('Error: ' + error.message); return; }
+              alert('✅ Check your email for a password reset link!');
+            }} style={{ width: '100%', marginTop: 4, padding: '10px', background: 'none', border: 'none', color: '#0f766e', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+              Forgot password?
             </button>
+            
           </div>
         )}
       </div>
