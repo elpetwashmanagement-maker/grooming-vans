@@ -5,6 +5,7 @@ import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp,
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ModulesProvider } from "./context/ModulesContext";
+import { ModulesAdmin } from "./components/ModulesAdmin";
 import { supabase } from "./lib/supabase";
 import * as XLSX from 'xlsx';
 // ===== TRADUCCIONES =====
@@ -7491,6 +7492,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     { id: 'documents', icon: '📄', label: 'Documents', desc: 'Agreement, footer de invoice' },
     { id: 'preferences', icon: '🎨', label: 'Preferences', desc: 'Idioma, formato de fecha' },
     { id: 'security', icon: '🔐', label: 'Security', desc: 'Contraseña, sesión' },
+    { id: 'modules', icon: '🧩', label: 'Modules', desc: 'Activar modulos por empresa' },
   ];
 
   // ── COMPANIES & TEAMS ──
@@ -7956,6 +7958,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     documents: documentsSection,
     preferences: preferencesSection,
     security: securitySection,
+    modules: <ModulesAdmin companies={companies} />,
   };
 
   return (
