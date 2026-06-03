@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 // Raykota v2.3 - Clean client form
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, ... } from 'lucide-react';
+import { ModulesProvider } from "./context/ModulesContext";
 import { supabase } from './lib/supabase';   // ← línea 8, aquí
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -1606,6 +1607,7 @@ function AppMain() {
       : vans; // Admin y manager ven todas
 
   return (
+    <ModulesProvider companyId={activeCompanyId}>
     <div style={styles.app}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap');
@@ -1815,6 +1817,7 @@ function AppMain() {
 
       <div style={{ height: 80 }} />
     </div>
+    </ModulesProvider>
   );
 }
 
