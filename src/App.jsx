@@ -1,7 +1,7 @@
 // Raykota v2.3 - Clean client form
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp, Loader2, Edit2, X, Check, Truck, Sparkles, Lock, LogOut, Eye, EyeOff, DollarSign, AlertTriangle, MapPin } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -239,9 +239,8 @@ const processSquarePayment = async (amountCents, note = '') => {
 };
 
 // ===== SUPABASE =====
-const SUPABASE_URL = 'https://lpzwnbrjpayjhlwjmuda.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT';
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
 
 // ===== SMS =====
 const sendSMS = async (phone, message, companyId) => {
