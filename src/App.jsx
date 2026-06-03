@@ -4,7 +4,7 @@ import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp,
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ModulesProvider } from "./context/ModulesContext";
+import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { supabase } from "./lib/supabase";
 import * as XLSX from 'xlsx';
@@ -2692,6 +2692,7 @@ function VanTrackerTab({ vans, vanLocations, groomers }) {
 // ===== HEADER =====
 // ===== HEADER =====
 function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange, isOnline = true }) {
+  const { isEnabled } = useModulesContext();
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
   const isGroomer = session?.role === 'groomer';
@@ -2710,14 +2711,14 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'breeds',         label: 'AI Breeds',     icon: '🐾', show: !isViewer },
     { id: 'registro',       label: 'Daily Log',     icon: '⛽', show: !isViewer },
     { id: 'cierre',         label: isGroomer ? 'My Close' : 'Daily Close', icon: '🔒', show: !isViewer },
-    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: isAdmin || isViewer },
+    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: (isAdmin || isViewer) && isEnabled('payroll') },
     { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin },
-    { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer },
-    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: isAdmin || isManager },
+    { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer && isEnabled('inventory') },
+    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: (isAdmin || isManager) && isEnabled('boarding') },
     { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer },
-    { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: isAdmin || isManager },
+    { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: (isAdmin || isManager) && isEnabled('gps_routes') },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin },
-    { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin },
+    { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin && isEnabled('audit') },
     { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
   ].filter(t => t.show);
 
