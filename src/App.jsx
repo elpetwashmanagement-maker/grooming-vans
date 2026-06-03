@@ -1678,10 +1678,10 @@ function AppMain() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'boarding' && <BoardingTab clients={clients} pets={pets} session={session} settings={settings} />}
+        {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
-        {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} />}
+        {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <ModuleGuard module="gps_routes"><VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} /></ModuleGuard>}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -1691,7 +1691,7 @@ function AppMain() {
             groomers={groomers} addGroomer={addGroomer} updateGroomer={updateGroomer} toggleGroomerActive={toggleGroomerActive}
           />
         )}
-        {tab === 'payroll' && (isAdmin || isViewer) && (
+        {tab === 'payroll' && (isAdmin || isViewer) && (<ModuleGuard module="payroll">
           <PayrollTab
             groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services}
             appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} settings={settings}
@@ -1699,24 +1699,24 @@ function AppMain() {
             setGroomerPayments={setGroomerPayments}
             session={session}
           />
-        )}
-        {tab === 'gastos-company' && isAdmin && (
+        </ModuleGuard>)}
+        {tab === 'gastos-company' && isAdmin && (<ModuleGuard module="finances">
           <ExpensesCompanyTab
             vans={vans} session={session} companies={companies}
             companyExpenses={companyExpenses}
             setCompanyExpenses={setCompanyExpenses}
             taxRate={settings.taxRate ?? 7.0}
           />
-        )}
-        {tab === 'inventory' && (
+        </ModuleGuard>)}
+        {tab === 'inventory' && (<ModuleGuard module="inventory">
           <InventoryTab
             vans={vans} session={session} isAdmin={isAdmin || isManager}
             inventoryItems={inventoryItems} setInventoryItems={setInventoryItems}
             inventoryRequests={inventoryRequests} setInventoryRequests={setInventoryRequests}
             groomers={groomers}
           />
-        )}
-        {tab === 'auditoria' && isAdmin && <AuditoriaTab />}
+        </ModuleGuard>)}
+        {tab === 'auditoria' && isAdmin && <ModuleGuard module="audit"><AuditoriaTab /></ModuleGuard>}
         {tab === 'messages' && isAdmin && (
           <MessagesTab clients={clients} vans={vans} session={session} />
         )}
