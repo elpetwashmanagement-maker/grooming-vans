@@ -5,7 +5,13 @@ import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
-
+// Raykota v2.3 - Clean client form
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Plus, Trash2, ... } from 'lucide-react';
+import { supabase } from './lib/supabase';   // ← línea 8, aquí
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 // ===== TRADUCCIONES =====
 const TRANSLATIONS = {
   es: {
