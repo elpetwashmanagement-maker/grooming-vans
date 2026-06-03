@@ -4,14 +4,8 @@ import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp,
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import * as XLSX from 'xlsx';
-// Raykota v2.3 - Clean client form
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Trash2, ... } from 'lucide-react';
 import { ModulesProvider } from "./context/ModulesContext";
-import { supabase } from './lib/supabase';   // ← línea 8, aquí
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { supabase } from "./lib/supabase";
 import * as XLSX from 'xlsx';
 // ===== TRADUCCIONES =====
 const TRANSLATIONS = {
