@@ -5495,7 +5495,6 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                     {appt.notes && <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-secondary)', padding: '6px 10px', background: 'var(--color-background-secondary)', borderRadius: 6 }}>📝 {appt.notes}</div>}
                   </div>
                   </div>
-                  </div>
                 )}
               </div>
             );
