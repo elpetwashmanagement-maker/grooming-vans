@@ -3332,7 +3332,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
   const [showCobroForm, setShowCobroForm] = useState(null);
   const [cobroForm, setCobroForm] = useState({ method: 'Cash', tip: '', step: 1 });
-  const [viewMode, setViewMode] = useState('lista');
+  const [viewMode, setViewMode] = useState(session?.role === 'admin' || session?.role === 'manager' ? 'week' : 'lista');
   const [selectedRutaVan, setSelectedRutaVan] = useState(null);
   const isViewer = session?.role === 'viewer';
   const viewerCompany = session?.companyId || null;
