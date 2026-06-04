@@ -5141,7 +5141,6 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           </select>
                         </div>
                       </div>
-                      </div>
                     </div>
                     )}
 
