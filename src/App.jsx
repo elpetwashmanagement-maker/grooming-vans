@@ -7,7 +7,7 @@ import autoTable from 'jspdf-autotable';
 import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { AlertsPanel } from "./components/AlertsPanel";
-import { CombosAdmin } from "./components/CombosAdmin";
+import { CombosAdmin, ComboChip, DEFAULT_COMBOS, DEFAULT_BLADES } from "./components/CombosAdmin";
 import { supabase } from "./lib/supabase";
 import * as XLSX from 'xlsx';
 // ===== TRADUCCIONES =====
@@ -5995,8 +5995,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
       {/* Modal ficha de grooming */}
       {showGroomingForm && (
-        <div style={{ position: 'relative', marginTop: 20 }}>
-          <div style={{ ...styles.card, border: '1px solid var(--color-border-info)' }}>
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '16px',
+        }} onClick={e => { if (e.target === e.currentTarget) setShowGroomingForm(null); }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto',
+            padding: 24, boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ ...styles.cardH3, margin: 0 }}>Ficha de grooming — 🐾 {showGroomingForm.pet?.name}</h3>
               <button onClick={() => setShowGroomingForm(null)} style={styles.iconBtn}><X size={16} /></button>
