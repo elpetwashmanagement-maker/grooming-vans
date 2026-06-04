@@ -175,8 +175,31 @@ const SQUARE_CONFIG = {
     scriptUrl: 'https://web.squarecdn.com/v1/square.js',
   }
 };
+
+// Square por empresa
+const SQUARE_BY_COMPANY = {
+  epw: {
+    appId: 'sq0idp-NMrGOWJsE92t5QnHfFvk5g',
+    locationId: 'LVYKDEEJCC7NE',
+  },
+  atw: {
+    appId: 'sq0idp-8BUBQILfZCghnkzFNC3rrQ',
+    locationId: 'L2GY0521F3XAG',
+  },
+};
+
 const SQUARE_ENV = 'production';
 const SQ = SQUARE_CONFIG[SQUARE_ENV];
+
+// Obtener config de Square para una empresa
+const getSQForCompany = (companyId) => {
+  const co = SQUARE_BY_COMPANY[companyId] || SQUARE_BY_COMPANY['epw'];
+  return {
+    ...SQ,
+    appId: co.appId,
+    locationId: co.locationId,
+  };
+};
 
 // Cargar Square SDK
 const loadSquareSDK = () => new Promise((resolve, reject) => {
@@ -188,10 +211,11 @@ const loadSquareSDK = () => new Promise((resolve, reject) => {
   document.head.appendChild(script);
 });
 
-const processSquarePayment = async (amountCents, note = '') => {
+const processSquarePayment = async (amountCents, note = '', companyId = 'epw') => {
   try {
     const Square = await loadSquareSDK();
-    const payments = Square.payments(SQ.appId, SQ.locationId);
+    const sqConfig = getSQForCompany(companyId);
+    const payments = Square.payments(sqConfig.appId, sqConfig.locationId);
 
     // Intentar Tap to Pay primero (iPhone)
     let paymentMethod;

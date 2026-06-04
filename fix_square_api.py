@@ -1,4 +1,4 @@
-// api/square-payment.js
+new_content = '''// api/square-payment.js
 // Vercel Serverless Function para procesar pagos con Square
 // Soporta dos empresas: epw (El Pet Wash) y atw (All Tails Wag)
 
@@ -66,3 +66,9 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message });
   }
 }
+'''
+
+with open('api/square-payment.js', 'w') as f:
+    f.write(new_content)
+
+print("Listo:", len(new_content.splitlines()), "lineas")
