@@ -6048,7 +6048,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         {(() => {
                           const val = groomingRecord[toolKey];
                           if (!val) return null;
-                          const combo = DEFAULT_COMBOS.find(c => c.label === val);
+                          const combo = DEFAULT_COMBOS.find(c => c.label === val || c.label === val.replace("Combo ", ""));
                           const blade = DEFAULT_BLADES.find(b => b.label === val);
                           if (combo) return <div style={{ marginTop: 4 }}><ComboChip label={combo.label} color={combo.color} textColor={combo.textColor} mm={combo.mm} size="sm" /></div>;
                           if (blade) return <div style={{ marginTop: 4 }}><ComboChip label={blade.label} color={blade.color} textColor={blade.textColor} mm={blade.mm} size="sm" /></div>;
