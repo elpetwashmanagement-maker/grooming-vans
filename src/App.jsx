@@ -5031,8 +5031,20 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
                     {/* Panel edición pets y prices */}
                     {editingPets === appt.id && (
-                      <div style={{ marginTop: 14, padding: '14px', background: '#f0fdfa', borderRadius: 12, border: '1.5px solid #0f766e' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#0f766e', marginBottom: 12 }}>✏️ Edit pets & prices</div>
+                      <div style={{
+                        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 9999, padding: '16px',
+                      }} onClick={e => { if (e.target === e.currentTarget) setEditingPets(null); }}>
+                      <div style={{
+                        background: '#fff', borderRadius: 16, width: '100%', maxWidth: 500,
+                        maxHeight: '90vh', overflowY: 'auto', padding: 24,
+                        boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                          <div style={{ fontSize: 15, fontWeight: 700 }}>✏️ Edit pets & prices</div>
+                          <button onClick={() => setEditingPets(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b' }}>✕</button>
+                        </div>
                         {(appt.pets || []).map(ap => (
                           <div key={ap.id} style={{ padding: '10px 12px', background: '#fff', borderRadius: 10, marginBottom: 8, border: '1px solid #e2e8f0' }}>
                             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🐾 {ap.pet?.name || 'Pet'}</div>
@@ -5129,6 +5141,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           </select>
                         </div>
                       </div>
+                      </div>
+                    </div>
                     )}
 
                     {/* Formulario de reasignación */}
