@@ -6048,9 +6048,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         {(() => {
                           const val = groomingRecord[toolKey];
                           if (!val) return null;
-                          const comboNum = val.match(/^#?(\d+)$/)?.[1];
-                          const combo = comboNum ? DEFAULT_COMBOS.find(c => c.number === comboNum) : null;
-                          const blade = DEFAULT_BLADES.find(b => b.label === val || b.label === '#' + val.replace('#',''));
+                          const combo = DEFAULT_COMBOS.find(c => c.label === val);
+                          const blade = DEFAULT_BLADES.find(b => b.label === val);
                           if (combo) return <div style={{ marginTop: 4 }}><ComboChip label={combo.label} color={combo.color} textColor={combo.textColor} mm={combo.mm} size="sm" /></div>;
                           if (blade) return <div style={{ marginTop: 4 }}><ComboChip label={blade.label} color={blade.color} textColor={blade.textColor} mm={blade.mm} size="sm" /></div>;
                           return null;
