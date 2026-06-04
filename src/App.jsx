@@ -4744,8 +4744,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           <DollarSign size={14} /> {t('complete_pay')}
                         </button>
                       )}
-                      {/* Ver invoice — appointment completada */}
-                      {appt.status === 'completed' && (
+                      {/* Ver invoice */}
+                      {(appt.status === 'completed' || appt.status === 'confirmed' || appt.status === 'in_progress' || appt.status === 'unconfirmed') && (
                         <button onClick={async () => {
                           // Search invoice guardada
                           const { data } = await supabase.from('invoices')
