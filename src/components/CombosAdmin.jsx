@@ -5,18 +5,16 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
-// Colores reales de los peine guardas estándar
+// Colores reales de los snap-on combs (formato de la app)
 export const DEFAULT_COMBOS = [
-  { id: 'combo-1',  number: '1',  label: '#1',  mm: '1.5mm',  color: '#7c3aed', textColor: '#fff', name: 'Morado' },
-  { id: 'combo-2',  number: '2',  label: '#2',  mm: '3mm',    color: '#dc2626', textColor: '#fff', name: 'Rojo' },
-  { id: 'combo-3',  number: '3',  label: '#3',  mm: '5mm',    color: '#1e3a8a', textColor: '#fff', name: 'Azul oscuro' },
-  { id: 'combo-4',  number: '4',  label: '#4',  mm: '6mm',    color: '#eab308', textColor: '#000', name: 'Amarillo' },
-  { id: 'combo-5',  number: '5',  label: '#5',  mm: '10mm',   color: '#0ea5e9', textColor: '#fff', name: 'Azul claro' },
-  { id: 'combo-6',  number: '6',  label: '#6',  mm: '13mm',   color: '#16a34a', textColor: '#fff', name: 'Verde' },
-  { id: 'combo-7',  number: '7',  label: '#7',  mm: '16mm',   color: '#ea580c', textColor: '#fff', name: 'Naranja' },
-  { id: 'combo-8',  number: '8',  label: '#8',  mm: '19mm',   color: '#4c1d95', textColor: '#fff', name: 'Morado oscuro' },
-  { id: 'combo-9',  number: '9',  label: '#9',  mm: '22mm',   color: '#991b1b', textColor: '#fff', name: 'Rojo oscuro' },
-  { id: 'combo-10', number: '10', label: '#10', mm: '25mm',   color: '#0f172a', textColor: '#fff', name: 'Azul/Negro' },
+  { id: 'combo-5',  label: '#5 (1/8")',   mm: '3mm',   color: '#dc2626', textColor: '#fff', name: 'Rojo' },
+  { id: 'combo-4',  label: '#4 (1/4")',   mm: '6mm',   color: '#eab308', textColor: '#000', name: 'Amarillo' },
+  { id: 'combo-2',  label: '#2 (3/8")',   mm: '10mm',  color: '#0ea5e9', textColor: '#fff', name: 'Azul claro' },
+  { id: 'combo-1',  label: '#1 (1/2")',   mm: '13mm',  color: '#16a34a', textColor: '#fff', name: 'Verde' },
+  { id: 'combo-0',  label: '#0 (5/8")',   mm: '16mm',  color: '#ea580c', textColor: '#fff', name: 'Naranja' },
+  { id: 'combo-a',  label: '#A (3/4")',   mm: '19mm',  color: '#4c1d95', textColor: '#fff', name: 'Morado oscuro' },
+  { id: 'combo-c',  label: '#C (7/8")',   mm: '22mm',  color: '#991b1b', textColor: '#fff', name: 'Rojo oscuro' },
+  { id: 'combo-e',  label: '#E (1")',     mm: '25mm',  color: '#0f172a', textColor: '#fff', name: 'Azul/Negro' },
 ];
 
 export const DEFAULT_BLADES = [
