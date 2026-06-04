@@ -8794,7 +8794,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
       )}
 
       {/* ===== LISTA DE CLIENTES ===== */}
-      <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 1.5fr' : '1fr', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 20 }}>
         <div>
           <div style={{ position: 'relative', marginBottom: 12 }}>
             <input value={search} onChange={e => setSearch(e.target.value)} style={styles.input} placeholder="Search client..." />
@@ -8835,7 +8835,20 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
         {/* ===== DETALLE DEL CLIENTE ===== */}
         {selectedClient && (
-          <div>
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9998, padding: '16px',
+          }} onClick={e => { if (e.target === e.currentTarget) setSelectedClient(null); }}>
+          <div style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 600,
+            maxHeight: '90vh', overflowY: 'auto', padding: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, fontSize: 18 }}>👤 {selectedClient.name}</div>
+              <button onClick={() => setSelectedClient(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#64748b' }}>✕</button>
+            </div>
             {/* Formulario editar client */}
             {showEditClient && editingClient?.id === selectedClient.id ? (
               <div style={{
@@ -9236,6 +9249,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                 </div>
               </div>
             )}
+          </div>
           </div>
         )}
       </div>
