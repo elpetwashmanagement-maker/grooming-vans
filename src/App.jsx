@@ -5275,10 +5275,26 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                               </div>
                             )}
 
-                            {/* Vista admin — editable */}
+                            {/* Vista admin — solo lectura (editar via Edit pets & prices) */}
                             {isAdmin && appt.status !== 'completed' && (
+                              <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 14px', border: '1px solid #f1f5f9' }}>
+                                {(ap.service || '').split(' + ').map((name, i) => {
+                                  const isBase = i === 0;
+                                  return (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: isBase ? 13 : 12, color: isBase ? '#0f172a' : '#64748b', marginBottom: 3 }}>
+                                      <span>{isBase ? '✂️ ' : '+ '}{name}</span>
+                                    </div>
+                                  );
+                                })}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 700, color: '#0f766e', paddingTop: 6, borderTop: '1px solid #e2e8f0', marginTop: 4 }}>
+                                  <span>TOTAL</span>
+                                  <span>${(ap.amount || 0).toFixed(2)}</span>
+                                </div>
+                              </div>
+                            )}
+                            {/* PLACEHOLDER_END */}
+                            {isAdmin && appt.status !== 'completed' && false && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                                {/* Selector service principal */}
                                 <div>
                                   <label style={{ ...styles.lbl, fontSize: 10 }}>Service principal</label>
                                   <select defaultValue={ap.service}
