@@ -7,6 +7,7 @@ import autoTable from 'jspdf-autotable';
 import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { AlertsPanel } from "./components/AlertsPanel";
+import { CombosAdmin } from "./components/CombosAdmin";
 import { supabase } from "./lib/supabase";
 import * as XLSX from 'xlsx';
 // ===== TRADUCCIONES =====
@@ -7503,6 +7504,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     { id: 'preferences', icon: '🎨', label: 'Preferences', desc: 'Idioma, formato de fecha' },
     { id: 'security', icon: '🔐', label: 'Security', desc: 'Contraseña, sesión' },
     { id: 'modules', icon: '🧩', label: 'Modules', desc: 'Activar modulos por empresa' },
+    { id: 'tools', icon: '✂️', label: 'Blades y Combos', desc: 'Colores y medidas de blades y guardas' },
   ];
 
   // ── COMPANIES & TEAMS ──
@@ -7969,6 +7971,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     preferences: preferencesSection,
     security: securitySection,
     modules: <ModulesAdmin companies={companies} />,
+    tools: <CombosAdmin />,
   };
 
   return (
