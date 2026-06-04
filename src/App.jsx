@@ -8828,7 +8828,16 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
           <div>
             {/* Formulario editar client */}
             {showEditClient && editingClient?.id === selectedClient.id ? (
-              <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
+              <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '16px',
+        }} onClick={e => { if (e.target === e.currentTarget) { setShowEditClient(false); setEditingClient(null); } }}>
+              <div style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto', padding: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Edit client</h3>
                   <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.iconBtn}><X size={16} /></button>
@@ -8860,11 +8869,21 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                   </button>
                 </div>
               </div>
+              </div>
             ) : null}
 
             {/* Formulario editar pet */}
             {showEditPet && editingPet && (
-              <div style={{ ...styles.card, border: '1px solid var(--color-border-warning)', background: 'var(--color-background-warning)', marginBottom: 12 }}>
+              <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '16px',
+        }} onClick={e => { if (e.target === e.currentTarget) { setShowEditPet(false); setEditingPet(null); } }}>
+              <div style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto', padding: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <h3 style={{ ...styles.cardH3, margin: 0 }}>✏️ Edit pet — {editingPet.name}</h3>
                   <button onClick={() => { setShowEditPet(false); setEditingPet(null); }} style={styles.iconBtn}><X size={16} /></button>
@@ -8892,6 +8911,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                     {saving ? 'Guardando...' : 'Save cambios'}
                   </button>
                 </div>
+              </div>
               </div>
             )}
 
@@ -8938,8 +8958,20 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
               {/* Formulario nueva pet */}
               {showNewPetForm && (
-                <div style={{ padding: '12px', background: '#f0fdfa', borderRadius: 10, border: '1px solid #ccfbf1', marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: '#0f766e', marginBottom: 10 }}>➕ New Pet</div>
+                <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '16px',
+        }} onClick={e => { if (e.target === e.currentTarget) setShowNewPetForm(false); }}>
+                <div style={{
+            background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560,
+            maxHeight: '90vh', overflowY: 'auto', padding: 24,
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                    <div style={{ fontWeight: 700, fontSize: 15 }}>➕ New Pet</div>
+                    <button onClick={() => setShowNewPetForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#64748b' }}>✕</button>
+                  </div>
                   <div style={styles.formGrid}>
                     <div>
                       <label style={styles.lbl}>Name *</label>
@@ -9013,6 +9045,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                     <button onClick={() => setShowNewPetForm(false)} style={styles.btnSecondary}>Cancel</button>
                   </div>
                 </div>
+              </div>
               )}
 
               {clientPets.length === 0 && !showNewPetForm ? (
