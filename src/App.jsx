@@ -6,6 +6,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
 import { ModuleGuard } from "./components/ModuleGuard";
+import { RaykotaPay } from "./components/RaykotaPay";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { CombosAdmin, ComboChip, DEFAULT_COMBOS, DEFAULT_BLADES } from "./components/CombosAdmin";
@@ -7653,6 +7654,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     { id: 'security', icon: '🔐', label: 'Security', desc: 'Contraseña, sesión' },
     { id: 'modules', icon: '🧩', label: 'Modules', desc: 'Activar modulos por empresa' },
     { id: 'tools', icon: '✂️', label: 'Blades y Combos', desc: 'Colores y medidas de blades y guardas' },
+    { id: 'raykota_pay', icon: '💳', label: 'Raykota Pay', desc: 'Métodos de pago, Square, tips, card fee' },
   ];
 
   // ── COMPANIES & TEAMS ──
@@ -8120,6 +8122,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     security: securitySection,
     modules: <ModulesAdmin companies={companies} />,
     tools: <CombosAdmin />,
+    raykota_pay: <RaykotaPay settings={settings} updateSettings={updateSettings} />,
   };
 
   return (
