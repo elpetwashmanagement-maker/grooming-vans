@@ -17,8 +17,8 @@ const DEFAULT_PAYMENT_METHODS = [
 ];
 
 const SQUARE_STATUS = {
-  epw: { name: 'El Pet Wash', status: 'active',  label: 'Active ✅',  color: '#16a34a' },
-  atw: { name: 'All Tails Wag', status: 'pending', label: 'Pending verification ⏳', color: '#d97706' },
+  epw: { name: 'El Pet Wash', status: 'active',  label: 'Active ✅',  color: '#16a34a', dashboardUrl: 'https://squareup.com/dashboard' },
+  atw: { name: 'All Tails Wag', status: 'pending', label: 'Pending verification ⏳', color: '#d97706', dashboardUrl: 'https://squareup.com/dashboard' },
 };
 
 export function RaykotaPay({ settings, updateSettings }) {
@@ -47,12 +47,27 @@ export function RaykotaPay({ settings, updateSettings }) {
           Raykota Pay — Square Status
         </div>
         {Object.entries(SQUARE_STATUS).map(([id, co]) => (
-          <div key={id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{co.name}</div>
-              <div style={{ fontSize: 12, color: co.color, marginTop: 2, fontWeight: 600 }}>{co.label}</div>
+          <div key={id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: '14px 16px', marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{co.name}</div>
+                <div style={{ fontSize: 12, color: co.color, marginTop: 2, fontWeight: 600 }}>{co.label}</div>
+              </div>
+              <div style={{ fontSize: 11, color: '#94a3b8' }}>{id.toUpperCase()}</div>
             </div>
-            <div style={{ fontSize: 11, color: '#94a3b8' }}>{id.toUpperCase()}</div>
+            <a
+              href={co.dashboardUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'block', width: '100%', padding: '10px',
+                background: '#f0fdfa', border: '1.5px solid #0f766e',
+                borderRadius: 8, color: '#0f766e', fontWeight: 700,
+                fontSize: 13, textAlign: 'center', textDecoration: 'none',
+              }}
+            >
+              🏦 Configure bank account → Square
+            </a>
           </div>
         ))}
       </div>
