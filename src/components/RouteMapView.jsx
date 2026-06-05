@@ -159,7 +159,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)', minHeight: 550, borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#fff' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)', minHeight: 550, borderRadius: 0, overflow: 'hidden', border: 'none', background: '#fff' }}>
 
       {/* Barra superior */}
       <div style={{ padding: '10px 14px', background: '#fff', borderBottom: '1px solid #f1f5f9', zIndex: 10, flexShrink: 0 }}>
