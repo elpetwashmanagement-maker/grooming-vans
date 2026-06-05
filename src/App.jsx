@@ -2247,6 +2247,9 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       return;
     }
 
+    // Check admin by name
+    const adminUser = users.find(u => u.name.toLowerCase() === val.toLowerCase() && (u.role === 'admin' || u.role === 'manager'));
+    if (adminUser) { setMatchedUser({...adminUser, pin: String(adminUser.pin)}); setStep('pin'); setPinInput(''); return; }
     setError('User not found');
   };
 
