@@ -1,11 +1,11 @@
 {
-  "name": "Raykota",
-  "short_name": "Raykota",
-  "description": "Intelligent operating system for pet care businesses",
+  "name": "VJFORPETS",
+  "short_name": "VJFORPETS",
+  "description": "Pet care management system",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f766e",
-  "theme_color": "#0f766e",
+  "background_color": "#d97706",
+  "theme_color": "#d97706",
   "orientation": "portrait",
   "icons": [
     {
