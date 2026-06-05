@@ -1667,7 +1667,7 @@ function AppMain() {
         {tab === 'appointments' && (
           <AppointmentsTab
             appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
-            vans={visibleVans} clients={clients} pets={pets}
+            vans={vans} clients={clients} pets={pets}
             session={{ ...session, groomers }} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={isViewer ? () => {} : addAppointment} addClient={addClient} addPet={addPet}
@@ -1682,7 +1682,7 @@ function AppMain() {
             session={session} isAdmin={isAdmin || session?.role === 'manager'}
             addClient={addClient} updateClient={updateClient} removeClient={removeClient}
             addPet={addPet} updatePet={updatePet}
-            servicePrices={servicePrices} addAppointment={addAppointment} vans={visibleVans}
+            servicePrices={servicePrices} addAppointment={addAppointment} vans={vans}
             settings={{ ...settings, companies, groomersList: groomers }}
             refreshAppointments={refreshAppointments}
             cardsOnFile={cardsOnFile} setCardsOnFile={setCardsOnFile}
@@ -1692,7 +1692,7 @@ function AppMain() {
         {tab === 'breeds' && <BreedsTab session={session} />}
         {tab === 'registro' && (
           <RegistroTab
-            vans={visibleVans} services={visibleServices} addService={addService}
+            vans={vans} services={visibleServices} addService={addService}
             updateService={updateService} removeService={removeService}
             fixedVanId={isGroomer ? session.vanId : null} settings={settings}
             isAdmin={isAdmin || isManager}
@@ -1701,7 +1701,7 @@ function AppMain() {
             categories={categories} lang={lang}
           />
         )}
-        {tab === 'cierre' && <CierreTab vans={visibleVans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
+        {tab === 'cierre' && <CierreTab vans={vans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
         {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && isAdmin && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
@@ -4504,7 +4504,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       {viewMode === 'ruta' && (
         <RouteMapView
           appointments={appointments}
-          vans={visibleVans}
+          vans={vans}
           date={date}
           setDate={setDate}
           isGroomer={isGroomer}
