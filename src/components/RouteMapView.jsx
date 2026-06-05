@@ -162,15 +162,18 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
     }
   }, [rutaAppts, mapLoaded]);
 
+  // Estado para mini modal de cita seleccionada en el mapa
+  const [selectedApptData, setSelectedApptData] = useState(null);
+
   // Exponer función global para el botón en InfoWindow
   useEffect(() => {
     window.raykotaOpenAppt = (apptId) => {
       if (infoWindowRef.current) infoWindowRef.current.close();
-      setSelectedAppt(apptId);
-      setViewMode('lista');
+      const appt = appointments.find(a => a.id === apptId);
+      if (appt) setSelectedApptData(appt);
     };
     return () => { delete window.raykotaOpenAppt; };
-  }, [setSelectedAppt, setViewMode]);
+  }, [setSelectedAppt, setViewMode, appointments]);
 
   // Formatear fecha
   const formatDay = (iso) => {
@@ -251,7 +254,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
               const sc = STATUS_COLORS_MAP[appt.status] || STATUS_COLORS_MAP.unconfirmed;
               return (
                 <div key={appt.id}
-                  onClick={() => { setSelectedAppt(appt.id); setViewMode('lista'); }}
+                  onClick={() => setSelectedApptData(appt)}
                   style={{
                     minWidth: 160, padding: '10px 12px',
                     background: sc.bg, border: `1.5px solid ${sc.border}`,
@@ -278,6 +281,46 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
           </div>
         )}
       </div>
+
+      {/* Mini modal de cita seleccionada */}
+      {selectedApptData && (
+        <div style={{
+          position: 'absolute', left: 12, right: 12, bottom: '38%', zIndex: 20,
+          background: '#fff', borderRadius: 14, padding: '16px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          border: '1px solid #e2e8f0',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>{selectedApptData.client?.name}</div>
+              <div style={{ fontSize: 13, color: '#64748b' }}>⏰ {selectedApptData.timeStart}{selectedApptData.timeEnd ? ` — ${selectedApptData.timeEnd}` : ''}</div>
+            </div>
+            <button onClick={() => setSelectedApptData(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8' }}>✕</button>
+          </div>
+          {selectedApptData.client?.address && (
+            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>📍 {selectedApptData.client.address}</div>
+          )}
+          {(selectedApptData.pets || []).length > 0 && (
+            <div style={{ fontSize: 13, marginBottom: 12 }}>
+              {selectedApptData.pets.map(ap => (
+                <div key={ap.id}>🐾 <strong>{ap.pet?.name}</strong> — {ap.service || '—'} · ${ap.amount || 0}</div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {selectedApptData.client?.address && (
+              <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedApptData.client.address)}`, '_blank')}
+                style={{ flex: 1, padding: '8px', background: '#1a73e8', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                🗺️ Maps
+              </button>
+            )}
+            <button onClick={() => { setSelectedApptData(null); setSelectedAppt(selectedApptData.id); setViewMode('lista'); }}
+              style={{ flex: 2, padding: '8px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+              Ver detalles completos →
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Contador */}
       {rutaAppts.length > 0 && (
