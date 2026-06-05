@@ -5744,10 +5744,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {groomerAppts.map(appt => {
                         const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
-                        const isExpanded = expandedAppt === appt.id;
+                        const isExpanded = selectedAppt === appt.id;
                         return (
                           <div key={appt.id}
-                            onClick={() => setExpandedAppt(isExpanded ? null : appt.id)}
+                            onClick={() => setSelectedAppt(isExpanded ? null : appt.id)}
                             style={{ padding: '10px 14px', background: sc.bg, borderRadius: 10, border: `1.5px solid ${sc.border}`, cursor: 'pointer' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                               <div>
