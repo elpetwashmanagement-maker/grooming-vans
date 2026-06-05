@@ -1,17 +1,21 @@
 // src/components/RouteMapView.jsx
-// Vista de Ruta con mapa fullscreen, marcadores y ventanas emergentes
+// Vista de Ruta fullscreen con mapa interactivo estilo MoeGo
 
 import { useEffect, useRef, useState } from 'react';
 
-export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myVanId, session, setSelectedAppt, setViewMode }) {
+export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myVanId, session, setSelectedAppt, setViewMode, updateApptStatus }) {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
   const directionsRendererRef = useRef(null);
   const infoWindowRef = useRef(null);
 
-  const [selectedVan, setSelectedVan] = useState(isGroomer ? myVanId : vans[0]?.id);
+  const [selectedVan, setSelectedVan] = useState(isGroomer ? myVanId : (vans.find(v => v.active !== false)?.id || vans[0]?.id));
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [optimized, setOptimized] = useState(false);
+
+  const today = new Date().toISOString().slice(0, 10);
 
   // Citas del día para la van seleccionada
   const rutaAppts = appointments
@@ -20,258 +24,295 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
 
   const rutaVan = vans.find(v => v.id === selectedVan);
 
+  // Stats del día
+  const totalExpected = rutaAppts.reduce((s, a) => s + (a.pets || []).reduce((ss, ap) => ss + (ap.amount || 0), 0), 0);
+  const totalPets = rutaAppts.reduce((s, a) => s + (a.pets || []).length, 0);
+
   // Navegar día
-  const changeDay = (direction) => {
+  const changeDay = (dir) => {
     const d = new Date(date + 'T12:00:00');
-    d.setDate(d.getDate() + direction);
+    d.setDate(d.getDate() + dir);
     const tz = d.getTimezoneOffset() * 60000;
     setDate(new Date(d - tz).toISOString().slice(0, 10));
+    setSelectedCard(null);
+    setOptimized(false);
+  };
+
+  const formatDay = (iso) => {
+    const d = new Date(iso + 'T12:00:00');
+    if (iso === today) return 'Today';
+    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  const STATUS_COLORS = {
+    unconfirmed: { bg: '#fffbeb', border: '#fcd34d', text: '#92400e', dot: '#f59e0b', label: 'Unconfirmed' },
+    confirmed:   { bg: '#f0fdfa', border: '#6ee7b7', text: '#065f46', dot: '#10b981', label: 'Confirmed' },
+    in_progress: { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af', dot: '#3b82f6', label: 'In Progress' },
+    completed:   { bg: '#f8fafc', border: '#cbd5e1', text: '#475569', dot: '#94a3b8', label: 'Completed' },
   };
 
   // Inicializar mapa
   useEffect(() => {
     const initMap = () => {
       if (!mapRef.current || !window.google?.maps) return;
-
       mapInstanceRef.current = new window.google.maps.Map(mapRef.current, {
-        center: { lat: 26.1224, lng: -80.1373 }, // Plantation, FL
+        center: { lat: 26.1224, lng: -80.1373 },
         zoom: 12,
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        styles: [
-          { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-        ],
+        zoomControl: true,
+        zoomControlOptions: { position: window.google.maps.ControlPosition.RIGHT_CENTER },
+        styles: [{ featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] }],
       });
-
       directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
         suppressMarkers: true,
-        polylineOptions: { strokeColor: '#0f766e', strokeWeight: 4, strokeOpacity: 0.8 },
+        polylineOptions: { strokeColor: '#0f766e', strokeWeight: 5, strokeOpacity: 0.8 },
       });
       directionsRendererRef.current.setMap(mapInstanceRef.current);
-
       infoWindowRef.current = new window.google.maps.InfoWindow();
       setMapLoaded(true);
     };
-
-    if (window.google?.maps) {
-      initMap();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google?.maps) { clearInterval(interval); initMap(); }
-      }, 500);
+    if (window.google?.maps) { initMap(); }
+    else {
+      const interval = setInterval(() => { if (window.google?.maps) { clearInterval(interval); initMap(); } }, 300);
       return () => clearInterval(interval);
     }
   }, []);
 
-  // Actualizar marcadores cuando cambian las citas
+  // Actualizar marcadores
   useEffect(() => {
     if (!mapLoaded || !mapInstanceRef.current) return;
-
-    // Limpiar marcadores anteriores
     markersRef.current.forEach(m => m.setMap(null));
     markersRef.current = [];
-
     if (rutaAppts.length === 0) return;
 
     const bounds = new window.google.maps.LatLngBounds();
     const geocoder = new window.google.maps.Geocoder();
-
-    // STATUS colors
-    const STATUS_COLORS_MAP = {
-      unconfirmed: '#f59e0b',
-      confirmed: '#0f766e',
-      in_progress: '#3b82f6',
-      completed: '#64748b',
-    };
+    let geocoded = 0;
+    const total = rutaAppts.filter(a => a.client?.address).length;
 
     rutaAppts.forEach((appt, idx) => {
       if (!appt.client?.address) return;
-
       geocoder.geocode({ address: appt.client.address }, (results, status) => {
-        if (status !== 'OK' || !results[0]) return;
-
+        if (status !== 'OK' || !results[0]) { geocoded++; return; }
         const position = results[0].geometry.location;
         bounds.extend(position);
 
-        const statusColor = STATUS_COLORS_MAP[appt.status] || '#94a3b8';
-
-        // Marcador con número de orden
+        const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
         const marker = new window.google.maps.Marker({
           position,
           map: mapInstanceRef.current,
-          label: {
-            text: String(idx + 1),
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: '13px',
-          },
+          label: { text: String(idx + 1), color: '#fff', fontWeight: 'bold', fontSize: '13px' },
           icon: {
             path: window.google.maps.SymbolPath.CIRCLE,
             scale: 18,
-            fillColor: statusColor,
+            fillColor: sc.dot,
             fillOpacity: 1,
             strokeColor: '#fff',
-            strokeWeight: 2,
+            strokeWeight: 2.5,
           },
           title: appt.client?.name || '',
+          zIndex: idx + 1,
         });
 
-        // Info window al hacer click
         marker.addListener('click', () => {
-          const petNames = (appt.pets || []).map(ap => ap.pet?.name).filter(Boolean).join(', ');
-          const content = `
-            <div style="font-family: Manrope, sans-serif; min-width: 200px; padding: 4px;">
-              <div style="font-weight: 800; font-size: 15px; margin-bottom: 4px;">${appt.client?.name || 'Cliente'}</div>
-              <div style="font-size: 12px; color: #64748b; margin-bottom: 4px;">⏰ ${appt.timeStart || ''} ${appt.timeEnd ? '— ' + appt.timeEnd : ''}</div>
-              ${petNames ? `<div style="font-size: 12px; margin-bottom: 8px;">🐾 ${petNames}</div>` : ''}
-              <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">📍 ${appt.client?.address || ''}</div>
-              <button onclick="window.raykotaOpenAppt('${appt.id}')" style="background: #0f766e; color: #fff; border: none; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%;">
-                Ver detalles →
-              </button>
-            </div>
-          `;
-          infoWindowRef.current.setContent(content);
-          infoWindowRef.current.open(mapInstanceRef.current, marker);
+          setSelectedCard(appt);
+          if (infoWindowRef.current) infoWindowRef.current.close();
+          mapInstanceRef.current.panTo(position);
         });
 
         markersRef.current.push(marker);
+        geocoded++;
 
-        // Ajustar bounds
-        if (markersRef.current.length === rutaAppts.filter(a => a.client?.address).length) {
+        if (geocoded === total) {
           mapInstanceRef.current.fitBounds(bounds);
         }
       });
     });
 
-    // Trazar ruta con Directions API
+    // Trazar ruta
     const addresses = rutaAppts.filter(a => a.client?.address).map(a => a.client.address);
     if (addresses.length >= 2) {
-      const directionsService = new window.google.maps.DirectionsService();
-      directionsService.route({
+      const ds = new window.google.maps.DirectionsService();
+      ds.route({
         origin: addresses[0],
         destination: addresses[addresses.length - 1],
         waypoints: addresses.slice(1, -1).map(a => ({ location: a, stopover: true })),
         travelMode: window.google.maps.TravelMode.DRIVING,
-        optimizeWaypoints: false,
+        optimizeWaypoints: optimized,
       }, (result, status) => {
-        if (status === 'OK') {
-          directionsRendererRef.current.setDirections(result);
-        }
+        if (status === 'OK') directionsRendererRef.current.setDirections(result);
       });
     }
-  }, [rutaAppts, mapLoaded]);
+  }, [rutaAppts, mapLoaded, optimized]);
 
-  // Estado para mini modal de cita seleccionada en el mapa
-  const [selectedApptData, setSelectedApptData] = useState(null);
-
-  // Exponer función global para el botón en InfoWindow
-  useEffect(() => {
-    window.raykotaOpenAppt = (apptId) => {
-      if (infoWindowRef.current) infoWindowRef.current.close();
-      const appt = appointments.find(a => a.id === apptId);
-      if (appt) setSelectedApptData(appt);
-    };
-    return () => { delete window.raykotaOpenAppt; };
-  }, [setSelectedAppt, setViewMode, appointments]);
-
-  // Formatear fecha
-  const formatDay = (iso) => {
-    const d = new Date(iso + 'T12:00:00');
-    return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const openMaps = (address) => {
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`, '_blank');
   };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const openFullRoute = () => {
+    const addresses = rutaAppts.filter(a => a.client?.address).map(a => a.client.address);
+    if (addresses.length > 0) {
+      window.open(`https://www.google.com/maps/dir/${addresses.map(a => encodeURIComponent(a)).join('/')}`, '_blank');
+    }
+  };
 
   return (
-    <div style={{ position: 'relative', height: 'calc(100vh - 200px)', minHeight: 500, borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 140px)', minHeight: 550, borderRadius: 16, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#fff' }}>
 
-      {/* Mapa fullscreen */}
-      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-
-      {/* Barra superior — navegación de día + selector de van */}
-      <div style={{
-        position: 'absolute', top: 12, left: 12, right: 12, zIndex: 10,
-        display: 'flex', gap: 8, alignItems: 'center',
-      }}>
-        {/* Navegación de día */}
-        <div style={{
-          background: '#fff', borderRadius: 12, padding: '8px 12px',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-          display: 'flex', alignItems: 'center', gap: 8,
-        }}>
-          <button onClick={() => changeDay(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#0f766e', padding: '0 4px' }}>‹</button>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>
-            {date === today ? '📅 Today' : formatDay(date)}
+      {/* Barra superior */}
+      <div style={{ padding: '10px 14px', background: '#fff', borderBottom: '1px solid #f1f5f9', zIndex: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          {/* Navegación de día */}
+          <button onClick={() => changeDay(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#0f766e', padding: '0 4px' }}>‹</button>
+          <div style={{ flex: 1, textAlign: 'center', fontWeight: 800, fontSize: 15, color: '#0f172a' }}>
+            {formatDay(date)}
           </div>
-          <button onClick={() => changeDay(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#0f766e', padding: '0 4px' }}>›</button>
+          <button onClick={() => changeDay(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#0f766e', padding: '0 4px' }}>›</button>
+          {date !== today && (
+            <button onClick={() => { setDate(today); setSelectedCard(null); }} style={{ fontSize: 12, color: '#0f766e', fontWeight: 700, background: '#f0fdfa', border: '1px solid #0f766e', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}>
+              Today
+            </button>
+          )}
         </div>
 
-        {/* Selector de van (solo admin) */}
-        {!isGroomer && (
-          <div style={{
-            background: '#fff', borderRadius: 12, padding: '4px',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-            display: 'flex', gap: 4, flexWrap: 'wrap',
-          }}>
-            {vans.filter(v => v.active !== false).map(v => (
-              <button key={v.id} onClick={() => setSelectedVan(v.id)} style={{
-                padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: selectedVan === v.id ? '#0f766e' : 'transparent',
-                color: selectedVan === v.id ? '#fff' : '#64748b',
-                fontWeight: selectedVan === v.id ? 700 : 400, fontSize: 12,
-              }}>
-                {v.name}
-              </button>
-            ))}
+        {/* Stats del día */}
+        {rutaAppts.length > 0 && (
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 8 }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f766e' }}>{rutaAppts.length}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>Appts</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f766e' }}>{totalPets}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>Pets</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#0f766e' }}>${totalExpected.toFixed(0)}</div>
+              <div style={{ fontSize: 10, color: '#94a3b8', textTransform: 'uppercase' }}>Expected</div>
+            </div>
+          </div>
+        )}
+
+        {/* Botones de acción ruta */}
+        {rutaAppts.length > 0 && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setOptimized(!optimized); }} style={{
+              flex: 1, padding: '8px', borderRadius: 10, border: `1.5px solid ${optimized ? '#0f766e' : '#e2e8f0'}`,
+              background: optimized ? '#f0fdfa' : '#fff',
+              color: optimized ? '#0f766e' : '#64748b', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+            }}>
+              ⚡ {optimized ? 'Optimized!' : 'Optimize'}
+            </button>
+            <button onClick={openFullRoute} style={{
+              flex: 1, padding: '8px', borderRadius: 10, border: 'none',
+              background: '#1a73e8', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer',
+            }}>
+              📍 Navigate
+            </button>
+          </div>
+        )}
+
+        {/* Selector de van */}
+        {!isGroomer && vans.filter(v => v.active !== false).length > 1 && (
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {vans.filter(v => v.active !== false).map(v => {
+              const count = appointments.filter(a => a.date === date && a.vanId === v.id && a.status !== 'cancelled').length;
+              return (
+                <button key={v.id} onClick={() => { setSelectedVan(v.id); setSelectedCard(null); }} style={{
+                  padding: '4px 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11,
+                  background: selectedVan === v.id ? '#0f766e' : '#f1f5f9',
+                  color: selectedVan === v.id ? '#fff' : '#64748b',
+                  fontWeight: selectedVan === v.id ? 700 : 400,
+                }}>
+                  {v.name} ({count})
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Panel inferior — lista de citas */}
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
-        background: 'rgba(255,255,255,0.95)',
-        backdropFilter: 'blur(10px)',
-        borderTop: '1px solid #e2e8f0',
-        padding: '12px 16px',
-        maxHeight: '35%',
-        overflowY: 'auto',
-      }}>
+      {/* Mapa */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 200 }}>
+        <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      </div>
+
+      {/* Panel inferior — cards horizontales */}
+      <div style={{ background: '#fff', borderTop: '1px solid #f1f5f9', flexShrink: 0 }}>
         {rutaAppts.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14, padding: '8px 0' }}>
-            No appointments for {rutaVan?.name || 'this van'} today
+          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 14, padding: '16px' }}>
+            No appointments for {rutaVan?.name || 'this van'}
+          </div>
+        ) : selectedCard ? (
+          /* Vista detalle de cita seleccionada */
+          <div style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{selectedCard.client?.name}</div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  ⏰ {selectedCard.timeStart}{selectedCard.timeEnd ? ` → ${selectedCard.timeEnd}` : ''}
+                  {' · '}
+                  <span style={{ color: STATUS_COLORS[selectedCard.status]?.dot || '#94a3b8', fontWeight: 600 }}>
+                    {STATUS_COLORS[selectedCard.status]?.label || selectedCard.status}
+                  </span>
+                </div>
+                {selectedCard.client?.address && (
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>📍 {selectedCard.client.address}</div>
+                )}
+              </div>
+              <button onClick={() => setSelectedCard(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: 20 }}>✕</button>
+            </div>
+            {(selectedCard.pets || []).length > 0 && (
+              <div style={{ fontSize: 12, color: '#64748b', marginBottom: 10 }}>
+                {selectedCard.pets.map(ap => `🐾 ${ap.pet?.name || ''} — ${ap.service || ''}`).join(' · ')}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {selectedCard.client?.phone && (
+                <a href={`tel:${selectedCard.client.phone}`} style={{
+                  flex: 1, padding: '10px 8px', background: '#f0fdfa', border: '1.5px solid #0f766e',
+                  borderRadius: 10, color: '#0f766e', fontWeight: 700, fontSize: 13, textAlign: 'center', textDecoration: 'none',
+                }}>📞 Contact</a>
+              )}
+              {selectedCard.client?.address && (
+                <button onClick={() => openMaps(selectedCard.client.address)} style={{
+                  flex: 1, padding: '10px 8px', background: '#eff6ff', border: '1.5px solid #3b82f6',
+                  borderRadius: 10, color: '#1d4ed8', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                }}>🗺️ Directions</button>
+              )}
+              <button onClick={() => { setSelectedAppt(selectedCard.id); setViewMode('lista'); }} style={{
+                flex: 1, padding: '10px 8px', background: '#0f766e', border: 'none',
+                borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              }}>✅ Details</button>
+            </div>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+          /* Lista horizontal de cards */
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 12px', paddingBottom: 12 }}>
             {rutaAppts.map((appt, idx) => {
-              const STATUS_COLORS_MAP = {
-                unconfirmed: { bg: '#fffbeb', border: '#fcd34d', text: '#92400e' },
-                confirmed: { bg: '#f0fdfa', border: '#6ee7b7', text: '#065f46' },
-                in_progress: { bg: '#eff6ff', border: '#93c5fd', text: '#1e40af' },
-                completed: { bg: '#f8fafc', border: '#cbd5e1', text: '#475569' },
-              };
-              const sc = STATUS_COLORS_MAP[appt.status] || STATUS_COLORS_MAP.unconfirmed;
+              const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
               return (
-                <div key={appt.id}
-                  onClick={() => setSelectedApptData(appt)}
-                  style={{
-                    minWidth: 160, padding: '10px 12px',
-                    background: sc.bg, border: `1.5px solid ${sc.border}`,
-                    borderRadius: 10, cursor: 'pointer', flexShrink: 0,
-                  }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                <div key={appt.id} onClick={() => setSelectedCard(appt)} style={{
+                  minWidth: 170, padding: '10px 12px',
+                  background: sc.bg, border: `1.5px solid ${sc.border}`,
+                  borderRadius: 12, cursor: 'pointer', flexShrink: 0,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                     <div style={{
-                      width: 22, height: 22, borderRadius: '50%',
-                      background: '#0f766e', color: '#fff',
+                      width: 24, height: 24, borderRadius: '50%', background: sc.dot, color: '#fff',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 11, fontWeight: 800, flexShrink: 0,
+                      fontSize: 12, fontWeight: 800, flexShrink: 0,
                     }}>{idx + 1}</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: sc.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: sc.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {appt.client?.name?.split(' ')[0] || 'Cliente'}
                     </div>
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b' }}>⏰ {appt.timeStart || ''}</div>
+                  <div style={{ fontSize: 11, color: '#64748b', marginBottom: 3 }}>
+                    ⏰ {appt.timeStart || ''}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}
+                  </div>
+                  <div style={{ fontSize: 11, color: sc.dot, fontWeight: 600, marginBottom: 3 }}>{sc.label}</div>
                   <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     🐾 {(appt.pets || []).map(ap => ap.pet?.name).filter(Boolean).join(', ') || '—'}
                   </div>
@@ -281,59 +322,6 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
           </div>
         )}
       </div>
-
-      {/* Mini modal de cita seleccionada */}
-      {selectedApptData && (
-        <div style={{
-          position: 'absolute', left: 12, right: 12, bottom: '38%', zIndex: 20,
-          background: '#fff', borderRadius: 14, padding: '16px',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
-          border: '1px solid #e2e8f0',
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-            <div>
-              <div style={{ fontWeight: 800, fontSize: 16 }}>{selectedApptData.client?.name}</div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>⏰ {selectedApptData.timeStart}{selectedApptData.timeEnd ? ` — ${selectedApptData.timeEnd}` : ''}</div>
-            </div>
-            <button onClick={() => setSelectedApptData(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: '#94a3b8' }}>✕</button>
-          </div>
-          {selectedApptData.client?.address && (
-            <div style={{ fontSize: 12, color: '#64748b', marginBottom: 8 }}>📍 {selectedApptData.client.address}</div>
-          )}
-          {(selectedApptData.pets || []).length > 0 && (
-            <div style={{ fontSize: 13, marginBottom: 12 }}>
-              {selectedApptData.pets.map(ap => (
-                <div key={ap.id}>🐾 <strong>{ap.pet?.name}</strong> — {ap.service || '—'} · ${ap.amount || 0}</div>
-              ))}
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            {selectedApptData.client?.address && (
-              <button onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(selectedApptData.client.address)}`, '_blank')}
-                style={{ flex: 1, padding: '8px', background: '#1a73e8', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                🗺️ Maps
-              </button>
-            )}
-            <button onClick={() => { setSelectedApptData(null); setSelectedAppt(selectedApptData.id); setViewMode('lista'); }}
-              style={{ flex: 2, padding: '8px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-              Ver detalles completos →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Contador */}
-      {rutaAppts.length > 0 && (
-        <div style={{
-          position: 'absolute', top: 60, right: 12, zIndex: 10,
-          background: '#0f766e', color: '#fff',
-          borderRadius: 20, padding: '6px 14px',
-          fontSize: 12, fontWeight: 700,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-        }}>
-          {rutaAppts.length} stops · {rutaVan?.name}
-        </div>
-      )}
     </div>
   );
 }
