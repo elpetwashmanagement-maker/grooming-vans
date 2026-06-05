@@ -37,10 +37,10 @@ const CORE_MODULES = new Set([
 
 export function useModules(companyId) {
   const [modules, setModules] = useState(() => {
-    // Mientras carga, los CORE ya están disponibles
+    // Mientras carga, activar todos los modulos para evitar pantallas en blanco
     const initial = {};
     Object.values(MODULE_KEYS).forEach(key => {
-      initial[key] = CORE_MODULES.has(key);
+      initial[key] = true;
     });
     return initial;
   });
@@ -77,7 +77,10 @@ export function useModules(companyId) {
       setModules(loaded);
     } catch (err) {
       console.error('Error loading feature flags:', err);
-      // En caso de error, mantener solo CORE activos
+      // En caso de error, activar TODOS los modulos (fail-open)
+      const allEnabled = {};
+      Object.values(MODULE_KEYS).forEach(key => { allEnabled[key] = true; });
+      setModules(allEnabled);
     } finally {
       setLoading(false);
     }
