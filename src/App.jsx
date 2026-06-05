@@ -5615,7 +5615,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             const height = getApptHeight(appt.timeStart, appt.timeEnd);
                             return (
                               <div key={appt.id}
-                                onClick={() => { setSelectedAppt(appt.id); }}
+                                onClick={() => { setSelectedAppt(appt.id); setViewMode('lista'); }}
                                 style={{ position: 'absolute', left: 2, right: 2, top: 2, height: Math.min(height, 44), background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: 6, padding: '2px 4px', cursor: 'pointer', overflow: 'hidden', zIndex: 1 }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, color: sc.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                   {appt.timeStart} {appt.client?.name?.split(' ')[0] || ''}
