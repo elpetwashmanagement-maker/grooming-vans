@@ -18,7 +18,7 @@ const DEFAULT_PAYMENT_METHODS = [
 
 const SQUARE_STATUS = {
   epw: { name: 'El Pet Wash', status: 'active',  label: 'Active ✅',  color: '#16a34a', dashboardUrl: 'https://squareup.com/dashboard' },
-  atw: { name: 'All Tails Wag', status: 'pending', label: 'Pending verification ⏳', color: '#d97706', dashboardUrl: 'https://squareup.com/dashboard' },
+  atw: { name: 'All Tails Wag', status: 'active', label: 'Active ✅', color: '#16a34a', dashboardUrl: 'https://squareup.com/dashboard' },
 };
 
 export function RaykotaPay({ settings, updateSettings }) {
