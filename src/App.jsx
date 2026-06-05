@@ -5,6 +5,7 @@ import { Plus, Trash2, Download, FileText, Settings as SettingsIcon, TrendingUp,
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
+import { ModuleGuard } from "./components/ModuleGuard";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { CombosAdmin, ComboChip, DEFAULT_COMBOS, DEFAULT_BLADES } from "./components/CombosAdmin";
