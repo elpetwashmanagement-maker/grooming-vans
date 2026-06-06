@@ -4877,10 +4877,32 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       {(appt.status === 'completed' || appt.status === 'admin_review') && (
                         <button onClick={async () => {
                           const { data } = await supabase.from('invoices').select('*').eq('appointment_id', appt.id).single();
-                          if (data) setShowInvoice({ ...data, services: typeof data.services === 'string' ? JSON.parse(data.services) : data.services });
-                          else alert('No invoice found for this appointment');
+                          if (data) {
+                            setShowInvoice({ ...data, services: typeof data.services === 'string' ? JSON.parse(data.services) : data.services });
+                          } else {
+                            // Construir pre-invoice desde los datos de la cita
+                            const van = vans.find(v => v.id === appt.vanId);
+                            const companyId = van?.companyId || appt.companyId || 'epw';
+                            const subtotal = (appt.pets || []).reduce((s, ap) => s + (ap.amount || 0), 0);
+                            const method = appt.pets?.[0]?.method || 'Cash';
+                            const tip = appt.pets?.[0]?.tip || 0;
+                            const cardFee = appt.pets?.[0]?.card_fee || 0;
+                            const gasFee = settings?.gasFee || 7;
+                            const total = subtotal + tip + cardFee;
+                            setShowInvoice({
+                              invoiceNumber: 'PRE-INVOICE',
+                              companyId,
+                              clientName: appt.client?.name || '',
+                              clientAddress: appt.client?.address || '',
+                              groomerName: session?.userName || van?.groomer || '',
+                              vanName: van?.name || '',
+                              date: appt.date,
+                              services: (appt.pets || []).map(ap => ({ petName: ap.pet?.name || 'Pet', service: ap.service || '', amount: ap.amount || 0 })),
+                              subtotal, gasFee, cardFee, tip, total, method,
+                            });
+                          }
                         }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
-                          🧾 View Invoice
+                          🧾 {appt.status === 'admin_review' ? 'Pre-Invoice' : 'View Invoice'}
                         </button>
                       )}
                       {appt.client?.address && (
