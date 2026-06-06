@@ -4616,91 +4616,166 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
 
 
 
-      {/* ===== VISTA WEEK y MONTH ===== */}
-      {(viewMode === 'week' || viewMode === 'month') && (() => {
-        const wRange = getWeekRange(date);
-        const mStart = date.slice(0,7) + '-01';
-        const mEnd = (() => { const d = new Date(mStart + 'T12:00:00'); return new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().slice(0,10); })();
-        const rStart = viewMode === 'week' ? wRange.start : mStart;
-        const rEnd = viewMode === 'week' ? wRange.end : mEnd;
-        const rAppts = appointments.filter(a => {
-          if (a.date < rStart || a.date > rEnd) return false;
-          if (isGroomer) return a.vanId === myVanId;
-          if (filterVanId !== 'todos' && filterVanId !== 'epw' && filterVanId !== 'atw') return a.vanId === filterVanId;
-          if (filterVanId === 'epw' || filterVanId === 'atw') return vans.find(v => v.id === a.vanId)?.companyId === filterVanId;
-          return true;
-        }).sort((a,b) => a.date.localeCompare(b.date) || (a.timeStart||'').localeCompare(b.timeStart||''));
-        const byDay = {};
-        rAppts.forEach(a => { if (!byDay[a.date]) byDay[a.date] = []; byDay[a.date].push(a); });
-        if (rAppts.length === 0) return (
-          <div style={styles.empty}>
-            <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No appointments this {viewMode}</p>
-          </div>
-        );
+      {/* ===== VISTA MONTH ===== */}
+      {viewMode === 'month' && (() => {
+        const d = new Date(date + 'T12:00:00');
+        const year = d.getFullYear();
+        const month = d.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDow = (firstDay.getDay() + 6) % 7;
+        const totalDays = lastDay.getDate();
+        const toISO = (y, m, day) => `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         return (
           <div>
-            {Object.entries(byDay).map(([dayDate, dayList]) => (
-              <div key={dayDate} style={{ marginBottom: 20 }}>
-                <div style={{ padding: '8px 12px', background: dayDate === todayISO() ? '#f0fdfa' : '#f8fafc', borderRadius: 10, border: '1px solid ' + (dayDate === todayISO() ? '#0f766e' : '#e2e8f0'), marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
-                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 15, fontWeight: 700, color: dayDate === todayISO() ? '#0f766e' : '#0f172a' }}>
-                    {formatDateNice(dayDate)}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>{dayList.length} apts</div>
-                </div>
-                {dayList.map(appt => {
-                  const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
-                  const isOpen = selectedAppt === appt.id;
-                  return (
-                    <div key={appt.id} style={{ ...styles.card, borderLeft: '3px solid ' + sc.border, cursor: 'pointer', marginBottom: 10 }} onClick={() => { setDate(appt.date); setSelectedAppt(isOpen ? null : appt.id); }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[appt.status]}</span>
-                            <span style={{ fontSize: 12, color: '#64748b' }}>{appt.timeStart}{appt.timeEnd ? ' — ' + appt.timeEnd : ''}</span>
-                          </div>
-                          <div style={{ fontWeight: 600, fontSize: 15 }}>{appt.client?.name || 'No client'}</div>
-                          {!isGroomer && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{appt.client?.address}</div>}
-                          {appt.pets?.length > 0 && (
-                            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                              {appt.pets.map(ap => (
-                                <span key={ap.id} style={{ fontSize: 12, padding: '3px 8px', background: '#f1f5f9', borderRadius: 999, color: '#64748b' }}>
-                                  🐾 {ap.pet?.name || 'Pet'} {ap.service ? '— ' + ap.service : ''} {ap.amount ? '$' + ap.amount : ''}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {!isGroomer && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{vans.find(v => v.id === appt.vanId)?.name}</div>}
-                        </div>
-                        <div style={{ color: '#94a3b8', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <button onClick={() => { const p = new Date(year, month-1, 1); setDate(toISO(p.getFullYear(), p.getMonth(), 1)); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b' }}>‹</button>
+              <div style={{ flex: 1, textAlign: 'center', fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 700 }}>{monthNames[month]} {year}</div>
+              <button onClick={() => { const n = new Date(year, month+1, 1); setDate(toISO(n.getFullYear(), n.getMonth(), 1)); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b' }}>›</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 4 }}>
+              {DAY_LABELS.map(dl => (
+                <div key={dl} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', padding: '4px 0' }}>{dl}</div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+              {Array.from({ length: startDow }).map((_, i) => <div key={`e-${i}`} style={{ minHeight: 80, background: '#fafafa' }} />)}
+              {Array.from({ length: totalDays }).map((_, i) => {
+                const dayNum = i + 1;
+                const iso = toISO(year, month, dayNum);
+                const dayApptsList = appointments.filter(a => {
+                  if (a.date !== iso) return false;
+                  if (isGroomer) return a.vanId === myVanId;
+                  if (filterVanId !== 'todos' && filterVanId !== 'epw' && filterVanId !== 'atw') return a.vanId === filterVanId;
+                  if (filterVanId === 'epw' || filterVanId === 'atw') return vans.find(v => v.id === a.vanId)?.companyId === filterVanId;
+                  return true;
+                });
+                const isToday = iso === todayISO();
+                const dogCount = dayApptsList.reduce((s,a) => s + (a.pets||[]).filter(p => (p.pet?.species||'dog') === 'dog').length, 0);
+                const catCount = dayApptsList.reduce((s,a) => s + (a.pets||[]).filter(p => p.pet?.species === 'cat').length, 0);
+                return (
+                  <div key={iso} style={{ minHeight: 80, background: isToday ? '#fff8f0' : '#fff', border: `1px solid ${isToday ? '#f97316' : '#e2e8f0'}`, padding: '4px 3px', position: 'relative' }}>
+                    <div style={{ fontSize: 12, fontWeight: isToday ? 800 : 500, color: isToday ? '#f97316' : '#0f172a', marginBottom: 3 }}>{dayNum}</div>
+                    {dayApptsList.slice(0,3).map(appt => (
+                      <div key={appt.id}
+                        onClick={() => { setDate(iso); setSelectedAppt(appt.id); setViewMode('lista'); }}
+                        style={{ background: '#0f172a', color: '#fff', borderRadius: 4, padding: '2px 5px', fontSize: 10, fontWeight: 600, marginBottom: 2, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {appt.client?.name?.split(' ').slice(0,2).join(' ') || 'Client'}
                       </div>
-                      {isOpen && (
-                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-                            {appt.status === 'unconfirmed' && (
-                              <button onClick={() => updateApptStatus(appt.id, 'confirmed')} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>✅ Confirm</button>
-                            )}
-                            {(appt.status === 'confirmed' || appt.status === 'unconfirmed') && (
-                              <button onClick={() => handleCheckin(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', borderColor: '#16a34a' }}>🚀 Check In</button>
-                            )}
-                            {appt.status === 'in_progress' && (
-                              <button onClick={() => handleComplete(appt)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>💰 Collect</button>
-                            )}
-                            {appt.client?.address && (
-                              <button onClick={() => openMaps(appt.client.address)} style={{ ...styles.btnSecondary, justifyContent: 'center' }}>📍 Maps</button>
-                            )}
-                            <button onClick={() => { setDate(appt.date); setViewMode('lista'); setSelectedAppt(appt.id); }}
-                              style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
-                              📋 Full Detail
-                            </button>
-                          </div>
-                          {appt.notes && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 6 }}>📝 {appt.notes}</div>}
-                        </div>
-                      )}
+                    ))}
+                    {dayApptsList.length > 3 && (
+                      <div style={{ fontSize: 9, color: '#94a3b8', fontWeight: 600 }}>+{dayApptsList.length - 3} more</div>
+                    )}
+                    <div style={{ display: 'flex', gap: 4, marginTop: 3, fontSize: 10 }}>
+                      <span>🐕{dogCount}</span>
+                      <span>🐈{catCount}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ===== VISTA WEEK ===== */}
+      {viewMode === 'week' && (() => {
+        const { start: wStart, end: wEnd } = getWeekRange(date);
+        const days = [];
+        let cur = new Date(wStart + 'T12:00:00');
+        while (true) {
+          const tz = cur.getTimezoneOffset() * 60000;
+          const iso = new Date(cur - tz).toISOString().slice(0,10);
+          days.push(iso);
+          if (iso >= wEnd) break;
+          cur.setDate(cur.getDate() + 1);
+        }
+        const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+        const HOURS = Array.from({ length: 13 }, (_, i) => i + 7);
+        return (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <button onClick={() => { const p = new Date(wStart + 'T12:00:00'); p.setDate(p.getDate()-7); const tz = p.getTimezoneOffset()*60000; setDate(new Date(p-tz).toISOString().slice(0,10)); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b' }}>‹</button>
+              <div style={{ flex: 1, textAlign: 'center', fontFamily: 'Fraunces, serif', fontSize: 16, fontWeight: 700 }}>
+                {new Date(wStart+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})} — {new Date(wEnd+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+              </div>
+              <button onClick={() => { const n = new Date(wStart + 'T12:00:00'); n.setDate(n.getDate()+7); const tz = n.getTimezoneOffset()*60000; setDate(new Date(n-tz).toISOString().slice(0,10)); }}
+                style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#64748b' }}>›</button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '44px repeat(7, minmax(90px, 1fr))', minWidth: 700 }}>
+                <div style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0', padding: '6px 4px' }} />
+                {days.map((d, i) => {
+                  const dayApptsList = appointments.filter(a => {
+                    if (a.date !== d) return false;
+                    if (isGroomer) return a.vanId === myVanId;
+                    if (filterVanId !== 'todos' && filterVanId !== 'epw' && filterVanId !== 'atw') return a.vanId === filterVanId;
+                    if (filterVanId === 'epw' || filterVanId === 'atw') return vans.find(v => v.id === a.vanId)?.companyId === filterVanId;
+                    return true;
+                  });
+                  const isToday = d === todayISO();
+                  const dogCount = dayApptsList.reduce((s,a) => s + (a.pets||[]).filter(p => (p.pet?.species||'dog') === 'dog').length, 0);
+                  const catCount = dayApptsList.reduce((s,a) => s + (a.pets||[]).filter(p => p.pet?.species === 'cat').length, 0);
+                  return (
+                    <div key={d} style={{ background: isToday ? '#fff8f0' : '#f8fafc', borderBottom: '2px solid #e2e8f0', borderLeft: '1px solid #e2e8f0', padding: '6px 4px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' }}>{DAY_LABELS[i]}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: isToday ? '#f97316' : '#0f172a' }}>{d.slice(8)}</div>
+                      <div style={{ fontSize: 10, display: 'flex', justifyContent: 'center', gap: 6 }}>
+                        <span>🐕{dogCount}</span><span>🐈{catCount}</span>
+                      </div>
                     </div>
                   );
                 })}
+                {HOURS.map(hour => {
+                  const hourStr = `${hour.toString().padStart(2,'0')}:00`;
+                  const nextHourStr = `${(hour+1).toString().padStart(2,'0')}:00`;
+                  return (
+                    <React.Fragment key={hour}>
+                      <div style={{ padding: '4px 4px 0 0', fontSize: 10, color: '#94a3b8', textAlign: 'right', borderTop: '1px solid #f1f5f9', background: '#f8fafc', minHeight: 60 }}>
+                        {hour === 12 ? '12pm' : hour < 12 ? `${hour}am` : `${hour-12}pm`}
+                      </div>
+                      {days.map(d => {
+                        const slotAppts = appointments.filter(a => {
+                          if (a.date !== d) return false;
+                          if (isGroomer && a.vanId !== myVanId) return false;
+                          if (!a.timeStart) return false;
+                          const [h] = a.timeStart.split(':').map(Number);
+                          return h === hour;
+                        });
+                        const isToday = d === todayISO();
+                        return (
+                          <div key={d} style={{ borderTop: '1px solid #f1f5f9', borderLeft: '1px solid #f1f5f9', minHeight: 60, background: isToday ? 'rgba(249,115,22,0.03)' : '#fff', padding: 2 }}>
+                            {slotAppts.map(appt => {
+                              const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+                              return (
+                                <div key={appt.id}
+                                  onClick={() => { setDate(d); setSelectedAppt(appt.id); setViewMode('lista'); }}
+                                  style={{ background: '#0f172a', color: '#fff', borderRadius: 6, padding: '4px 6px', marginBottom: 2, cursor: 'pointer', fontSize: 10 }}>
+                                  <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {appt.client?.name?.split(' ').slice(0,2).join(' ')}
+                                  </div>
+                                  {appt.pets?.slice(0,1).map(ap => (
+                                    <div key={ap.id} style={{ opacity: 0.8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {ap.pet?.name} · {ap.service?.split(' ')[0]}
+                                    </div>
+                                  ))}
+                                  <div style={{ opacity: 0.7 }}>${(appt.pets||[]).reduce((s,ap) => s+(ap.amount||0),0).toFixed(0)}</div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </React.Fragment>
+                  );
+                })}
               </div>
-            ))}
+            </div>
           </div>
         );
       })()}
