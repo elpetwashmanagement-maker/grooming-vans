@@ -3542,10 +3542,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       subtotal, gasFee, cardFee, tip, total, method,
     };
 
+    // Guardar invoice en BD para que groomer y admin lo puedan ver
+    const invoiceNumber = await getNextInvoiceNumber(companyId);
+    const invoiceToSave = { ...summaryInvoice, invoiceNumber, status: 'pending_review' };
+    await saveInvoice(invoiceToSave);
     setSaving(false);
     setShowCobroForm(null);
     setSelectedAppt(null);
-    setShowInvoice(summaryInvoice);
+    setShowInvoice({ ...invoiceToSave });
   };
 
   const handleSaveGrooming = async (apptId, petId) => {
