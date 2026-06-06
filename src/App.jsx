@@ -4002,13 +4002,40 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   <div style={styles.suggestionsBox}>
                     {filteredClients.slice(0, 6).map(c => (
                       <button key={c.id} onMouseDown={async () => {
-                        setNewApptForm(f => ({...f, clientId: c.id, petIds: []}));
                         setClientSearch(c.name);
                         setPetServices({});
                         setLoadingApptPets(true);
-                        const { data } = await supabase.from('pets').select('*').eq('client_id', c.id).order('name');
-                        setApptClientPets(data || []);
+                        const { data: petsData } = await supabase.from('pets').select('*').eq('client_id', c.id).order('name');
+                        setApptClientPets(petsData || []);
                         setLoadingApptPets(false);
+                        // Cita inteligente — jalar última cita del cliente
+                        const { data: lastAppts } = await supabase.from('appointments')
+                          .select('*, appointment_pets(*)')
+                          .eq('client_id', c.id)
+                          .in('status', ['completed', 'admin_review'])
+                          .order('date', { ascending: false })
+                          .limit(1);
+                        const lastAppt = lastAppts?.[0];
+                        if (lastAppt) {
+                          const lastPetIds = (lastAppt.appointment_pets || []).map(ap => String(ap.pet_id)).filter(Boolean);
+                          const lastService = lastAppt.appointment_pets?.[0]?.service || '';
+                          const lastAmount = lastAppt.appointment_pets?.[0]?.amount || 0;
+                          const lastVanId = lastAppt.van_id || '';
+                          const lastCompanyId = vans.find(v => v.id === lastVanId)?.companyId || 'epw';
+                          const lastTimeStart = lastAppt.time_start || '08:00';
+                          setNewApptForm(f => ({
+                            ...f,
+                            clientId: c.id,
+                            petIds: lastPetIds,
+                            vanId: lastVanId || f.vanId,
+                            companyId: lastCompanyId,
+                            timeStart: lastTimeStart,
+                            serviceName: lastService,
+                            servicePrice: lastAmount,
+                          }));
+                        } else {
+                          setNewApptForm(f => ({...f, clientId: c.id, petIds: []}));
+                        }
                       }}
                         className="suggestion-hover" style={styles.suggestionItem}>
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
