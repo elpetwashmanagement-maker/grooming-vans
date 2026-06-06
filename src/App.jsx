@@ -4620,7 +4620,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       {(viewMode === 'week' || viewMode === 'month') && (() => {
         const wRange = getWeekRange(date);
         const mStart = date.slice(0,7) + '-01';
-        const mEnd = new Date(new Date(mStart).getFullYear(), new Date(mStart).getMonth()+1, 0).toISOString().slice(0,10);
+        const mEnd = (() => { const d = new Date(mStart + 'T12:00:00'); return new Date(d.getFullYear(), d.getMonth()+1, 0).toISOString().slice(0,10); })();
         const rStart = viewMode === 'week' ? wRange.start : mStart;
         const rEnd = viewMode === 'week' ? wRange.end : mEnd;
         const rAppts = appointments.filter(a => {
