@@ -89,23 +89,21 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
         positions.push({ position, idx });
 
         const isSelected = selectedCard?.id === appt.id;
+        const svgMarker = {
+          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="50" viewBox="0 0 40 50">
+              <circle cx="20" cy="20" r="18" fill="${isSelected ? '#f97316' : '#0f172a'}" stroke="white" stroke-width="3"/>
+              <text x="20" y="26" text-anchor="middle" fill="white" font-size="14" font-weight="bold" font-family="Arial">${idx + 1}</text>
+              <line x1="20" y1="38" x2="20" y2="50" stroke="${isSelected ? '#f97316' : '#0f172a'}" stroke-width="3"/>
+            </svg>
+          `),
+          scaledSize: new window.google.maps.Size(40, 50),
+          anchor: new window.google.maps.Point(20, 50),
+        };
         const marker = new window.google.maps.Marker({
           position,
           map: mapInstanceRef.current,
-          label: {
-            text: String(idx + 1),
-            color: '#fff',
-            fontWeight: 'bold',
-            fontSize: '13px',
-          },
-          icon: {
-            path: window.google.maps.SymbolPath.CIRCLE,
-            fillColor: isSelected ? '#f97316' : '#0f172a',
-            fillOpacity: 1,
-            strokeColor: '#fff',
-            strokeWeight: 2,
-            scale: 18,
-          },
+          icon: svgMarker,
           title: appt.client?.name || '',
         });
 
