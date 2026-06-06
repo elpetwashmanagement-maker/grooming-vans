@@ -4023,6 +4023,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           const lastVanId = lastAppt.van_id || '';
                           const lastCompanyId = vans.find(v => v.id === lastVanId)?.companyId || 'epw';
                           const lastTimeStart = lastAppt.time_start || '08:00';
+                          // Buscar serviceId por nombre
+                          const matchedSvc = servicePrices.find(sp => sp.name === lastService || sp.category === lastService);
                           setNewApptForm(f => ({
                             ...f,
                             clientId: c.id,
@@ -4031,6 +4033,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             companyId: lastCompanyId,
                             timeStart: lastTimeStart,
                             serviceName: lastService,
+                            serviceId: matchedSvc?.id || '',
                             servicePrice: lastAmount,
                           }));
                         } else {
