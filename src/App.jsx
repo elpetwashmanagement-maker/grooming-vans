@@ -4356,7 +4356,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 const addons = (servicePrices || []).filter(p => p.category === 'Add-on');
                 const uniqueAddons = [...new Map(addons.map(a => [a.name, a])).values()];
 
-                const currentAddons = petSvc.addons || [];
+                const currentAddons = petSvc?.addons || [];
 
                 return (
                   <div key={petId} style={{ marginBottom: 10, padding: '10px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
