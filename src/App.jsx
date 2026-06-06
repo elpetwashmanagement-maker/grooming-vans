@@ -4614,6 +4614,103 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
         );
       })()}
 
+
+      {/* ===== VISTA LISTA ===== */}
+      {viewMode === 'lista' && (dayAppts.length === 0 ? (
+        <div style={styles.empty}>
+          <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No appointments for this day</p>
+          <p style={{ marginTop: 6, fontSize: 13, color: '#94a3b8' }}>Add a new appointment with the button above</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {dayAppts.map(appt => {
+            const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+            const isOpen = selectedAppt === appt.id;
+            return (
+              <div key={appt.id} style={{ ...styles.card, borderLeft: `3px solid ${sc.border}`, cursor: 'pointer' }} onClick={() => setSelectedAppt(isOpen ? null : appt.id)}>
+                {appt.alertNotes && (
+                  <div style={{ fontSize: 11, color: '#92400e', background: '#fffbeb', padding: '4px 8px', borderRadius: 6, marginBottom: 8 }}>
+                    ⚠️ {appt.alertNotes}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>
+                        {STATUS_LABELS[appt.status]}
+                      </span>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>
+                        {appt.timeStart}{appt.timeEnd ? ` — ${appt.timeEnd}` : ''}
+                      </span>
+                    </div>
+                    <div style={{ fontWeight: 600, fontSize: 15 }}>{appt.client?.name || 'No client'}</div>
+                    {!isGroomer && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{appt.client?.address}</div>}
+                    {appt.pets?.length > 0 && (
+                      <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {appt.pets.map(ap => (
+                          <span key={ap.id} style={{ fontSize: 12, padding: '3px 8px', background: '#f1f5f9', borderRadius: 999, color: '#64748b' }}>
+                            🐾 {ap.pet?.name || 'Pet'} {ap.service ? `— ${ap.service}` : ''} {ap.amount ? `$${ap.amount}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {!isGroomer && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{vans.find(v => v.id === appt.vanId)?.name} — {vans.find(v => v.id === appt.vanId)?.groomer}</div>}
+                  </div>
+                  <div style={{ color: '#94a3b8', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</div>
+                </div>
+                {isOpen && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 14 }}>
+                      {!appt.agreementSigned && (
+                        <button onClick={() => setShowSignature(appt)}
+                          style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#f59e0b', color: '#92400e', background: '#fffbeb', gridColumn: 'span 2' }}>
+                          ✍️ Sign Agreement
+                        </button>
+                      )}
+                      {appt.status === 'unconfirmed' && (
+                        <button onClick={() => updateApptStatus(appt.id, 'confirmed')} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
+                          ✅ Confirm
+                        </button>
+                      )}
+                      {(appt.status === 'confirmed' || appt.status === 'unconfirmed') && (
+                        <button onClick={() => handleCheckin(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', borderColor: '#16a34a' }}>
+                          🚀 Check In
+                        </button>
+                      )}
+                      {appt.status === 'in_progress' && (
+                        <button onClick={() => handleComplete(appt)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>
+                          💰 Complete & Collect
+                        </button>
+                      )}
+                      {appt.status === 'completed' && (
+                        <button onClick={async () => {
+                          const { data } = await supabase.from('invoices').select('*').eq('appointment_id', appt.id).single();
+                          if (data) setShowInvoice({ ...data, services: typeof data.services === 'string' ? JSON.parse(data.services) : data.services });
+                        }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
+                          🧾 View Invoice
+                        </button>
+                      )}
+                      {appt.client?.address && (
+                        <button onClick={() => openMaps(appt.client.address)} style={{ ...styles.btnSecondary, justifyContent: 'center' }}>
+                          📍 Maps
+                        </button>
+                      )}
+                      {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
+                        <button onClick={() => { if (confirm('Cancel this appointment?')) updateApptStatus(appt.id, 'cancelled'); }}
+                          style={{ ...styles.btnDanger, justifyContent: 'center' }}>
+                          ✕ Cancel
+                        </button>
+                      )}
+                    </div>
+                    {appt.notes && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 6 }}>📝 {appt.notes}</div>}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+
       {/* Modal de firma */}
       {showSignature && (
         <SignatureModal
