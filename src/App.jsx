@@ -4301,10 +4301,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         );
                       })}
                     </div>
-                    {currentSvc && (
+                    {currentSvc && currentSvc.service && (
                       <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 10px', background: '#f0fdfa', borderRadius: 8 }}>
                         <span>✅ {currentSvc.service}</span>
-                        <span style={{ fontWeight: 700, color: '#0f766e' }}>${currentSvc.price}</span>
+                        <span style={{ fontWeight: 700, color: '#0f766e' }}>${currentSvc.basePrice || currentSvc.price}</span>
                       </div>
                     )}
                     </div>
