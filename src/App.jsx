@@ -4915,15 +4915,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>📱 Quick Messages</div>
                             {msgs.map((m, i) => (
-                              <button key={i} onClick={async () => {
-                                const ok = confirm(`Send this message?\n\n${m.text}`);
-                                if (!ok) return;
-                                const result = await sendSMS(appt.client.phone, m.text, companyId);
-                                if (result.success) alert('✅ Message sent!');
-                                else alert('❌ Error sending message');
-                              }} style={{ ...styles.btnSecondary, justifyContent: 'flex-start', gap: 8, fontSize: 13 }}>
+                              <a key={i} href={`sms:${appt.client.phone}&body=${encodeURIComponent(m.text)}`}
+                                style={{ ...styles.btnSecondary, justifyContent: 'flex-start', gap: 8, fontSize: 13, textDecoration: 'none' }}>
                                 {m.icon} {m.label}
-                              </button>
+                              </a>
                             ))}
                           </div>
                         );
