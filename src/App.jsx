@@ -4866,8 +4866,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         </a>
                       )}
                       {!isGroomer && appt.client?.phone && (
-                        <a href={`https://wa.me/${appt.client.phone.replace(/\D/g,'')}`} target='_blank' rel='noreferrer' style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#25d366', color: '#25d366' }}>
-                          💬 WhatsApp
+                        <a href={`sms:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#3b82f6', color: '#3b82f6' }}>
+                          💬 SMS
                         </a>
                       )}
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
