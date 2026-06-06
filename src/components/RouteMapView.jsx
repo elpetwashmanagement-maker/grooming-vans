@@ -167,12 +167,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
       {/* Map */}
       <div ref={mapRef} style={{ flex: 1, width: '100%' }} />
 
-      {/* Stats bar */}
-      <div style={{ position: 'absolute', bottom: 200, left: 16, right: 16, display: 'flex', gap: 8, justifyContent: 'center' }}>
-        <div style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(10px)', borderRadius: 20, padding: '6px 14px', color: '#fff', fontSize: 13, fontWeight: 600 }}>
-          {rutaAppts.length} stops · ${rutaAppts.reduce((s, a) => s + (a.pets || []).reduce((ps, ap) => ps + (ap.amount || 0), 0), 0).toFixed(0)}
-        </div>
-      </div>
+
 
       {/* Cards */}
       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, paddingBottom: 20 }}>
