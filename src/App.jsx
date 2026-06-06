@@ -4860,6 +4860,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           📍 Maps
                         </button>
                       )}
+                      {!isGroomer && appt.client?.phone && (
+                        <a href={`tel:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#0f766e', color: '#0f766e' }}>
+                          📞 Contact
+                        </a>
+                      )}
+                      {!isGroomer && appt.client?.phone && (
+                        <a href={`https://wa.me/${appt.client.phone.replace(/\D/g,'')}`} target='_blank' rel='noreferrer' style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#25d366', color: '#25d366' }}>
+                          💬 WhatsApp
+                        </a>
+                      )}
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
                         <button onClick={() => { if (confirm('Cancel this appointment?')) updateApptStatus(appt.id, 'cancelled'); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
