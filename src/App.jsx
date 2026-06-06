@@ -4861,9 +4861,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         </button>
                       )}
                       {!isGroomer && appt.client?.phone && (
-                        <a href={`tel:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#0f766e', color: '#0f766e' }}>
-                          📞 Contact
-                        </a>
+                        <div style={{ position: 'relative', display: 'flex', gap: 6 }}>
+                          <a href={`tel:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#0f766e', color: '#0f766e', flex: 1 }}>
+                            📞 Call
+                          </a>
+                          <a href={`sms:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#3b82f6', color: '#3b82f6', flex: 1 }}>
+                            💬 SMS
+                          </a>
+                        </div>
                       )}
 
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
