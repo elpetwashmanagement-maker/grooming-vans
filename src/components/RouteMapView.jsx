@@ -183,7 +183,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
             No appointments for this day
           </div>
         ) : (
-          <div ref={cardScrollRef} style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '0 16px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+          <div ref={cardScrollRef} style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '0 16px 80px 16px', scrollSnapType: 'x mandatory', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
             {rutaAppts.map((appt, idx) => {
               const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
               const isSelected = selectedCard?.id === appt.id;
