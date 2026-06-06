@@ -5519,7 +5519,12 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
   };
 
   const handleReopen = async (appt) => {
-    await updateApptStatus(appt.id, 'in_progress');
+    if (!confirm('⚠️ Reopen this appointment?\n\nThis will:\n• Change status back to In Progress\n• Delete the financial record and invoice\n• Return to Close Review queue\n\nContinue?')) return;
+    // Borrar registro financiero para que se pueda re-aprobar
+    await supabase.from('invoices').delete().eq('appointment_id', appt.id);
+    await supabase.from('services').delete().eq('appointment_id', appt.id);
+    // Cambiar status a admin_review para que vuelva al Close Review
+    await updateApptStatus(appt.id, 'admin_review');
     await refreshAppointments();
   };
 
