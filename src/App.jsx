@@ -5687,15 +5687,30 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
                   <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>Gas fee ${settings?.gasFee || 7} → empresa</div>
                 </div>
 
+                {/* Editar precios antes de aprobar */}
+                <div style={{ marginTop: 10, padding: '10px 12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>✏️ Edit prices before approving</div>
+                  {(appt.pets || []).map((ap, i) => (
+                    <div key={ap.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: 13 }}>🐾 {ap.pet?.name || 'Pet'} — {ap.service || ''}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 13, color: '#64748b' }}>$</span>
+                        <input type='number' step='0.01' defaultValue={ap.amount || 0}
+                          onBlur={async e => {
+                            const newAmount = parseFloat(e.target.value) || 0;
+                            await supabase.from('appointment_pets').update({ amount: newAmount }).eq('id', ap.id);
+                            await refreshAppointments();
+                          }}
+                          style={{ width: 80, padding: '4px 8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, fontWeight: 700, textAlign: 'right' }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
                 {/* Botones */}
                 <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                   <button onClick={() => handleApproveOne(appt)} disabled={saving}
-                    style={{ flex: 2, padding: '11px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                    style={{ flex: 1, padding: '11px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                     {saving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : '✅'} Approve & Close
-                  </button>
-                  <button onClick={() => handleReopen(appt)}
-                    style={{ flex: 1, padding: '11px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, color: '#dc2626', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                    ↩ Reopen
                   </button>
                 </div>
               </div>
