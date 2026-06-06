@@ -3378,6 +3378,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [showPhotos, setShowPhotos] = useState(null); // appt id
   const [viewingPhoto, setViewingPhoto] = useState(null);
   const [reasignForm, setReasignForm] = useState({ vanId: '', groomerId: '' });
+  const [expandedAppt, setExpandedAppt] = useState(null);
   const [showInvoice, setShowInvoice] = useState(null);
 
   const isGroomer = session?.role === 'groomer';
