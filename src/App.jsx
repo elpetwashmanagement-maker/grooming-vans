@@ -4870,10 +4870,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           💰 Complete & Collect
                         </button>
                       )}
-                      {appt.status === 'completed' && (
+                      {(appt.status === 'completed' || appt.status === 'admin_review') && (
                         <button onClick={async () => {
                           const { data } = await supabase.from('invoices').select('*').eq('appointment_id', appt.id).single();
                           if (data) setShowInvoice({ ...data, services: typeof data.services === 'string' ? JSON.parse(data.services) : data.services });
+                          else alert('No invoice found for this appointment');
                         }} style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
                           🧾 View Invoice
                         </button>
