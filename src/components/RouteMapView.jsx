@@ -270,7 +270,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
               </div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
-              {selectedCard.client?.phone && (
+              {selectedCard.client?.phone && !isGroomer && (
                 <a href={`tel:${selectedCard.client.phone}`} style={{
                   flex: 1, padding: '10px 8px', background: '#f0fdfa', border: '1.5px solid #0f766e',
                   borderRadius: 10, color: '#0f766e', fontWeight: 700, fontSize: 13, textAlign: 'center', textDecoration: 'none',
@@ -282,7 +282,7 @@ export function RouteMapView({ appointments, vans, date, setDate, isGroomer, myV
                   borderRadius: 10, color: '#1d4ed8', fontWeight: 700, fontSize: 13, cursor: 'pointer',
                 }}>🗺️ Directions</button>
               )}
-              <button onClick={() => { setSelectedAppt(selectedCard.id); setViewMode('lista'); }} style={{
+              <button onClick={() => { setDate(selectedCard.date); setSelectedAppt(selectedCard.id); setViewMode('lista'); }} style={{
                 flex: 1, padding: '10px 8px', background: '#0f766e', border: 'none',
                 borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
               }}>✅ Details</button>
