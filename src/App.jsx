@@ -4865,11 +4865,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           📞 Contact
                         </a>
                       )}
-                      {!isGroomer && appt.client?.phone && (
-                        <a href={`sms:${appt.client.phone}`} style={{ ...styles.btnSecondary, justifyContent: 'center', textDecoration: 'none', borderColor: '#3b82f6', color: '#3b82f6' }}>
-                          💬 SMS
-                        </a>
-                      )}
+
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
                         <button onClick={() => { if (confirm('Cancel this appointment?')) updateApptStatus(appt.id, 'cancelled'); }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
