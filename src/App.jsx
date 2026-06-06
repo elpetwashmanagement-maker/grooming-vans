@@ -173,10 +173,22 @@ const SQUARE_CONFIG = {
     scriptUrl: 'https://sandbox.web.squarecdn.com/v1/square.js',
   },
   production: {
-    appId: import.meta.env.VITE_SQUARE_APP_ID || 'sq0idp-HnbL8ULCx-2jtvYlfKdtEQ',
-    locationId: import.meta.env.VITE_SQUARE_LOCATION_ID || 'L2FFGMCZY3V9J',
+    appId: import.meta.env.VITE_SQUARE_APP_ID || 'sq0idp-NMrGOWJsE92t5QnHfFvk5g',
+    locationId: import.meta.env.VITE_SQUARE_LOCATION_ID || 'LVYKDEEJCC7NE',
     scriptUrl: 'https://web.squarecdn.com/v1/square.js',
   }
+};
+
+// Square por empresa
+const SQUARE_BY_COMPANY = {
+  epw: {
+    appId: 'sq0idp-NMrGOWJsE92t5QnHfFvk5g',
+    locationId: 'LVYKDEEJCC7NE',
+  },
+  atw: {
+    appId: 'sq0idp-8BUBQILfZCghnkzFNC3rrQ',
+    locationId: 'L2GY0521F3XAG',
+  },
 };
 
 // Square por empresa
