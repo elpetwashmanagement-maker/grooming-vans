@@ -1,52 +1,36 @@
-// api/send-sms.js — Raykota SMS via Twilio
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
-
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { to, message, companyId, clientId, clientName } = req.body;
-  if (!to || !message) {
-    return res.status(400).json({ error: 'Missing fields' });
-  }
+  const { to, message, companyId } = req.body;
 
-  const accountSid       = process.env.TWILIO_ACCOUNT_SID;
-  const authToken        = process.env.TWILIO_AUTH_TOKEN;
-  const messagingService = process.env.TWILIO_MESSAGING_SERVICE_SID;
-
-  if (!accountSid || !authToken || !messagingService) {
-    return res.status(500).json({ error: 'Twilio not configured' });
-  }
+  const fromNumber = companyId === 'atw'
+    ? process.env.OPENPHONE_NUMBER_ATW
+    : process.env.OPENPHONE_NUMBER_EPW;
 
   try {
-    const twilio = (await import('twilio')).default;
-    const client = twilio(accountSid, authToken);
-    const msg = await client.messages.create({
-      body: message,
-      messagingServiceSid: messagingService,
-      to,
+    const response = await fetch('https://api.openphone.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': process.env.OPENPHONE_API_KEY,
+      },
+      body: JSON.stringify({
+        from: fromNumber,
+        to: [to],
+        content: message,
+      }),
     });
 
-    // Guardar en tabla messages
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-    await supabase.from('messages').insert({
-      id: msg.sid,
-      client_id: clientId || null,
-      client_name: clientName || to,
-      phone: to,
-      company_id: companyId || 'epw',
-      direction: 'outbound',
-      body: message,
-      status: 'sent',
-      twilio_sid: msg.sid,
-    });
+    const data = await response.json();
 
-    return res.status(200).json({ success: true, sid: msg.sid });
+    if (!response.ok) {
+      console.error('OpenPhone error:', data);
+      return res.status(400).json({ success: false, error: data });
+    }
+
+    return res.status(200).json({ success: true, data });
   } catch (err) {
-    console.error('Twilio error:', err.message);
+    console.error('SMS error:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
