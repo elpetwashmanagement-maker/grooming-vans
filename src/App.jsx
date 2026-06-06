@@ -4873,9 +4873,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             const van = vans.find(v => v.id === appt.vanId);
                             const companyId = van?.companyId || appt.companyId || 'epw';
                             const subtotal = (appt.pets || []).reduce((s, ap) => s + (ap.amount || 0), 0);
-                            const method = appt.pets?.[0]?.method || 'Cash';
-                            const tip = appt.pets?.[0]?.tip || 0;
-                            const cardFee = appt.pets?.[0]?.card_fee || 0;
+                            const method = appt.pets?.[0]?.method || appt.payment_method || 'Cash';
+                            const tip = appt.pets?.[0]?.tip || appt.payment_tip || 0;
+                            const cardFeePct = settings?.cardFeePct || 5.5;
+                            const cardFee = method === 'Credit Card' ? parseFloat(((subtotal + tip) * cardFeePct / 100).toFixed(2)) : (appt.pets?.[0]?.card_fee || appt.payment_card_fee || 0);
                             const gasFee = settings?.gasFee || 7;
                             const total = subtotal + tip + cardFee;
                             setShowInvoice({
