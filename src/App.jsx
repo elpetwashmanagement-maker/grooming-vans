@@ -4615,6 +4615,96 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
       })()}
 
 
+
+      {/* ===== VISTA WEEK y MONTH ===== */}
+      {(viewMode === 'week' || viewMode === 'month') && (() => {
+        const wRange = getWeekRange(date);
+        const mStart = date.slice(0,7) + '-01';
+        const mEnd = new Date(new Date(mStart).getFullYear(), new Date(mStart).getMonth()+1, 0).toISOString().slice(0,10);
+        const rStart = viewMode === 'week' ? wRange.start : mStart;
+        const rEnd = viewMode === 'week' ? wRange.end : mEnd;
+        const rAppts = appointments.filter(a => {
+          if (a.date < rStart || a.date > rEnd) return false;
+          if (isGroomer) return a.vanId === myVanId;
+          if (filterVanId !== 'todos' && filterVanId !== 'epw' && filterVanId !== 'atw') return a.vanId === filterVanId;
+          if (filterVanId === 'epw' || filterVanId === 'atw') return vans.find(v => v.id === a.vanId)?.companyId === filterVanId;
+          return true;
+        }).sort((a,b) => a.date.localeCompare(b.date) || (a.timeStart||'').localeCompare(b.timeStart||''));
+        const byDay = {};
+        rAppts.forEach(a => { if (!byDay[a.date]) byDay[a.date] = []; byDay[a.date].push(a); });
+        if (rAppts.length === 0) return (
+          <div style={styles.empty}>
+            <p style={{ margin: 0, fontFamily: 'Fraunces, serif', fontSize: 18, color: '#64748b' }}>No appointments this {viewMode}</p>
+          </div>
+        );
+        return (
+          <div>
+            {Object.entries(byDay).map(([dayDate, dayList]) => (
+              <div key={dayDate} style={{ marginBottom: 20 }}>
+                <div style={{ padding: '8px 12px', background: dayDate === todayISO() ? '#f0fdfa' : '#f8fafc', borderRadius: 10, border: '1px solid ' + (dayDate === todayISO() ? '#0f766e' : '#e2e8f0'), marginBottom: 10, display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 15, fontWeight: 700, color: dayDate === todayISO() ? '#0f766e' : '#0f172a' }}>
+                    {formatDateNice(dayDate)}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>{dayList.length} apts</div>
+                </div>
+                {dayList.map(appt => {
+                  const sc = STATUS_COLORS[appt.status] || STATUS_COLORS.unconfirmed;
+                  const isOpen = selectedAppt === appt.id;
+                  return (
+                    <div key={appt.id} style={{ ...styles.card, borderLeft: '3px solid ' + sc.border, cursor: 'pointer', marginBottom: 10 }} onClick={() => { setDate(appt.date); setSelectedAppt(isOpen ? null : appt.id); }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: sc.bg, color: sc.text }}>{STATUS_LABELS[appt.status]}</span>
+                            <span style={{ fontSize: 12, color: '#64748b' }}>{appt.timeStart}{appt.timeEnd ? ' — ' + appt.timeEnd : ''}</span>
+                          </div>
+                          <div style={{ fontWeight: 600, fontSize: 15 }}>{appt.client?.name || 'No client'}</div>
+                          {!isGroomer && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{appt.client?.address}</div>}
+                          {appt.pets?.length > 0 && (
+                            <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                              {appt.pets.map(ap => (
+                                <span key={ap.id} style={{ fontSize: 12, padding: '3px 8px', background: '#f1f5f9', borderRadius: 999, color: '#64748b' }}>
+                                  🐾 {ap.pet?.name || 'Pet'} {ap.service ? '— ' + ap.service : ''} {ap.amount ? '$' + ap.amount : ''}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {!isGroomer && <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>{vans.find(v => v.id === appt.vanId)?.name}</div>}
+                        </div>
+                        <div style={{ color: '#94a3b8', fontSize: 12 }}>{isOpen ? '▲' : '▼'}</div>
+                      </div>
+                      {isOpen && (
+                        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                            {appt.status === 'unconfirmed' && (
+                              <button onClick={() => updateApptStatus(appt.id, 'confirmed')} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>✅ Confirm</button>
+                            )}
+                            {(appt.status === 'confirmed' || appt.status === 'unconfirmed') && (
+                              <button onClick={() => handleCheckin(appt.id)} style={{ ...styles.btnPrimary, justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', borderColor: '#16a34a' }}>🚀 Check In</button>
+                            )}
+                            {appt.status === 'in_progress' && (
+                              <button onClick={() => handleComplete(appt)} style={{ ...styles.btnPrimary, justifyContent: 'center' }}>💰 Collect</button>
+                            )}
+                            {appt.client?.address && (
+                              <button onClick={() => openMaps(appt.client.address)} style={{ ...styles.btnSecondary, justifyContent: 'center' }}>📍 Maps</button>
+                            )}
+                            <button onClick={() => { setDate(appt.date); setViewMode('lista'); setSelectedAppt(appt.id); }}
+                              style={{ ...styles.btnSecondary, justifyContent: 'center', borderColor: '#0f766e', color: '#0f766e' }}>
+                              📋 Full Detail
+                            </button>
+                          </div>
+                          {appt.notes && <div style={{ fontSize: 12, color: '#64748b', padding: '6px 10px', background: '#f8fafc', borderRadius: 6 }}>📝 {appt.notes}</div>}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* ===== VISTA LISTA ===== */}
       {viewMode === 'lista' && (dayAppts.length === 0 ? (
         <div style={styles.empty}>
