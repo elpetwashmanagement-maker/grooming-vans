@@ -5111,7 +5111,7 @@ function GasSection({ vanId, vans, fuelLogs, setFuelLogs, isAdmin }) {
                   ))}
                 </div>
               )}
-              <button onClick={() => { setViewMode('lista'); }} style={{
+              <button onClick={() => { setViewMode('lista'); setTimeout(() => setSelectedAppt(appt.id), 50); }} style={{
                 width: '100%', padding: '10px', background: '#0f766e', border: 'none',
                 borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>
@@ -9584,7 +9584,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
                   ))}
                 </div>
               )}
-              <button onClick={() => { setViewMode('lista'); }} style={{
+              <button onClick={() => { setViewMode('lista'); setTimeout(() => setSelectedAppt(appt.id), 50); }} style={{
                 width: '100%', padding: '10px', background: '#0f766e', border: 'none',
                 borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer',
               }}>
