@@ -675,6 +675,8 @@ const saveVan = async (van) => {
   const { error } = await supabase.from('vans').upsert({
     id: van.id, name: van.name, groomer: van.groomer || '', pin: van.pin,
     commission_pct: van.commissionPct || 45,
+    active: van.active !== false,
+    company_id: van.companyId || 'epw',
   });
   if (error) console.error(error);
 };
@@ -6864,7 +6866,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => setEditingGroomer({...g})}
                           style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', cursor: 'pointer' }}><Edit2 size={13} /></button>
-                        <button onClick={() => toggleGroomerActive(g.id)}
+                        <button onClick={() => toggleGroomerActive(g.id, g.active === false ? true : false)}
                           style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 8, padding: '5px 8px', cursor: 'pointer', fontSize: 11, color: g.active !== false ? '#dc2626' : '#0f766e' }}>
                           {g.active !== false ? 'Off' : 'On'}
                         </button>
