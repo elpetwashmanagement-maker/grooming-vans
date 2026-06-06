@@ -191,17 +191,6 @@ const SQUARE_BY_COMPANY = {
   },
 };
 
-// Square por empresa
-const SQUARE_BY_COMPANY = {
-  epw: {
-    appId: 'sq0idp-NMrGOWJsE92t5QnHfFvk5g',
-    locationId: 'LVYKDEEJCC7NE',
-  },
-  atw: {
-    appId: 'sq0idp-8BUBQILfZCghnkzFNC3rrQ',
-    locationId: 'L2GY0521F3XAG',
-  },
-};
 
 const SQUARE_ENV = 'production';
 const SQ = SQUARE_CONFIG[SQUARE_ENV];
