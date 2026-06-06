@@ -4373,7 +4373,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                               const addonsTotal = newAddons.reduce((sum, a) => sum + a.price, 0);
                               setPetServices(prev => ({
                                 ...prev,
-                                [String(petId)]: { ...prev[String(petId)], addons: newAddons, price: (prev[String(petId)]?.basePrice || prev[String(petId)]?.price || 0) + addonsTotal }
+                                [String(petId)]: { ...prev[String(petId)], addons: newAddons }
                               }));
                             }}
                             style={{ padding: '5px 10px', background: selected ? '#f0fdfa' : '#fff', border: `1.5px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 999, cursor: 'pointer', fontSize: 12, fontWeight: selected ? 700 : 400, color: selected ? '#0f766e' : '#64748b' }}>
