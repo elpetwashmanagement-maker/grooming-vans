@@ -4351,7 +4351,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 const pet = pets.find(p => String(p.id) === String(petId));
                 if (!pet) return null;
                 const petSvc = petServices[String(petId)];
-                if (!petSvc) return null; // solo mostrar add-ons si tiene servicio
+                // add-ons visibles siempre
 
                 const addons = (servicePrices || []).filter(p => p.category === 'Add-on');
                 const uniqueAddons = [...new Map(addons.map(a => [a.name, a])).values()];
