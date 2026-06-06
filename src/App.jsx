@@ -5254,6 +5254,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
           </div>
         </div>
       )}
+      {showInvoice && (
+        <InvoiceModal invoice={showInvoice} onClose={() => setShowInvoice(null)} />
+      )}
     </div>
   );
 }
