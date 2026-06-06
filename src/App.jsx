@@ -1550,9 +1550,20 @@ function AppMain() {
     await updateAppointmentStatus(id, status);
   };
   const deleteAppt = async (id) => {
+    const appt = appointments.find(a => a.id === id);
+    const isCompleted = appt?.status === 'completed';
+    const msg = isCompleted
+      ? '⚠️ This appointment is COMPLETED.\n\nThis will delete:\n• Appointment\n• Financial records (services, invoice)\n• Grooming records\n\nCannot be undone. Continue?'
+      : '⚠️ Delete this appointment? Cannot be undone.';
+    if (!confirm(msg)) return;
     setAppointments(prev => prev.filter(a => a.id !== id));
+    await supabase.from('grooming_records').delete().eq('appointment_id', id);
+    await supabase.from('grooming_photos').delete().eq('appointment_id', id);
+    await supabase.from('invoices').delete().eq('appointment_id', id);
+    await supabase.from('services').delete().eq('appointment_id', id);
     await supabase.from('appointment_pets').delete().eq('appointment_id', id);
     await supabase.from('appointments').delete().eq('id', id);
+    setServices(prev => prev.filter(s => s.appointmentId !== id));
   };
   const refreshAppointments = async () => {
     const appts = await loadAppointments();
