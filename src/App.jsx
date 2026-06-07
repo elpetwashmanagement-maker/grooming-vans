@@ -10753,11 +10753,12 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     setSuggestions([]);
     const refAppt = groomerAppts[0];
     const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
-    const refZip = refClient?.zip;
+    const extractZip = (addr) => { const m = (addr || '').match(/\b(\d{5})\b/); return m ? m[1] : null; };
+    const refZip = refClient?.zip || extractZip(refClient?.address);
     if (!refZip) { setLoading(false); alert('Reference appointment has no ZIP code'); return; }
     const bookedClientIds = groomerAppts.map(a => String(a.clientId));
     const candidateClients = clients.filter(c =>
-      c.zip === refZip &&
+      (c.zip === refZip || extractZip(c.address) === refZip) &&
       !bookedClientIds.includes(String(c.id)) &&
       c.active !== false
     );
