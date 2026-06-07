@@ -10705,6 +10705,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
   const [manualZip, setManualZip] = useState('');
+  const [manualCity, setManualCity] = useState('');
   const GOOGLE_API_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
   // Citas del groomer en la fecha seleccionada
@@ -10760,11 +10761,18 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     if (!refZip) { setLoading(false); alert('No ZIP found. Please enter a ZIP manually.'); return; }
     console.log('Searching ZIP:', refZip, 'candidates:', clients.length);
     const bookedClientIds = groomerAppts.map(a => String(a.clientId));
-    const candidateClients = clients.filter(c =>
-      (c.zip === refZip || extractZip(c.address) === refZip) &&
-      !bookedClientIds.includes(String(c.id)) &&
-      c.active !== false
-    );
+    const extractCity = (addr) => {
+      const m = (addr || '').match(/([A-Za-z\s]+),?\s*FL/i);
+      return m ? m[1].trim().toLowerCase() : null;
+    };
+    const refCity = refClient?.city || extractCity(refClient?.address) || manualCity.toLowerCase();
+    const candidateClients = clients.filter(c => {
+      if (bookedClientIds.includes(String(c.id))) return false;
+      if (c.active === false) return false;
+      if (refZip && (c.zip === refZip || extractZip(c.address) === refZip)) return true;
+      if (refCity && manualCity && (c.city?.toLowerCase() === refCity || extractCity(c.address) === refCity)) return true;
+      return false;
+    });
     const results = candidateClients.map(c => {
       const clientPets = pets.filter(p => String(p.client_id) === String(c.id));
       const lastAppt = appointments.filter(a => String(a.clientId) === String(c.id))
