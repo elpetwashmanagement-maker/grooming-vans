@@ -10755,7 +10755,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     setSuggestions([]);
     const refAppt = groomerAppts[0];
     const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
-    const extractZip = (addr) => { const m = (addr || '').match(/\b(\d{5})(?:-\d{4})?\b(?!.*\d{5})/); return m ? m[0].slice(0,5) : null; };
+    const extractZip = (addr) => { const m = (addr || '').match(/(?:FL|Florida)[,\s]+(\d{5})/i) || (addr || '').match(/,\s*(\d{5})\s*$/); return m ? m[1] : null; };
     const refZip = manualZip || extractZip(refClient?.address);
     console.log('refClient:', refClient?.name, 'address:', refClient?.address, 'zip:', refZip);
     if (!refZip) { setLoading(false); alert('No ZIP found. Please enter a ZIP manually.'); return; }
