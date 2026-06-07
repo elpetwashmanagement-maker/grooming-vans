@@ -269,6 +269,23 @@ const processSquarePayment = async (amountCents, note = '', companyId = 'epw') =
 
 
 // ===== SMS =====
+const sendSMSApi = async (phone, message, companyId) => {
+  try {
+    const res = await fetch('/api/send-sms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: phone, message, companyId: companyId || 'epw' }),
+    });
+    const data = await res.json();
+    if (data.success) console.log('SMS sent:', phone);
+    else console.error('SMS error:', data.error);
+    return data.success;
+  } catch (err) {
+    console.error('SMS failed:', err);
+    return false;
+  }
+};
+
 const sendSMS = async (phone, message, companyId) => {
   if (!phone) return { success: false, error: 'No phone number' };
   const cleanPhone = phone.replace(/\D/g, '');
@@ -4990,10 +5007,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>📱 Quick Messages</div>
                             {msgs.map((m, i) => (
-                              <a key={i} href={`sms:${appt.client.phone}&body=${encodeURIComponent(m.text)}`}
-                                style={{ ...styles.btnSecondary, justifyContent: 'flex-start', gap: 8, fontSize: 13, textDecoration: 'none' }}>
+                              <button key={i} onClick={async () => {
+                                const companyId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
+                                const ok = await sendSMSApi(appt.client.phone, m.text, companyId);
+                                if (ok) alert('✅ Message sent!');
+                                else window.open(`sms:${appt.client.phone}&body=${encodeURIComponent(m.text)}`);
+                              }} style={{ ...styles.btnSecondary, justifyContent: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
                                 {m.icon} {m.label}
-                              </a>
+                              </button>
                             ))}
                           </div>
                         );
@@ -10801,8 +10822,11 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const sendSMS = async (client) => {
     const groomer = groomers.find(g => g.id === selectedGroomer);
     const msg = `Hi ${client.name.split(' ')[0]}! 🐾 We have availability on ${selectedDate} near your area. Would you like to schedule a grooming appointment? Reply YES and we'll get you booked!`;
-    const smsUrl = `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
-    window.open(smsUrl);
+    const groomer = groomers.find(g => g.id === selectedGroomer);
+    const companyId = groomer?.companyId || vans.find(v => v.id === groomer?.vanId)?.companyId || 'epw';
+    const ok = await sendSMSApi(client.phone, msg, companyId);
+    if (ok) alert('✅ Message sent to ' + client.name + '!');
+    else window.open(`sms:${client.phone}?body=${encodeURIComponent(msg)}`);
   };
 
   const bookClient = (suggestion) => {
