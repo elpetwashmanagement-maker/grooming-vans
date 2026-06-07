@@ -4035,8 +4035,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                           const lastVanId = lastAppt.van_id || '';
                           const lastCompanyId = vans.find(v => v.id === lastVanId)?.companyId || 'epw';
                           const lastTimeStart = lastAppt.time_start || '08:00';
-                          // Buscar groomer de la última cita
-                          const lastGroomer = groomers.find(g => g.vanId === lastVanId);
+                          // Buscar groomer activo de la última cita
+                          const lastGroomer = groomers.find(g => g.vanId === lastVanId && g.active !== false);
+                          const lastGroomerCompany = lastGroomer?.companyId || vans.find(v => v.id === lastVanId)?.companyId;
+                          const companyStillActive = vans.some(v => v.companyId === lastGroomerCompany && v.active !== false);
                           // Buscar serviceId por nombre
                           const matchedSvc = servicePrices.find(sp => sp.name === lastService || sp.category === lastService);
                           setNewApptForm(f => ({
@@ -4044,7 +4046,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             clientId: c.id,
                             petIds: lastPetIds,
                             vanId: lastVanId || f.vanId,
-                            groomerId: lastGroomer?.id || f.groomerId,
+                            groomerId: (lastGroomer && companyStillActive) ? lastGroomer.id : f.groomerId,
                             companyId: lastCompanyId,
                             timeStart: lastTimeStart,
                             serviceName: lastService,
