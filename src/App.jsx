@@ -4120,7 +4120,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   }}
                   style={styles.input}>
                   <option value="">Select groomer...</option>
-                  {groomers.filter(g => g.active !== false && (!newApptForm.companyId || g.companyId === newApptForm.companyId || vans.find(v => v.id === g.vanId)?.companyId === newApptForm.companyId)).map(g => {
+                  {groomers.filter(g => {
+                    if (g.active === false) return false;
+                    const gCoId = g.companyId || vans.find(v => v.id === g.vanId)?.companyId;
+                    const hasActiveVans = vans.some(v => v.companyId === gCoId && v.active !== false);
+                    if (!hasActiveVans) return false;
+                    if (newApptForm.companyId && newApptForm.companyId !== gCoId) return false;
+                    return true;
+                  }).map(g => {
                     const company = DEFAULT_COMPANIES.find(c => c.id === (g.companyId || vans.find(v => v.id === g.vanId)?.companyId));
                     return <option key={g.id} value={g.id}>{g.name} {company ? `(${company.logoEmoji})` : ''}</option>;
                   })}
