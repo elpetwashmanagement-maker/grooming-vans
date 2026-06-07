@@ -1624,6 +1624,7 @@ function AppMain() {
   const isManager = session.role === 'manager';
   const isGroomer = session.role === 'groomer';
   const isViewer = session.role === 'viewer' || session.role === 'viewer-epw' || session.role === 'viewer-atw';
+  const isFinance = session.role === 'finance';
   // Viewer ve solo su empresa
   const viewerCompanyId = isViewer ? session.companyId : null;
   const canViewFinances = session.permissions?.can_view_finances || isAdmin;
@@ -2777,8 +2778,8 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
   ].filter(t => t.show);
 
-  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e', viewer: '#b45309' };
-  const roleLabels = { admin: 'Admin', manager: 'Manager', groomer: 'Groomer', viewer: 'Viewer' };
+  const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e', viewer: '#b45309', finance: '#0369a1' };
+  const roleLabels = { admin: 'Admin', manager: 'Manager', groomer: 'Groomer', viewer: 'Viewer', finance: 'Finance' };
 
   const handleTabClick = (id) => {
     setTab(id);
@@ -6740,7 +6741,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   const [editingCategory, setEditingCategory] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [newUser, setNewUser] = useState({ name: '', role: 'manager', email: '', pin: '', van_id: '', can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false });
+  const [newUser, setNewUser] = useState({ name: '', role: 'manager', companyId: 'epw', email: '', pin: '', van_id: '', can_create_clients: true, can_view_clients: true, can_schedule: true, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false });
   const [editingPrice, setEditingPrice] = useState({});
   const [showNewService, setShowNewService] = useState(false);
   const [newService, setNewService] = useState({ category: 'Add-on', name: '', size: '', hair_type: '', price: '', duration_minutes: 60 });
@@ -6996,6 +6997,8 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                     style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
                     <option value="admin">👑 Admin</option>
                     <option value="manager">📋 Manager</option>
+                    <option value="finance">💰 Finance</option>
+                    <option value="viewer">👁️ Viewer</option>
                   </select>
                 </div>
               </div>
