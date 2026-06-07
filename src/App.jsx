@@ -3687,6 +3687,16 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
         await saveAppointmentPet({ ...ap, appointmentId: appt.id });
       }
     }
+    // Auto-asignar empresa al cliente
+    const apptCompanyId = newApptForm.companyId || van?.companyId || 'epw';
+    const existingClient = clients.find(c => String(c.id) === String(newApptForm.clientId));
+    if (existingClient) {
+      const existingCompanies = existingClient.companies || [];
+      if (!existingCompanies.includes(apptCompanyId)) {
+        const updatedCompanies = [...existingCompanies, apptCompanyId];
+        await supabase.from('clients').update({ companies: updatedCompanies }).eq('id', existingClient.id);
+      }
+    }
 
     // SMS: appointment confirmation (solo si no es pending_review y el client tiene phone)
     if (appt.status !== 'pending_review') {
