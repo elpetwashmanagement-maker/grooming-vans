@@ -1724,6 +1724,7 @@ function AppMain() {
         {tab === 'week' && canViewReports && <WeekTab vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} lockedCompanyId={isFinance ? session.companyId : null} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <ModuleGuard module="gps_routes"><VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} /></ModuleGuard>}
+        {tab === 'smart-fill' && (isAdmin || isManager) && <SmartFillTab groomers={groomers} vans={vans} appointments={appointments} clients={clients} pets={pets} settings={settings} addAppointment={addAppointment} servicePrices={servicePrices} session={session} />}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
             services={services} clearServices={clearServices} categories={categories}
@@ -2785,6 +2786,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: (isAdmin || isManager) && !isFinance && isEnabled('boarding') },
     { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer || isFinance },
     { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: (isAdmin || isManager) && !isFinance && isEnabled('gps_routes') },
+    { id: 'smart-fill',     label: 'Smart Fill',    icon: '💡', show: (isAdmin || isManager) && !isFinance },
     { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin || isFinance },
     { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin && isEnabled('audit') },
     { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
@@ -10690,6 +10692,269 @@ function MessagesTab({ clients, vans, session }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+
+// ===== SMART FILL TAB =====
+function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, addAppointment, servicePrices, session }) {
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [selectedGroomer, setSelectedGroomer] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const GOOGLE_API_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
+
+  // Citas del groomer en la fecha seleccionada
+  const groomerAppts = useMemo(() => {
+    if (!selectedGroomer) return [];
+    const groomer = groomers.find(g => g.id === selectedGroomer);
+    return appointments.filter(a => 
+      a.date === selectedDate && 
+      (a.groomerId === selectedGroomer || a.vanId === groomer?.vanId) &&
+      a.status !== 'cancelled'
+    ).sort((a, b) => (a.timeStart || '').localeCompare(b.timeStart || ''));
+  }, [selectedGroomer, selectedDate, appointments, groomers]);
+
+  // Detectar huecos en el schedule
+  const gaps = useMemo(() => {
+    const result = [];
+    const workStart = '08:00';
+    const workEnd = '18:00';
+    if (groomerAppts.length === 0) {
+      result.push({ start: workStart, end: workEnd, label: 'Full day available' });
+      return result;
+    }
+    if (groomerAppts[0].timeStart > workStart) {
+      result.push({ start: workStart, end: groomerAppts[0].timeStart, label: `Morning gap` });
+    }
+    for (let i = 0; i < groomerAppts.length - 1; i++) {
+      const gapStart = groomerAppts[i].timeEnd || groomerAppts[i].timeStart;
+      const gapEnd = groomerAppts[i + 1].timeStart;
+      if (gapStart && gapEnd && gapStart < gapEnd) {
+        result.push({ start: gapStart, end: gapEnd, label: `Gap between appointments` });
+      }
+    }
+    const lastAppt = groomerAppts[groomerAppts.length - 1];
+    if (lastAppt.timeEnd && lastAppt.timeEnd < workEnd) {
+      result.push({ start: lastAppt.timeEnd, end: workEnd, label: 'Afternoon gap' });
+    }
+    return result;
+  }, [groomerAppts]);
+
+  // Buscar clientes cercanos
+  const findNearbyCients = async () => {
+    if (!selectedGroomer || groomerAppts.length === 0) {
+      alert('Select a groomer with at least one appointment first');
+      return;
+    }
+    setLoading(true);
+    setSuggestions([]);
+    // Dirección de referencia — primera cita del día
+    const refAppt = groomerAppts[0];
+    const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
+    const refAddress = refClient?.address;
+    if (!refAddress) { setLoading(false); alert('Reference appointment has no address'); return; }
+
+    // Clientes que no tienen cita ese día y tienen dirección
+    const bookedClientIds = groomerAppts.map(a => String(a.clientId));
+    const candidateClients = clients.filter(c => 
+      c.address && 
+      !bookedClientIds.includes(String(c.id)) &&
+      c.active !== false
+    );
+
+    // Calcular distancias con Google Distance Matrix
+    try {
+      const destinations = candidateClients.slice(0, 25).map(c => encodeURIComponent(c.address)).join('|');
+      const origin = encodeURIComponent(refAddress);
+      const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destinations}&units=imperial&key=${GOOGLE_API_KEY}`;
+      const res = await fetch(`https://corsproxy.io/?${url}`);
+      const data = await res.json();
+      
+      const results = [];
+      (data.rows?.[0]?.elements || []).forEach((el, idx) => {
+        if (el.status === 'OK' && el.distance?.value < 8047) { // < 5 miles
+          const client = candidateClients[idx];
+          const clientPets = pets.filter(p => String(p.client_id) === String(client.id));
+          const lastAppt = appointments.filter(a => String(a.clientId) === String(client.id))
+            .sort((a, b) => b.date.localeCompare(a.date))[0];
+          results.push({
+            client,
+            pets: clientPets,
+            distance: el.distance.text,
+            distanceValue: el.distance.value,
+            lastAppt,
+            lastService: lastAppt?.serviceName || '',
+            lastPrice: lastAppt?.servicePrice || 0,
+            weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000 * 60 * 60 * 24 * 7)) : 99,
+          });
+        }
+      });
+      results.sort((a, b) => a.distanceValue - b.distanceValue);
+      setSuggestions(results);
+    } catch (err) {
+      console.error(err);
+      // Fallback sin distancias
+      const fallback = candidateClients.slice(0, 10).map(c => {
+        const clientPets = pets.filter(p => String(p.client_id) === String(c.id));
+        const lastAppt = appointments.filter(a => String(a.clientId) === String(c.id))
+          .sort((a, b) => b.date.localeCompare(a.date))[0];
+        return { client: c, pets: clientPets, distance: 'N/A', distanceValue: 0, lastAppt, lastService: lastAppt?.serviceName || '', lastPrice: lastAppt?.servicePrice || 0, weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000 * 60 * 60 * 24 * 7)) : 99 };
+      });
+      setSuggestions(fallback);
+    }
+    setLoading(false);
+  };
+
+  const sendSMS = async (client) => {
+    const groomer = groomers.find(g => g.id === selectedGroomer);
+    const msg = `Hi ${client.name.split(' ')[0]}! 🐾 We have availability on ${selectedDate} near your area. Would you like to schedule a grooming appointment? Reply YES and we'll get you booked!`;
+    const smsUrl = `sms:${client.phone}?body=${encodeURIComponent(msg)}`;
+    window.open(smsUrl);
+  };
+
+  const bookClient = (suggestion) => {
+    setSelectedClient(suggestion);
+  };
+
+  const lbl = { fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' };
+  const inp = { width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' };
+
+  if (selectedClient) {
+    const groomer = groomers.find(g => g.id === selectedGroomer);
+    const van = vans.find(v => v.id === groomer?.vanId);
+    return (
+      <div style={{ padding: 16, maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+        <button onClick={() => setSelectedClient(null)} style={{ background: 'none', border: 'none', color: '#0f766e', fontWeight: 600, fontSize: 14, cursor: 'pointer', marginBottom: 16 }}>← Back to Smart Fill</button>
+        <div style={{ fontFamily: 'Fraunces, serif', fontSize: 20, fontWeight: 800, marginBottom: 16 }}>📅 Book {selectedClient.client.name}</div>
+        <div style={{ background: '#f0fdfa', border: '1.5px solid #0f766e', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>📋 Appointment Details</div>
+          <div style={{ fontSize: 13, color: '#374151' }}>📅 Date: {selectedDate}</div>
+          <div style={{ fontSize: 13, color: '#374151' }}>✂️ Groomer: {groomer?.name}</div>
+          <div style={{ fontSize: 13, color: '#374151' }}>🐾 Last service: {selectedClient.lastService} — ${selectedClient.lastPrice}</div>
+          <div style={{ fontSize: 13, color: '#374151' }}>📍 Distance: {selectedClient.distance}</div>
+        </div>
+        {gaps.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={lbl}>Available time slots</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {gaps.map((gap, i) => (
+                <div key={i} style={{ padding: '8px 14px', background: '#f0fdfa', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 13, fontWeight: 600, color: '#0f766e' }}>
+                  {gap.start} – {gap.end}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <button onClick={() => {
+          // Redirect to appointments tab with pre-filled data
+          alert(`Ready to book ${selectedClient.client.name} on ${selectedDate} with ${groomer?.name}!\n\nGo to Schedule → New Appointment to complete the booking.`);
+          setSelectedClient(null);
+        }} style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 800, cursor: 'pointer' }}>
+          ✅ Create Appointment
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: 16, maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+      <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, marginBottom: 4 }}>💡 Smart Fill</div>
+      <div style={{ fontSize: 13, color: '#64748b', marginBottom: 20 }}>Find nearby clients to fill schedule gaps</div>
+
+      {/* Selector de groomer y fecha */}
+      <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={lbl}>Date</label>
+            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} style={inp} />
+          </div>
+          <div>
+            <label style={lbl}>Groomer</label>
+            <select value={selectedGroomer} onChange={e => setSelectedGroomer(e.target.value)} style={inp}>
+              <option value="">Select...</option>
+              {groomers.filter(g => g.active !== false).map(g => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Citas del día */}
+      {selectedGroomer && (
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10 }}>📅 {groomerAppts.length} appointment{groomerAppts.length !== 1 ? 's' : ''} on {selectedDate}</div>
+          {groomerAppts.length === 0 ? (
+            <div style={{ color: '#94a3b8', fontSize: 13 }}>No appointments — full day available</div>
+          ) : groomerAppts.map((a, i) => {
+            const client = clients.find(c => String(c.id) === String(a.clientId));
+            return (
+              <div key={i} style={{ padding: '8px 12px', background: '#f8fafc', borderRadius: 8, marginBottom: 6, fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>{a.timeStart} – {a.timeEnd}</span> · {client?.name || 'Unknown'}
+                {client?.address && <div style={{ fontSize: 11, color: '#64748b' }}>📍 {client.address}</div>}
+              </div>
+            );
+          })}
+          {gaps.length > 0 && (
+            <div style={{ marginTop: 10, padding: '8px 12px', background: '#fef9c3', borderRadius: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#854d0e' }}>⏰ {gaps.length} gap{gaps.length > 1 ? 's' : ''} found: {gaps.map(g => `${g.start}–${g.end}`).join(', ')}</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Botón buscar */}
+      {selectedGroomer && (
+        <button onClick={findNearbyCients} disabled={loading}
+          style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
+          {loading ? '🔍 Searching...' : '🔍 Find Nearby Clients'}
+        </button>
+      )}
+
+      {/* Sugerencias */}
+      {suggestions.length > 0 && (
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>
+            📍 {suggestions.length} nearby clients found
+          </div>
+          {suggestions.map((s, i) => (
+            <div key={i} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 14, marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{s.client.name}</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>📍 {s.distance} away</div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>🐾 {s.pets.map(p => p.name).join(', ')}</div>
+                  {s.lastAppt && <div style={{ fontSize: 12, color: '#64748b' }}>Last visit: {s.weeksSince} weeks ago · {s.lastService}</div>}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0f766e' }}>${s.lastPrice}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => sendSMS(s.client)}
+                  style={{ flex: 1, padding: '8px', background: '#f0fdfa', border: '1.5px solid #0f766e', borderRadius: 10, color: '#0f766e', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                  📱 SMS
+                </button>
+                <button onClick={() => window.open(`tel:${s.client.phone}`)}
+                  style={{ flex: 1, padding: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, color: '#374151', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>
+                  📞 Call
+                </button>
+                <button onClick={() => bookClient(s)}
+                  style={{ flex: 1, padding: '8px', background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  📅 Book
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {suggestions.length === 0 && !loading && selectedGroomer && (
+        <div style={{ textAlign: 'center', padding: 32, color: '#94a3b8', fontSize: 14 }}>
+          Press "Find Nearby Clients" to search
+        </div>
+      )}
     </div>
   );
 }
