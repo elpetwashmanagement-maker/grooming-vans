@@ -1628,7 +1628,7 @@ function AppMain() {
   const isViewer = session.role === 'viewer' || session.role === 'viewer-epw' || session.role === 'viewer-atw';
   const isFinance = session.role === 'finance';
   // Viewer ve solo su empresa
-  const viewerCompanyId = isViewer ? session.companyId : null;
+  const viewerCompanyId = (isViewer || isFinance) ? session.companyId : null;
   const canViewFinances = session.permissions?.can_view_finances || isAdmin;
   const canViewReports = session.permissions?.can_view_reports || isAdmin || isViewer;
   const canEditConfig = session.permissions?.can_edit_config || isAdmin;
@@ -1645,7 +1645,7 @@ function AppMain() {
   const visibleVans = isGroomer
     ? (currentVan ? [currentVan] : [])
     : isViewer
-      ? vans.filter(v => v.companyId === viewerCompanyId)
+      ? vans.filter(v => v.companyId === viewerCompanyId || (isFinance && v.companyId === session.companyId))
       : vans; // Admin y manager ven todas
 
   return (
@@ -1684,7 +1684,7 @@ function AppMain() {
         )}
         {tab === 'appointments' && (
           <AppointmentsTab
-            appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
+            appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
             vans={vans} clients={clients} pets={pets}
             session={{ ...session, groomers }} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
@@ -1721,7 +1721,7 @@ function AppMain() {
         )}
         {tab === 'cierre' && <CierreTab vans={vans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
-        {tab === 'week' && canViewReports && <WeekTab vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
+        {tab === 'week' && canViewReports && <WeekTab vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <ModuleGuard module="gps_routes"><VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} /></ModuleGuard>}
         {tab === 'config' && canEditConfig && (
@@ -1735,8 +1735,8 @@ function AppMain() {
         )}
         {tab === 'payroll' && (isAdmin || isViewer || isFinance) && (<ModuleGuard module="payroll">
           <PayrollTab
-            groomers={isViewer ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} vans={isViewer ? visibleVans : vans} services={isViewer ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services}
-            appointments={isViewer ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} settings={settings}
+            groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services}
+            appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} settings={settings}
             groomerPayments={groomerPayments}
             setGroomerPayments={setGroomerPayments}
             session={session}
