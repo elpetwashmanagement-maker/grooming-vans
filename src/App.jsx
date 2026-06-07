@@ -10751,59 +10751,27 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     }
     setLoading(true);
     setSuggestions([]);
-    // Dirección de referencia — primera cita del día
     const refAppt = groomerAppts[0];
     const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
-    const refAddress = refClient?.address;
-    if (!refAddress) { setLoading(false); alert('Reference appointment has no address'); return; }
-
-    // Clientes que no tienen cita ese día y tienen dirección
+    const refZip = refClient?.zip;
+    if (!refZip) { setLoading(false); alert('Reference appointment has no ZIP code'); return; }
     const bookedClientIds = groomerAppts.map(a => String(a.clientId));
-    const candidateClients = clients.filter(c => 
-      c.address && 
+    const candidateClients = clients.filter(c =>
+      c.zip === refZip &&
       !bookedClientIds.includes(String(c.id)) &&
       c.active !== false
     );
-
-    // Calcular distancias con Google Distance Matrix
-    try {
-      const destinations = candidateClients.slice(0, 25).map(c => encodeURIComponent(c.address)).join('|');
-      const origin = encodeURIComponent(refAddress);
-      const res = await fetch('/api/distance-matrix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: refAddress, destinations: candidateClients.slice(0, 25).map(c => c.address) }) });
-      const data = await res.json();
-      
-      const results = [];
-      (data.rows?.[0]?.elements || []).forEach((el, idx) => {
-        if (el.status === 'OK' && el.distance?.value < 8047) { // < 5 miles
-          const client = candidateClients[idx];
-          const clientPets = pets.filter(p => String(p.client_id) === String(client.id));
-          const lastAppt = appointments.filter(a => String(a.clientId) === String(client.id))
-            .sort((a, b) => b.date.localeCompare(a.date))[0];
-          results.push({
-            client,
-            pets: clientPets,
-            distance: el.distance.text,
-            distanceValue: el.distance.value,
-            lastAppt,
-            lastService: lastAppt?.serviceName || '',
-            lastPrice: lastAppt?.servicePrice || 0,
-            weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000 * 60 * 60 * 24 * 7)) : 99,
-          });
-        }
-      });
-      results.sort((a, b) => a.distanceValue - b.distanceValue);
-      setSuggestions(results);
-    } catch (err) {
-      console.error(err);
-      // Fallback sin distancias
-      const fallback = candidateClients.slice(0, 10).map(c => {
-        const clientPets = pets.filter(p => String(p.client_id) === String(c.id));
-        const lastAppt = appointments.filter(a => String(a.clientId) === String(c.id))
-          .sort((a, b) => b.date.localeCompare(a.date))[0];
-        return { client: c, pets: clientPets, distance: 'N/A', distanceValue: 0, lastAppt, lastService: lastAppt?.serviceName || '', lastPrice: lastAppt?.servicePrice || 0, weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000 * 60 * 60 * 24 * 7)) : 99 };
-      });
-      setSuggestions(fallback);
-    }
+    const results = candidateClients.map(c => {
+      const clientPets = pets.filter(p => String(p.client_id) === String(c.id));
+      const lastAppt = appointments.filter(a => String(a.clientId) === String(c.id))
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+      return {
+        client: c, pets: clientPets, distance: 'ZIP ' + c.zip, distanceValue: 0,
+        lastAppt, lastService: lastAppt?.serviceName || '', lastPrice: lastAppt?.servicePrice || 0,
+        weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000*60*60*24*7)) : 99,
+      };
+    }).sort((a, b) => b.weeksSince - a.weeksSince);
+    setSuggestions(results);
     setLoading(false);
   };
 
