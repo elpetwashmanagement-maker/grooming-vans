@@ -10769,8 +10769,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     try {
       const destinations = candidateClients.slice(0, 25).map(c => encodeURIComponent(c.address)).join('|');
       const origin = encodeURIComponent(refAddress);
-      const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${origin}&destinations=${destinations}&units=imperial&key=${GOOGLE_API_KEY}`;
-      const res = await fetch(`https://corsproxy.io/?${url}`);
+      const res = await fetch('/api/distance-matrix', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ origin: refAddress, destinations: candidateClients.slice(0, 25).map(c => c.address) }) });
       const data = await res.json();
       
       const results = [];
