@@ -8912,7 +8912,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [selectedCompany, setSelectedCompany] = useState('all');
+  const [selectedCompany, setSelectedCompany] = useState(lockedCompanyId || 'all');
 
   const now = new Date();
   const todayStr = todayISO();
