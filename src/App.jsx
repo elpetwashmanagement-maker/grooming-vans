@@ -7048,6 +7048,46 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
           )}
         </div>
       ))}
+      {showNewUser ? (
+        <div style={{ background: '#f0fdfa', border: '1.5px solid #0f766e', borderRadius: 12, padding: 16, marginTop: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: '#0f766e', marginBottom: 12 }}>➕ New User</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Name</label>
+              <input value={newUser.name} onChange={e => setNewUser(u => ({...u, name: e.target.value}))} style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} /></div>
+            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Role</label>
+              <select value={newUser.role} onChange={e => setNewUser(u => ({...u, role: e.target.value}))} style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                <option value="admin">👑 Admin</option>
+                <option value="manager">📋 Manager</option>
+                <option value="finance">💰 Finance</option>
+                <option value="viewer">👁️ Viewer</option>
+              </select></div>
+            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Company</label>
+              <select value={newUser.companyId || 'epw'} onChange={e => setNewUser(u => ({...u, companyId: e.target.value}))} style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                <option value="epw">🐾 El Pet Wash</option>
+                <option value="atw">🐕 All Tails Wag</option>
+                <option value="casa">🏠 Casa Group</option>
+                <option value="all">🏢 All Companies</option>
+              </select></div>
+            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>PIN</label>
+              <input value={newUser.pin} onChange={e => setNewUser(u => ({...u, pin: e.target.value}))} maxLength={4} style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'monospace' }} /></div>
+            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Email</label>
+              <input value={newUser.email} onChange={e => setNewUser(u => ({...u, email: e.target.value}))} style={{ width: '100%', padding: '8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} /></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={async () => {
+              if (!newUser.name.trim()) { alert('Enter name'); return; }
+              await addUser({...newUser, id: crypto.randomUUID(), active: true});
+              setShowNewUser(false);
+              setNewUser({ name: '', role: 'manager', companyId: 'epw', email: '', pin: '' });
+            }} style={{ background: '#0f766e', border: 'none', borderRadius: 8, padding: '8px 16px', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>✅ Save</button>
+            <button onClick={() => setShowNewUser(false)} style={{ background: '#f1f5f9', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setShowNewUser(true)} style={{ width: '100%', padding: 12, background: '#f0fdfa', border: '1.5px dashed #0f766e', borderRadius: 12, color: '#0f766e', fontWeight: 700, fontSize: 14, cursor: 'pointer', marginTop: 12 }}>
+          ➕ Add User
+        </button>
+      )}
     </div>
   );
 
