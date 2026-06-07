@@ -5956,10 +5956,10 @@ Owner agrees that Group Guerrero, its staff, and associates are not liable for i
 By signing below, the owner acknowledges reading and agreeing to all terms above.`;
 
 const BOARDING_PRICES = {
-  small:  { label: 'Small (1-20 lbs)',   price: 40 },
-  medium: { label: 'Medium (21-40 lbs)', price: 45 },
-  large:  { label: 'Large (41-60 lbs)',  price: 45 },
-  giant:  { label: 'Giant (61+ lbs)',    price: 59 },
+  small:  { label: 'Small (0-40 lbs)',   price: 45 },
+  medium: { label: 'Medium (0-40 lbs)',  price: 45 },
+  large:  { label: 'Large (41-60 lbs)',  price: 50 },
+  giant:  { label: 'XL (61-80 lbs)',     price: 60 },
 };
 
 function BoardingTab({ clients, pets, session, settings }) {
@@ -5970,7 +5970,7 @@ function BoardingTab({ clients, pets, session, settings }) {
   const [viewMode, setViewMode] = useState('list');
   const [showPayment, setShowPayment] = useState(null);
   const [paymentForm, setPaymentForm] = useState({ method: 'Cash', amount: '', tip: '' });
-  const [maxCapacity, setMaxCapacity] = useState(5);
+  const [maxCapacity, setMaxCapacity] = useState(10);
   const [clientSearch, setClientSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState('basic');
