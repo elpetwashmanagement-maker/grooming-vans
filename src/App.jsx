@@ -9939,7 +9939,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
       </div>
 
       <div style={styles.card}>
-        <h3 style={styles.cardH3}>Log Expense</h3>
+        {!lockedCompanyId && (
         <div style={{ marginBottom: 14 }}>
           <label style={styles.lbl}>Company</label>
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -9950,7 +9950,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
               </button>
             ))}
           </div>
-        </div>
+        )}
 
         <div style={{ marginBottom: 14 }}>
           <label style={styles.lbl}>Category</label>
