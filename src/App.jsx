@@ -10822,9 +10822,11 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const sendSMS = async (client) => {
     const groomer = groomers.find(g => g.id === selectedGroomer);
     const companyId = groomer?.companyId || vans.find(v => v.id === groomer?.vanId)?.companyId || 'epw';
+    console.log('Sending SMS to:', client.phone, 'companyId:', companyId);
     const ok = await sendSMSApi(client.phone, msg, companyId);
+    console.log('SMS result:', ok);
     if (ok) alert('✅ Message sent to ' + client.name + '!');
-    else window.open(`sms:${client.phone}?body=${encodeURIComponent(msg)}`);
+    else { console.log('Falling back to native SMS'); window.open(`sms:${client.phone}?body=${encodeURIComponent(msg)}`); }
   };
 
   const bookClient = (suggestion) => {
