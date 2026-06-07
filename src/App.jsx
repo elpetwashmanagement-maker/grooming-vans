@@ -524,6 +524,7 @@ const saveClient = async (client) => {
     notes: client.notes || '', active: client.active !== false,
     notify_sms: client.notifySms || false,
     notify_email: client.notifyEmail || false,
+    companies: client.companies || [],
   });
   if (error) console.error(error);
   return !error;
@@ -7903,6 +7904,23 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                 </div>
               </div>
 
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={styles.lbl}>🏢 Companies</label>
+                <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                  {[{ id: 'epw', label: '🐾 El Pet Wash' }, { id: 'atw', label: '🐕 All Tails Wag' }, { id: 'casa', label: '🏠 Casa Group' }].map(co => {
+                    const selected = (clientForm.companies || []).includes(co.id);
+                    return (
+                      <button key={co.id} type="button" onClick={() => {
+                        const curr = clientForm.companies || [];
+                        const newCos = selected ? curr.filter(c => c !== co.id) : [...curr, co.id];
+                        setClientForm(f => ({...f, companies: newCos}));
+                      }} style={{ padding: '8px 14px', background: selected ? '#f0fdfa' : '#f8fafc', border: `1.5px solid ${selected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: selected ? 600 : 400, color: selected ? '#0f766e' : '#64748b' }}>
+                        {co.label} {selected ? '✅' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div style={{ gridColumn: 'span 2' }}><label style={styles.lbl}>📝 Internal notes (admin only)</label><input value={clientForm.notes} onChange={e => setClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} placeholder="Private notes..." /></div>
             </div>
           </div>
