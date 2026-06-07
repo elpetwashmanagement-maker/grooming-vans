@@ -7261,6 +7261,71 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
     modules: <ModulesAdmin companies={companies} />,
     tools: <CombosAdmin />,
     raykota_pay: <RaykotaPay settings={settings} updateSettings={updateSettings} />,
+    boarding_settings: (
+      <div>
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16, marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🏠 Casa Group Guerrero</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Max Capacity</label>
+              <input type="number" defaultValue={10}
+                onChange={e => updateSettings({ ...settings, boardingCapacity: parseInt(e.target.value) || 10 })}
+                style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Check-in Time</label>
+              <input type="time" defaultValue="12:00"
+                onChange={e => updateSettings({ ...settings, boardingCheckinTime: e.target.value })}
+                style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Check-out Time</label>
+              <input type="time" defaultValue="11:00"
+                onChange={e => updateSettings({ ...settings, boardingCheckoutTime: e.target.value })}
+                style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>Deposit Required (%)</label>
+              <input type="number" defaultValue={50}
+                onChange={e => updateSettings({ ...settings, boardingDepositPct: parseInt(e.target.value) || 50 })}
+                style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+    boarding_staff: (
+      <div>
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>👤 Boarding Staff</div>
+          {['Luis', 'Noemí', 'Manuela'].map(name => (
+            <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div style={{ fontWeight: 600 }}>{name}</div>
+              <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 600 }}>🟢 Active</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+    boarding_prices: (
+      <div>
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>💰 Boarding Prices per Night</div>
+          {Object.entries(BOARDING_PRICES).map(([key, val]) => (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f1f5f9' }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>{val.label}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ color: '#64748b' }}>$</span>
+                <input type="number" defaultValue={val.price}
+                  style={{ width: 70, padding: '6px 8px', border: '1.5px solid #e2e8f0', borderRadius: 8, fontSize: 14, fontWeight: 700, textAlign: 'right' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
   };
 
   return (
