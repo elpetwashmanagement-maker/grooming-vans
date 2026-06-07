@@ -1788,12 +1788,19 @@ function AppMain() {
         const canViewReports = isAdmin || isManager;
 
         // Tabs principales para cada rol
+        const isFinance = session?.role === 'finance';
         const mainTabs = isGroomer ? [
           { id: 'home',     icon: '🏠', label: 'Home' },
           { id: 'appointments',    icon: '🗓️', label: 'Today' },
           { id: 'registro', icon: '⛽', label: 'Expenses' },
           { id: 'inventory', icon: '📦', label: 'Supplies' },
           { id: 'breeds',    icon: '🐾', label: 'Breeds' },
+        ] : isFinance ? [
+          { id: 'week',         icon: '📈', label: 'Reports' },
+          { id: 'payroll',      icon: '💸', label: 'Payroll' },
+          { id: 'gastos-company', icon: '💼', label: 'Expenses' },
+          { id: 'close-review', icon: '💰', label: 'Close' },
+          { id: 'dashboard',    icon: '📊', label: 'Dashboard' },
         ] : isViewer ? [
           { id: 'appointments', icon: '🗓️', label: 'Schedule' },
           { id: 'payroll',      icon: '💸', label: 'Payroll' },
