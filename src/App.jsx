@@ -4108,18 +4108,18 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 )}
 
                 {/* Van selector */}
-                <label style={styles.lbl}>🚐 Van & Groomer</label>
-                <select value={newApptForm.vanId}
+                <label style={styles.lbl}>✂️ Groomer</label>
+                <select value={newApptForm.groomerId}
                   onChange={e => {
-                    const van = vans.find(v => v.id === e.target.value);
-                    const groomer = groomers.find(g => g.vanId === e.target.value);
-                    setNewApptForm(f => ({ ...f, vanId: e.target.value, companyId: van?.companyId || f.companyId, groomerId: groomer?.id || '' }));
+                    const groomer = groomers.find(g => g.id === e.target.value);
+                    const van = vans.find(v => v.id === groomer?.vanId);
+                    setNewApptForm(f => ({ ...f, groomerId: e.target.value, vanId: groomer?.vanId || f.vanId, companyId: groomer?.companyId || van?.companyId || f.companyId }));
                   }}
                   style={styles.input}>
-                  {vans.filter(v => !newApptForm.companyId || v.companyId === newApptForm.companyId).map(v => {
-                    const groomer = groomers.find(g => g.vanId === v.id);
-                    const company = DEFAULT_COMPANIES.find(c => c.id === v.companyId);
-                    return <option key={v.id} value={v.id}>{v.name}{groomer ? ` — ${groomer.name}` : ''} {company ? `(${company.logoEmoji})` : ''}</option>;
+                  <option value="">Select groomer...</option>
+                  {groomers.filter(g => g.active !== false && (!newApptForm.companyId || g.companyId === newApptForm.companyId || vans.find(v => v.id === g.vanId)?.companyId === newApptForm.companyId)).map(g => {
+                    const company = DEFAULT_COMPANIES.find(c => c.id === (g.companyId || vans.find(v => v.id === g.vanId)?.companyId));
+                    return <option key={g.id} value={g.id}>{g.name} {company ? `(${company.logoEmoji})` : ''}</option>;
                   })}
                 </select>
                 {newApptForm.vanId && (() => {
