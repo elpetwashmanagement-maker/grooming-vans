@@ -1722,7 +1722,7 @@ function AppMain() {
         {tab === 'cierre' && <CierreTab vans={vans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
         {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
         {tab === 'week' && canViewReports && <WeekTab vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
-        {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} />}
+        {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} lockedCompanyId={isFinance ? session.companyId : null} />}
         {tab === 'van-tracker' && (isAdmin || session?.role === 'manager') && <ModuleGuard module="gps_routes"><VanTrackerTab vans={vans} vanLocations={vanLocations} groomers={groomers} /></ModuleGuard>}
         {tab === 'config' && canEditConfig && (
           <ConfigTab vans={vans} updateVans={updateVans} settings={settings} updateSettings={updateSettings}
@@ -8907,7 +8907,7 @@ Si no es un perro, responde: {"error": "No es un perro"}` }
 }
 
 // ===== DASHBOARD TAB =====
-function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies, companyExpenses, vanLocations = [] }) {
+function DashboardTab({ vans, services, expenses, settings, appointments, groomers, companies, companyExpenses, vanLocations = [], lockedCompanyId = null }) {
   const [section, setSection] = useState('overview');
   const [period, setPeriod] = useState('week');
   const [customStart, setCustomStart] = useState('');
@@ -9085,8 +9085,8 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
               </div>
             </>
           )}
-
-          {/* Company */}
+          {!lockedCompanyId && (
+          <div>
           <div>
             <label style={styles.lbl}>Company</label>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
@@ -9096,7 +9096,8 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
                   {lbl}
                 </button>
               ))}
-            </div>
+          </div>
+          )}
           </div>
 
           <div style={{ fontSize: 12, color: '#94a3b8', alignSelf: 'flex-end', paddingBottom: 2 }}>{label}</div>
