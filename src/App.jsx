@@ -8045,7 +8045,14 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                 className="row-hover" style={{ padding: '10px 12px', background: selectedClient?.id === c.id ? 'var(--color-background-info)' : 'var(--color-background-primary)', border: `0.5px solid ${selectedClient?.id === c.id ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, borderRadius: 10, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontWeight: 500, fontSize: 14 }}>{c.name}</div>
+                      <div style={{ display: 'flex', gap: 3 }}>
+                        {(c.companies || []).includes('epw') && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 999, background: '#f0fdfa', color: '#0f766e', fontWeight: 700 }}>EPW</span>}
+                        {(c.companies || []).includes('atw') && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 999, background: '#f5f3ff', color: '#7c3aed', fontWeight: 700 }}>ATW</span>}
+                        {(c.companies || []).includes('casa') && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 999, background: '#fff7ed', color: '#c2410c', fontWeight: 700 }}>🏠</span>}
+                      </div>
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 2 }}>{c.address || 'Sin address'}</div>
                     {canViewPhone && c.phone && <div style={{ fontSize: 11, color: 'var(--color-text-info)', marginTop: 2 }}>{c.phone}</div>}
                   </div>
