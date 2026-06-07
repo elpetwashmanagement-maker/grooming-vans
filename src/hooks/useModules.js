@@ -47,7 +47,14 @@ export function useModules(companyId) {
       loaded['epw'] = true;
       loaded['atw'] = true;
       loaded['boarding'] = true;
-      (data || []).forEach(({ module, active }) => {
+      // Primero aplicar flags no-global
+      (data || []).filter(f => f.company_id !== 'global').forEach(({ module, active }) => {
+        if (Object.values(MODULE_KEYS).includes(module)) {
+          loaded[module] = CORE_MODULES.has(module) ? true : active;
+        }
+      });
+      // Luego aplicar flags global (tienen prioridad)
+      (data || []).filter(f => f.company_id === 'global').forEach(({ module, active }) => {
         if (Object.values(MODULE_KEYS).includes(module)) {
           loaded[module] = CORE_MODULES.has(module) ? true : active;
         }
