@@ -7038,10 +7038,9 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
   // ── FEES & RATES ──
   const feesSection = (
     <div>
+      {/* Global fees */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>⚙️ Global</div>
       {[
-        { key: 'commissionPct', label: '💰 Groomer Commission', suffix: '%', desc: 'Default commission for all groomers' },
-        { key: 'cardFeePct', label: '💳 Credit Card Fee', suffix: '%', desc: 'Added to total when paying by card' },
-        { key: 'gasFee', label: '⛽ Gas Fee per Service', suffix: '$', prefix: true, desc: 'Deducted from groomer earnings per service' },
         { key: 'taxRate', label: '🧾 Tax Rate', suffix: '%', desc: 'Applied to services in tax reports' },
       ].map(field => (
         <div key={field.key} style={cardStyle}>
@@ -7051,15 +7050,47 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
               <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{field.desc}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>$</span>}
               <input type="number" step="0.1" value={localSettings[field.key] || ''}
                 onChange={e => setLocalSettings(s => ({...s, [field.key]: parseFloat(e.target.value) || 0}))}
                 style={{ width: 80, padding: '8px 10px', border: '1.5px solid #0f766e', borderRadius: 10, fontSize: 16, fontWeight: 700, textAlign: 'center' }} />
-              {!field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>{field.suffix}</span>}
+              <span style={{ fontSize: 16, color: '#64748b' }}>{field.suffix}</span>
             </div>
           </div>
         </div>
       ))}
+
+      {/* Fees por empresa */}
+      {[
+        { id: 'epw', name: '🐾 El Pet Wash', color: '#0f766e', bg: '#f0fdfa' },
+        { id: 'atw', name: '🐕 All Tails Wag', color: '#7c3aed', bg: '#f5f3ff' },
+      ].map(co => (
+        <div key={co.id} style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>{co.name}</div>
+          {[
+            { key: `commissionPct_${co.id}`, fallback: 'commissionPct', label: '💰 Groomer Commission', suffix: '%', desc: 'Commission for groomers of this company' },
+            { key: `cardFeePct_${co.id}`, fallback: 'cardFeePct', label: '💳 Credit Card Fee', suffix: '%', desc: 'Card fee for this company' },
+            { key: `gasFee_${co.id}`, fallback: 'gasFee', label: '⛽ Gas Fee per Service', suffix: '$', prefix: true, desc: 'Gas fee for this company' },
+          ].map(field => (
+            <div key={field.key} style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{field.label}</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{field.desc}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>$</span>}
+                  <input type="number" step="0.1"
+                    value={localSettings[field.key] !== undefined ? localSettings[field.key] : (localSettings[field.fallback] || '')}
+                    onChange={e => setLocalSettings(s => ({...s, [field.key]: parseFloat(e.target.value) || 0}))}
+                    style={{ width: 80, padding: '8px 10px', border: `1.5px solid ${co.color}`, borderRadius: 10, fontSize: 16, fontWeight: 700, textAlign: 'center' }} />
+                  {!field.prefix && <span style={{ fontSize: 16, color: '#64748b' }}>{field.suffix}</span>}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      ))}
+
       <button onClick={async () => {
         setSaving(true);
         await updateSettings(localSettings);
