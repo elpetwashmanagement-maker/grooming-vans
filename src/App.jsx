@@ -460,6 +460,7 @@ const saveUser = async (user) => {
   const { error } = await supabase.from('users').upsert({
     id: user.id, name: user.name, role: user.role, pin: user.pin,
     van_id: user.van_id || null, active: user.active !== false,
+    company_id: user.companyId || user.company_id || null,
     can_create_clients: user.can_create_clients ?? true,
     can_view_clients: user.can_view_clients ?? false,
     can_schedule: user.can_schedule ?? true,
