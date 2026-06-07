@@ -9087,7 +9087,6 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
           )}
           {!lockedCompanyId && (
           <div>
-          <div>
             <label style={styles.lbl}>Company</label>
             <div style={{ display: 'flex', background: '#f1f5f9', padding: 3, borderRadius: 8, gap: 2 }}>
               {[['all','🏢 Todas'], ['epw','🐾 EPW'], ['atw','🐕 ATW']].map(([val, lbl]) => (
@@ -9096,9 +9095,9 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
                   {lbl}
                 </button>
               ))}
+            </div>
           </div>
           )}
-          </div>
 
           <div style={{ fontSize: 12, color: '#94a3b8', alignSelf: 'flex-end', paddingBottom: 2 }}>{label}</div>
         </div>
