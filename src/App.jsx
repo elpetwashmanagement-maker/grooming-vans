@@ -3780,11 +3780,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
               style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'todos' ? 'var(--color-border-info)' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'todos' ? 'var(--color-background-info)' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'todos' ? 700 : 400, color: filterVanId === 'todos' ? 'var(--color-text-info)' : 'var(--color-text-secondary)' }}>
               🏢 Todas ({appointments.filter(a => a.date === date).length})
             </button>
-            {isEnabled('epw') && <button onClick={() => setFilterVanId('epw')}
+            {vans.some(v => v.companyId === 'epw' && v.active !== false) && <button onClick={() => setFilterVanId('epw')}
               style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'epw' ? '#0f766e' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'epw' ? '#f0fdfa' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'epw' ? 700 : 400, color: filterVanId === 'epw' ? '#0f766e' : 'var(--color-text-secondary)' }}>
               🐾 El Pet Wash ({appointments.filter(a => a.date === date && vans.find(v => v.id === a.vanId)?.companyId === 'epw').length})
             </button>}
-            {isEnabled('atw') && <button onClick={() => setFilterVanId('atw')}
+            {vans.some(v => v.companyId === 'atw' && v.active !== false) && <button onClick={() => setFilterVanId('atw')}
               style={{ padding: '4px 12px', borderRadius: 999, border: `1.5px solid ${filterVanId === 'atw' ? '#7c3aed' : 'var(--color-border-tertiary)'}`, background: filterVanId === 'atw' ? '#faf5ff' : 'var(--color-background-primary)', cursor: 'pointer', fontSize: 12, fontWeight: filterVanId === 'atw' ? 700 : 400, color: filterVanId === 'atw' ? '#7c3aed' : 'var(--color-text-secondary)' }}>
               🐕 All Tails Wag ({appointments.filter(a => a.date === date && vans.find(v => v.id === a.vanId)?.companyId === 'atw').length})
             </button>}
