@@ -10712,6 +10712,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const [selectedClient, setSelectedClient] = useState(null);
   const [manualZip, setManualZip] = useState('');
   const [manualCity, setManualCity] = useState('');
+  const [minWeeks, setMinWeeks] = useState(0);
   const GOOGLE_API_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
   // Citas del groomer en la fecha seleccionada
@@ -10792,7 +10793,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
         lastAppt, lastService: lastAppt?.serviceName || '', lastPrice: lastAppt?.servicePrice || 0,
         weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000*60*60*24*7)) : 99,
       };
-    }).sort((a, b) => b.weeksSince - a.weeksSince);
+    }).filter(r => r.weeksSince >= minWeeks).sort((a, b) => b.weeksSince - a.weeksSince);
     setSuggestions(results);
     setLoading(false);
   };
