@@ -1462,6 +1462,7 @@ function AppMain() {
     if (session.role === 'groomer') setTab('home');
     if (session.role === 'admin' || session.role === 'manager') setTab('home');
     if (session.role === 'viewer') setTab('appointments');
+    if (session.role === 'finance') setTab('week');
   }, [session?.role]);
 
   const updateVans = async (newVans) => { setVans(newVans); for (const v of newVans) await saveVan(v); };
