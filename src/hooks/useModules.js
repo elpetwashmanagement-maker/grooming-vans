@@ -50,17 +50,13 @@ export function useModules(companyId) {
   });
   const [loading, setLoading] = useState(true);
 
-  const loadModules = useCallback(async () => {
-    if (!companyId) {
-      setLoading(false);
-      return;
     }
 
     try {
       const { data, error } = await supabase
         .from('feature_flags')
-        .select('module, active')
-        .eq('company_id', companyId);
+        .select('module, active, company_id')
+
 
       if (error) throw error;
 
