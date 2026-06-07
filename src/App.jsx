@@ -5631,7 +5631,8 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
           )}
         </div>
 
-        {/* Company filter */}
+        {/* Company filter - oculto si lockedCompanyId */}
+        {!lockedCompanyId && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em', alignSelf: 'center' }}>Company:</span>
           {[{ id: 'all', label: '🏢 All' }, ...DEFAULT_COMPANIES.map(c => ({ id: c.id, label: `${c.logoEmoji} ${c.name}` }))].map(c => (
@@ -5641,6 +5642,7 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
             </button>
           ))}
         </div>
+        )}
 
         {/* Groomer/Van filter */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -10040,6 +10042,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div><label style={styles.lbl}>Desde</label><input type="date" value={dateStart} onChange={e => setDateStart(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
           <div><label style={styles.lbl}>Hasta</label><input type="date" value={dateEnd} onChange={e => setDateEnd(e.target.value)} style={{ ...styles.input, width: 160 }} /></div>
+          {!lockedCompanyId && (
           <div>
             <label style={styles.lbl}>Company</label>
             <select value={filterCompany} onChange={e => setFilterCompany(e.target.value)} style={styles.input}>
@@ -10047,6 +10050,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
               {DEFAULT_COMPANIES.map(c => <option key={c.id} value={c.id}>{c.logoEmoji} {c.name}</option>)}
             </select>
           </div>
+          )}
           <div>
             <label style={styles.lbl}>Category</label>
             <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} style={styles.input}>
