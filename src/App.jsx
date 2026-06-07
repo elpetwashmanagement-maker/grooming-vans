@@ -6753,29 +6753,32 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
   const SECTION_GROUPS = [
     {
-      category: 'Basic Settings',
+      category: '⚙️ General',
+      items: [
+        { id: 'users', icon: '👥', label: 'Users & Access' },
+        { id: 'security', icon: '🔐', label: 'Security' },
+        { id: 'preferences', icon: '🎨', label: 'Preferences' },
+        { id: 'modules', icon: '🧩', label: 'Modules' },
+      ],
+    },
+    {
+      category: '🚐 El Pet Wash & All Tails Wag',
       items: [
         { id: 'companies', icon: '🏢', label: 'Companies & Teams' },
-        { id: 'users', icon: '👥', label: 'Users & Access' },
         { id: 'services', icon: '🐾', label: 'Services & Prices' },
+        { id: 'fees', icon: '💰', label: 'Fees & Rates' },
         { id: 'categories', icon: '📂', label: 'Expense Categories' },
         { id: 'tools', icon: '✂️', label: 'Blades & Combos' },
         { id: 'documents', icon: '📄', label: 'Documents' },
-        { id: 'preferences', icon: '🎨', label: 'Preferences' },
-        { id: 'security', icon: '🔐', label: 'Security' },
-      ],
-    },
-    {
-      category: 'Payment Settings',
-      items: [
         { id: 'raykota_pay', icon: '💳', label: 'Raykota Pay' },
-        { id: 'fees', icon: '💰', label: 'Fees & Rates' },
       ],
     },
     {
-      category: 'Advanced',
+      category: '🏠 Casa Group Guerrero',
       items: [
-        { id: 'modules', icon: '🧩', label: 'Modules' },
+        { id: 'boarding_settings', icon: '🏠', label: 'Boarding Settings' },
+        { id: 'boarding_staff', icon: '👤', label: 'Boarding Staff' },
+        { id: 'boarding_prices', icon: '💰', label: 'Boarding Prices' },
       ],
     },
   ];
