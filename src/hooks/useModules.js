@@ -68,8 +68,12 @@ export function useModules(companyId) {
       });
 
       // Aplicar flags de la base de datos
-      (data || []).forEach(({ module, active }) => {
+      (data || []).forEach(({ module, active, company_id }) => {
         if (module in MODULE_KEYS || Object.values(MODULE_KEYS).includes(module)) {
+          loaded[module] = CORE_MODULES.has(module) ? true : active;
+        }
+        // Flags de empresa (epw, atw) — usar el más reciente
+        if (module === 'epw' || module === 'atw' || module === 'boarding') {
           loaded[module] = CORE_MODULES.has(module) ? true : active;
         }
       });
