@@ -2771,25 +2771,28 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const allTabs = [
-    { id: 'home',           label: 'Home',          icon: '🏠', show: !isFinance },
-    { id: 'appointments',   label: 'Schedule',      icon: '🗓️', show: !isFinance },
-    { id: 'clients',        label: 'Clients',       icon: '👥', show: (isAdmin || isManager) && !isFinance },
-    { id: 'messages',       label: 'Messages',      icon: '💬', show: (isAdmin || isManager) && !isFinance },
-    { id: 'requests',       label: 'Booking Requests', icon: '📩', show: (isAdmin || isManager) && !isFinance },
-    { id: 'close-review',   label: 'Close Review',  icon: '💰', show: isAdmin || isFinance },
-    { id: 'breeds',         label: 'AI Breeds',     icon: '🐾', show: !isViewer && !isFinance },
-    { id: 'registro',       label: 'Daily Log',     icon: '⛽', show: !isViewer && !isFinance },
+    { id: 'home',           label: 'Home',              icon: '🏠', show: !isFinance },
+    { id: 'appointments',   label: 'Schedule',          icon: '🗓️', show: !isFinance },
+    { id: 'clients',        label: 'Clients',           icon: '👥', show: (isAdmin || isManager) && !isFinance },
+    { id: 'smart-fill',     label: 'Smart Fill',        icon: '💡', show: (isAdmin || isManager) && !isFinance },
+    { id: 'boarding',       label: 'Boarding',          icon: '🏠', show: (isAdmin || isManager) && !isFinance && isEnabled('boarding') },
+    { id: 'van-tracker',    label: 'Van Tracker',       icon: '📍', show: (isAdmin || isManager) && !isFinance && isEnabled('gps_routes') },
+    { id: 'messages',       label: 'Messages',          icon: '💬', show: (isAdmin || isManager) && !isFinance },
+    { id: 'requests',       label: 'Booking Requests',  icon: '📩', show: (isAdmin || isManager) && !isFinance },
+    { id: 'divider1',       label: '── Finance ──',     icon: '',   show: (isAdmin || isManager || isFinance) && !isGroomer, divider: true },
+    { id: 'close-review',   label: 'Close Review',      icon: '💰', show: isAdmin || isFinance },
+    { id: 'payroll',        label: 'Payroll',           icon: '💸', show: (isAdmin || isViewer || isFinance) && isEnabled('payroll') },
+    { id: 'gastos-company', label: 'Expenses',          icon: '💼', show: isAdmin || isFinance },
+    { id: 'week',           label: 'Weekly Report',     icon: '📈', show: isAdmin || isManager || isViewer || isFinance },
+    { id: 'dashboard',      label: 'Dashboard',         icon: '📊', show: isAdmin || isFinance },
+    { id: 'divider2',       label: '── Operations ──',  icon: '',   show: (isAdmin || isManager) && !isFinance, divider: true },
+    { id: 'registro',       label: 'Daily Log',         icon: '⛽', show: !isViewer && !isFinance },
     { id: 'cierre',         label: isGroomer ? 'My Close' : 'Daily Close', icon: '🔒', show: !isViewer && !isFinance },
-    { id: 'payroll',        label: 'Payroll',       icon: '💸', show: (isAdmin || isViewer || isFinance) && isEnabled('payroll') },
-    { id: 'gastos-company', label: 'Expenses',      icon: '💼', show: isAdmin || isFinance },
-    { id: 'inventory',      label: 'Inventory',     icon: '📦', show: !isViewer && !isFinance && isEnabled('inventory') },
-    { id: 'boarding',       label: 'Boarding',      icon: '🏠', show: (isAdmin || isManager) && !isFinance && isEnabled('boarding') },
-    { id: 'week',           label: 'Weekly Report', icon: '📈', show: isAdmin || isManager || isViewer || isFinance },
-    { id: 'van-tracker',    label: 'Van Tracker',   icon: '📍', show: (isAdmin || isManager) && !isFinance && isEnabled('gps_routes') },
-    { id: 'smart-fill',     label: 'Smart Fill',    icon: '💡', show: (isAdmin || isManager) && !isFinance },
-    { id: 'dashboard',      label: 'Dashboard',     icon: '📊', show: isAdmin || isFinance },
-    { id: 'auditoria',      label: 'Audit Log',     icon: '🔍', show: isAdmin && isEnabled('audit') },
-    { id: 'config',         label: 'Settings',      icon: '⚙️', show: isAdmin || isManager },
+    { id: 'inventory',      label: 'Inventory',         icon: '📦', show: !isViewer && !isFinance && isEnabled('inventory') },
+    { id: 'divider3',       label: '── Admin ──',       icon: '',   show: isAdmin && !isFinance, divider: true },
+    { id: 'breeds',         label: 'AI Breeds',         icon: '🐾', show: !isViewer && !isFinance },
+    { id: 'auditoria',      label: 'Audit Log',         icon: '🔍', show: isAdmin && isEnabled('audit') },
+    { id: 'config',         label: 'Settings',          icon: '⚙️', show: isAdmin || isManager },
   ].filter(t => t.show);
 
   const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e', viewer: '#b45309', finance: '#0369a1' };
@@ -2871,6 +2874,9 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
             {/* Tabs list */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
               {allTabs.map(t => {
+                if (t.divider) return (
+                  <div key={t.id} style={{ padding: '8px 20px 4px', fontSize: 10, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{t.label}</div>
+                );
                 const active = tab === t.id;
                 return (
                   <button key={t.id} onClick={() => handleTabClick(t.id)}
