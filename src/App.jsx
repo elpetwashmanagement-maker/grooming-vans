@@ -10704,6 +10704,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedClient, setSelectedClient] = useState(null);
+  const [manualZip, setManualZip] = useState('');
   const GOOGLE_API_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
   // Citas del groomer en la fecha seleccionada
@@ -10754,8 +10755,8 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     const refAppt = groomerAppts[0];
     const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
     const extractZip = (addr) => { const m = (addr || '').match(/\b(\d{5})\b/); return m ? m[1] : null; };
-    const refZip = refClient?.zip || extractZip(refClient?.address);
-    if (!refZip) { setLoading(false); alert('Reference appointment has no ZIP code'); return; }
+    const refZip = refClient?.zip || extractZip(refClient?.address) || manualZip;
+    if (!refZip) { setLoading(false); alert('No ZIP found. Please enter a ZIP manually.'); return; }
     const bookedClientIds = groomerAppts.map(a => String(a.clientId));
     const candidateClients = clients.filter(c =>
       (c.zip === refZip || extractZip(c.address) === refZip) &&
