@@ -37,11 +37,15 @@ const CORE_MODULES = new Set([
 
 export function useModules(companyId) {
   const [modules, setModules] = useState(() => {
-    // Mientras carga, activar todos los modulos para evitar pantallas en blanco
+    // Estado inicial — solo CORE activo, el resto OFF hasta cargar de BD
     const initial = {};
     Object.values(MODULE_KEYS).forEach(key => {
-      initial[key] = true;
+      initial[key] = CORE_MODULES.has(key);
     });
+    // EPW y ATW activos por defecto hasta cargar
+    initial['epw'] = true;
+    initial['atw'] = true;
+    initial['boarding'] = true;
     return initial;
   });
   const [loading, setLoading] = useState(true);
