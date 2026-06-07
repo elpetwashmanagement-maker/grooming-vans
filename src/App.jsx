@@ -1748,6 +1748,7 @@ function AppMain() {
             companyExpenses={companyExpenses}
             setCompanyExpenses={setCompanyExpenses}
             taxRate={settings.taxRate ?? 7.0}
+            lockedCompanyId={isFinance ? session.companyId : null}
           />
         </ModuleGuard>)}
         {tab === 'inventory' && (<ModuleGuard module="inventory">
@@ -1767,6 +1768,7 @@ function AppMain() {
             appointments={appointments} vans={vans} settings={settings}
             refreshAppointments={refreshAppointments} updateApptStatus={updateApptStatus}
             services={services} setServices={setServices}
+            lockedCompanyId={isFinance ? session.companyId : null}
           />
         )}
         {tab === 'requests' && (isAdmin || isManager) && (
@@ -9857,15 +9859,15 @@ const COMPANY_EXPENSE_CATEGORIES = [
   { id: 'Otros',         icon: '💼' },
 ];
 
-function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setCompanyExpenses, taxRate }) {
+function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setCompanyExpenses, taxRate, lockedCompanyId = null }) {
   const [form, setForm] = useState({
-    companyId: 'epw', category: 'Mantenimiento', description: '',
+    companyId: lockedCompanyId || 'epw', category: 'Mantenimiento', description: '',
     amount: '', tax: '', method: 'cash', vanId: '', date: todayISO(),
   });
   const [receiptFile, setReceiptFile] = useState(null);
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [filterCompany, setFilterCompany] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(lockedCompanyId || 'all');
   const [filterCategory, setFilterCategory] = useState('all');
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const [dateStart, setDateStart] = useState(() => {
