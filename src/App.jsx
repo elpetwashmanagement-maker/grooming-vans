@@ -9950,6 +9950,7 @@ function ExpensesCompanyTab({ vans, session, companies, companyExpenses, setComp
               </button>
             ))}
           </div>
+        </div>
         )}
 
         <div style={{ marginBottom: 14 }}>
