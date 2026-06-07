@@ -10756,7 +10756,9 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     const refClient = clients.find(c => String(c.id) === String(refAppt.clientId));
     const extractZip = (addr) => { const m = (addr || '').match(/\b(\d{5})\b/); return m ? m[1] : null; };
     const refZip = refClient?.zip || extractZip(refClient?.address) || manualZip;
+    console.log('refClient:', refClient?.name, 'address:', refClient?.address, 'zip:', refZip);
     if (!refZip) { setLoading(false); alert('No ZIP found. Please enter a ZIP manually.'); return; }
+    console.log('Searching ZIP:', refZip, 'candidates:', clients.length);
     const bookedClientIds = groomerAppts.map(a => String(a.clientId));
     const candidateClients = clients.filter(c =>
       (c.zip === refZip || extractZip(c.address) === refZip) &&
