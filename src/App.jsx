@@ -10821,7 +10821,6 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
 
   const sendSMS = async (client) => {
     const groomer = groomers.find(g => g.id === selectedGroomer);
-    const groomer = groomers.find(g => g.id === selectedGroomer);
     const companyId = groomer?.companyId || vans.find(v => v.id === groomer?.vanId)?.companyId || 'epw';
     const ok = await sendSMSApi(client.phone, msg, companyId);
     if (ok) alert('✅ Message sent to ' + client.name + '!');
