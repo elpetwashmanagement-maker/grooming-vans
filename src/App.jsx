@@ -10877,6 +10877,14 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
         </div>
       )}
 
+      {/* ZIP manual */}
+      {selectedGroomer && (
+        <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>📮 Search by ZIP Code</div>
+          <input value={manualZip} onChange={e => setManualZip(e.target.value)} placeholder="Enter ZIP (e.g. 33142)"
+            style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} maxLength={5} />
+        </div>
+      )}
       {/* Botón buscar */}
       {selectedGroomer && (
         <button onClick={findNearbyCients} disabled={loading}
