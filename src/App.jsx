@@ -5977,7 +5977,7 @@ function BoardingTab({ clients, pets, session, settings }) {
 
   const emptyForm = {
     clientId: '', petId: '', checkIn: todayISO(), checkOut: '', size: 'small',
-    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0, rating: 0,
+    includesBath: false, bathPrice: 0, notes: '', status: 'pending', depositPaid: 0, rating: 0, staffId: '',
     foodType: '', foodBrand: '', foodAmount: '', feedingTimes: ['8:00 AM', '6:00 PM'], foodNotes: '',
     ownBowl: false, toys: '', accessories: '', medications: '',
     rabiesDate: '', bordetellaDate: '', dhppDate: '', otherVaccines: '',
@@ -6120,8 +6120,8 @@ function BoardingTab({ clients, pets, session, settings }) {
       {/* Header */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
         <div>
-          <div style={{ fontFamily:'Fraunces, serif', fontSize:22, fontWeight:800 }}>🏠 Boarding</div>
-          <div style={{ fontSize:12, color:'#64748b' }}>Group Guerrero · Max: {maxCapacity} dogs</div>
+          <div style={{ fontFamily:'Fraunces, serif', fontSize:22, fontWeight:800 }}>🏠 Casa Group Guerrero</div>
+          <div style={{ fontSize:12, color:'#64748b' }}>Pet Boarding · Max: {maxCapacity} spots</div>
         </div>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={() => setMaxCapacity(n => { const v = prompt('Max capacity:', n); return parseInt(v)||n; })}
@@ -6271,6 +6271,15 @@ function BoardingTab({ clients, pets, session, settings }) {
                     <option value="completed">Completed</option><option value="cancelled">Cancelled</option>
                   </select></div>
                 <div><label style={lbl}>Deposit Paid ($)</label><input type="number" value={form.depositPaid} onChange={e=>setForm(f=>({...f,depositPaid:e.target.value}))} style={inp} /></div>
+              </div>
+              <div style={{ marginBottom:12 }}>
+                <label style={lbl}>👤 Staff Assigned</label>
+                <select value={form.staffId} onChange={e=>setForm(f=>({...f,staffId:e.target.value}))} style={inp}>
+                  <option value="">Select staff...</option>
+                  <option value="luis">Luis</option>
+                  <option value="noemi">Noemí</option>
+                  <option value="manuela">Manuela</option>
+                </select>
               </div>
               <div style={{ marginBottom:12 }}><label style={lbl}>Notes</label><textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={{...inp,minHeight:60,resize:'vertical'}} /></div>
               {form.checkIn && form.checkOut && nights(form.checkIn,form.checkOut)>0 && (
