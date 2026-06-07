@@ -10890,18 +10890,19 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
         <div style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 16, marginBottom: 16 }}>
           <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>📮 Search by ZIP or City</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>ZIP Code</label>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>ZIP Code</label>
               <input value={manualZip} onChange={e => setManualZip(e.target.value)} placeholder='33142'
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} maxLength={5} /></div>
-            <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>City</label>
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} maxLength={5} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>City</label>
               <input value={manualCity} onChange={e => setManualCity(e.target.value)} placeholder='Miami'
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} /></div>
-                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} maxLength={5} /></div>
-            <div><label style={{ fontSize: 11, color: "#64748b", display: "block", marginBottom: 3 }}>City</label>
-              <input value={manualCity} onChange={e => setManualCity(e.target.value)} placeholder="Miami"
-                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid #e2e8f0", borderRadius: 10, fontSize: 14, boxSizing: "border-box" }} /></div>
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
+            </div>
           </div>
-      {/* Botón buscar */}
+        </div>
+      )}
       {selectedGroomer && (
         <button onClick={findNearbyCients} disabled={loading}
           style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginBottom: 16 }}>
