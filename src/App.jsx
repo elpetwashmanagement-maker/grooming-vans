@@ -5523,6 +5523,7 @@ function CloseReviewTab({ appointments, vans, settings, refreshAppointments, upd
         if (viewMode === 'day') { if (a.date !== date) return false; }
         else { if (!inRange(a.date, weekStart, weekEnd)) return false; }
         const van = vans.find(v => v.id === a.vanId);
+        if (lockedCompanyId && van?.companyId !== lockedCompanyId) return false;
         if (filterCompany !== 'all' && van?.companyId !== filterCompany) return false;
         if (filterVan !== 'all' && a.vanId !== filterVan) return false;
         return true;
