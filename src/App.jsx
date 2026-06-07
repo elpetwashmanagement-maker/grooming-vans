@@ -9116,7 +9116,7 @@ function DashboardTab({ vans, services, expenses, settings, appointments, groome
       {/* ===== OVERVIEW ===== */}
       {section === 'overview' && (
         <div>
-          <AlertsPanel appointments={appointments} vans={vans} groomers={groomers} services={services} expenses={expenses} vanLocations={vanLocations} />
+          {!lockedCompanyId && <AlertsPanel appointments={appointments} vans={vans} groomers={groomers} services={services} expenses={expenses} vanLocations={vanLocations} />}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 20 }}>
             <KPI label="Ingresos brutos" value={fmt(totalRevenue)} sub={`+${fmt(totalTips)} tips`} color="#0f766e" growth={revenueGrowth} />
             <KPI label="Neto" value={fmt(netRevenue)} sub={`-${fmt(totalExpenses)} gastos`} color="#7c3aed" />
