@@ -10766,11 +10766,15 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
       return m ? m[1].trim().toLowerCase() : null;
     };
     const refCity = refClient?.city || extractCity(refClient?.address) || manualCity.toLowerCase();
+    const groomer = groomers.find(g => g.id === selectedGroomer);
+    const groomerCompanyId = groomer?.companyId;
     const candidateClients = clients.filter(c => {
       if (bookedClientIds.includes(String(c.id))) return false;
       if (c.active === false) return false;
+      // Filtrar por empresa del groomer
+      if (groomerCompanyId && c.companies && c.companies.length > 0 && !c.companies.includes(groomerCompanyId)) return false;
       if (refZip && (c.zip === refZip || extractZip(c.address) === refZip)) return true;
-      if (refCity && manualCity && (c.city?.toLowerCase() === refCity || extractCity(c.address) === refCity)) return true;
+      if (manualCity && (c.city?.toLowerCase() === manualCity.toLowerCase() || extractCity(c.address) === manualCity.toLowerCase())) return true;
       return false;
     });
     const results = candidateClients.map(c => {
@@ -10778,7 +10782,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
       const lastAppt = appointments.filter(a => String(a.clientId) === String(c.id))
         .sort((a, b) => b.date.localeCompare(a.date))[0];
       return {
-        client: c, pets: clientPets, distance: 'ZIP ' + c.zip, distanceValue: 0,
+        client: c, pets: clientPets, distance: c.zip ? 'ZIP ' + c.zip : extractZip(c.address) ? 'ZIP ' + extractZip(c.address) : c.city || extractCity(c.address) || 'Same area', distanceValue: 0,
         lastAppt, lastService: lastAppt?.serviceName || '', lastPrice: lastAppt?.servicePrice || 0,
         weeksSince: lastAppt ? Math.floor((new Date() - new Date(lastAppt.date)) / (1000*60*60*24*7)) : 99,
       };
