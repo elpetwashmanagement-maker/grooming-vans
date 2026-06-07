@@ -1644,8 +1644,8 @@ function AppMain() {
   // Admin ve todas las vans, groomer solo la suya
   const visibleVans = isGroomer
     ? (currentVan ? [currentVan] : [])
-    : isViewer
-      ? vans.filter(v => v.companyId === viewerCompanyId || (isFinance && v.companyId === session.companyId))
+    : (isViewer || isFinance)
+      ? vans.filter(v => v.companyId === viewerCompanyId)
       : vans; // Admin y manager ven todas
 
   return (
