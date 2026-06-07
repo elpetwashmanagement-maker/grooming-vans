@@ -5501,11 +5501,11 @@ function GasSection({ vanId, vans, fuelLogs, setFuelLogs, isAdmin }) {
 }
 
 // ===== CLOSE REVIEW TAB =====
-function CloseReviewTab({ appointments, vans, settings, refreshAppointments, updateApptStatus, services, setServices }) {
+function CloseReviewTab({ appointments, vans, settings, refreshAppointments, updateApptStatus, services, setServices, lockedCompanyId = null }) {
   const [viewMode, setViewMode] = useState('day');
   const [date, setDate] = useState(todayISO());
   const [saving, setSaving] = useState(false);
-  const [filterCompany, setFilterCompany] = useState('all');
+  const [filterCompany, setFilterCompany] = useState(lockedCompanyId || 'all');
   const [filterVan, setFilterVan] = useState('all');
 
   const { start: weekStart, end: weekEnd } = getWeekRange(date);
