@@ -2749,6 +2749,7 @@ function VanTrackerTab({ vans, vanLocations, groomers }) {
 // ===== HEADER =====
 // ===== HEADER =====
 function Header({ tab, setTab, session, currentVan, canViewFinances, canViewReports, canEditConfig, onLogout, activeCompany, onLanguageChange, isOnline = true }) {
+  const isFinance = session?.role === 'finance';
   const { isEnabled } = useModulesContext();
   const isAdmin = session?.role === 'admin';
   const isManager = session?.role === 'manager';
