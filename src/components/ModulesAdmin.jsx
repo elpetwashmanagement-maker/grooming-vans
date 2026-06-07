@@ -9,6 +9,10 @@ const ALL_MODULES = [
   // CORE — no se pueden desactivar
   { key: 'scheduling',     label: 'Agenda & Citas',         icon: '📅', plan: 'Core',       core: true },
   { key: 'daily_record',   label: 'Registro Diario',        icon: '📋', plan: 'Core',       core: true },
+  // EMPRESAS
+  { key: 'epw',            label: 'El Pet Wash',            icon: '🐾', plan: 'Empresas',   core: false },
+  { key: 'atw',            label: 'All Tails Wag',          icon: '🐕', plan: 'Empresas',   core: false },
+  { key: 'boarding',       label: 'Casa Group Guerrero',    icon: '🏠', plan: 'Empresas',   core: false },
   // PRO
   { key: 'gps_routes',     label: 'GPS & Rutas',            icon: '🗺️',  plan: 'Pro',        core: false },
   { key: 'reminders',      label: 'Recordatorios SMS',      icon: '💬', plan: 'Pro',        core: false },
@@ -18,12 +22,15 @@ const ALL_MODULES = [
   { key: 'payroll',        label: 'Nómina & Comisiones',    icon: '💵', plan: 'Business',   core: false },
   { key: 'finances',       label: 'Finanzas & P&L',         icon: '📊', plan: 'Business',   core: false },
   // ENTERPRISE
-  { key: 'boarding',       label: 'Boarding',               icon: '🏠', plan: 'Enterprise', core: false },
   { key: 'inventory',      label: 'Inventario',             icon: '📦', plan: 'Enterprise', core: false },
   { key: 'square',         label: 'Pagos Square',           icon: '💳', plan: 'Enterprise', core: false },
   { key: 'audit',          label: 'Auditoría',              icon: '🔍', plan: 'Enterprise', core: false },
   { key: 'booking_portal', label: 'Portal de Reservas',     icon: '🌐', plan: 'Enterprise', core: false },
 ];
+
+const PLAN_COLORS_EXTRA = {
+  Empresas: { bg: '#fff7ed', color: '#c2410c', border: '#fdba74' },
+};
 
 const PLAN_COLORS = {
   Core:       { bg: '#f0fdf4', color: '#15803d', border: '#86efac' },
@@ -102,9 +109,9 @@ export function ModulesAdmin({ companies }) {
       ) : (
         <div>
           {/* Agrupar por plan */}
-          {['Core', 'Pro', 'Business', 'Enterprise'].map(plan => {
+          {['Core', 'Empresas', 'Pro', 'Business', 'Enterprise'].map(plan => {
             const planModules = ALL_MODULES.filter(m => m.plan === plan);
-            const colors = PLAN_COLORS[plan];
+            const colors = PLAN_COLORS[plan] || PLAN_COLORS_EXTRA[plan] || PLAN_COLORS['Core'];
             return (
               <div key={plan} style={{ marginBottom: 20 }}>
                 <div style={{
