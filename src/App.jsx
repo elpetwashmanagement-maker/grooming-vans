@@ -2191,9 +2191,9 @@ function SignatureModal({ appt, companyId, onSave, onClose }) {
 
 // Viewer users (company-specific, read-only)
 const VIEWER_USERS = [
-  { id: 'viewer-epw', name: 'Mariam', username: 'Mariam', pin: '6501', role: 'viewer', companyId: 'epw',
+  { id: 'viewer-epw', name: 'Mariam', username: 'Mariam', pin: '6501', role: 'finance', companyId: 'epw',
     permissions: { can_create_clients: false, can_view_clients: true, can_schedule: false, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false } },
-  { id: 'viewer-atw', name: 'Melissa', username: 'Melissa', pin: '2026', role: 'viewer', companyId: 'atw',
+  { id: 'viewer-atw', name: 'Melissa', username: 'Melissa', pin: '2026', role: 'finance', companyId: 'atw',
     permissions: { can_create_clients: false, can_view_clients: true, can_schedule: false, can_view_all_schedule: true, can_view_finances: false, can_view_reports: true, can_edit_config: false } },
 ];
 
