@@ -13,12 +13,14 @@ export default async function handler(req, res) {
     const fromPhone = msg.from;
     
     const payload = {
+      id: msg.id || `msg_${Date.now()}`,
       phone: fromPhone,
       body: msg.content,
       direction: 'inbound',
       company_id: companyId,
       message_id: msg.id,
       status: 'received',
+      created_at: new Date().toISOString(),
     };
     
     console.log('Inserting message:', JSON.stringify(payload));
