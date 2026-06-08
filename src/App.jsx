@@ -3466,7 +3466,11 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
     } else if (filterVanId !== 'todos') {
       list = list.filter(a => a.vanId === filterVanId);
     }
-    return list.sort((a,b) => (a.timeStart || '').localeCompare(b.timeStart || ''));
+    return list.sort((a,b) => {
+      const ta = a.timeStart || '99:99';
+      const tb = b.timeStart || '99:99';
+      return ta.localeCompare(tb);
+    });
   }, [appointments, date, isGroomer, myVanId, filterVanId, vans]);
 
   const filteredClients = useMemo(() => {
