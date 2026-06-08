@@ -5124,8 +5124,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                                     }
                                   }}
                                   placeholder="Type a message..." style={{ flex: 1, padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
-                                {Object.keys(editingPrice).some(k => k === price.id || k.startsWith(price.id + '_')) && (
-                            <button onClick={async () => {
+                                <button onClick={async () => {
                                   if (!chatInput.trim()) return;
                                   const cId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
                                   const ok = await sendSMSApi(appt.client.phone, chatInput.trim(), cId, String(appt.clientId), appt.client.name);
