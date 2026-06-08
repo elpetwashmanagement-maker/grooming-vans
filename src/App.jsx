@@ -10759,7 +10759,7 @@ function MessagesTab({ clients, vans, session }) {
                 { en: '✅ Your appointment is confirmed!', es: '✅ ¡Tu cita está confirmada!' },
                 { en: '🚗 Your groomer is on the way!', es: '🚗 ¡Tu groomer está en camino!' },
                 { en: '🐾 Your pet is ready for pickup!', es: '🐾 ¡Tu mascota está lista para recoger!' },
-                { en: '📋 Please reply with your name, address and pet info to get started!', es: '📋 Por favor responde con tu nombre, dirección e info de tu mascota para comenzar.' },
+                { en: '📋 To get started please reply with: Full name, Home address, Pet name, Pet breed, Pet size (small/medium/large/xlarge). Example: Maria Garcia, 123 SW 5th St Miami FL 33130, Max, Golden Retriever, medium', es: '📋 Para comenzar responde con: Nombre completo, Dirección, Nombre mascota, Raza, Tamaño (pequeño/mediano/grande/extragrande). Ejemplo: Maria Garcia, 123 SW 5th St Miami FL 33130, Max, Golden Retriever, mediano' },
               ].map((msg, i) => {
                 const lastClientMsg = conversationMessages.filter(m => m.direction === 'inbound').slice(-1)[0]?.body || '';
                 const isSpanish = /[áéíóúüñ¿¡]/i.test(lastClientMsg) || /(hola|gracias|cita|mascota|perro|gato|quiero|necesito|ayuda)/i.test(lastClientMsg);
