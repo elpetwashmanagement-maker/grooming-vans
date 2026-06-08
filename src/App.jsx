@@ -5011,6 +5011,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         <button onClick={async () => { if (!window.confirm("Reopen this appointment for editing?")) return; await updateApptStatus(appt.id, "in_progress"); await refreshAppointments(); }} style={{ ...styles.btnSecondary, justifyContent: "center", borderColor: "#f59e0b", color: "#f59e0b" }}>
                           🔄 Reopen &amp; Edit
                         </button>
+                      )}
 
                       {isGroomer && appt.client?.phone && (appt.status === 'confirmed' || appt.status === 'in_progress') && (() => {
                         const van = vans.find(v => v.id === appt.vanId);
