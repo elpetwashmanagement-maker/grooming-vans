@@ -269,12 +269,12 @@ const processSquarePayment = async (amountCents, note = '', companyId = 'epw') =
 
 
 // ===== SMS =====
-const sendSMSApi = async (phone, message, companyId) => {
+const sendSMSApi = async (phone, message, companyId, clientId = null, clientName = null) => {
   try {
     const res = await fetch('/api/send-sms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: phone, message, companyId: companyId || 'epw' }),
+      body: JSON.stringify({ to: phone, message, companyId: companyId || 'epw', clientId, clientName }),
     });
     const data = await res.json();
     if (data.success) console.log('SMS sent:', phone);
@@ -5009,7 +5009,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                             {msgs.map((m, i) => (
                               <button key={i} onClick={async () => {
                                 const companyId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
-                                const ok = await sendSMSApi(appt.client.phone, m.text, companyId);
+                                const ok = await sendSMSApi(appt.client.phone, m.text, companyId, String(appt.clientId), appt.client.name);
                                 if (ok) alert('✅ Message sent!');
                                 else window.open(`sms:${appt.client.phone}&body=${encodeURIComponent(m.text)}`);
                               }} style={{ ...styles.btnSecondary, justifyContent: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -10824,7 +10824,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
     const companyId = groomer?.companyId || vans.find(v => v.id === groomer?.vanId)?.companyId || 'epw';
     const msg = `Hi ${client.name.split(' ')[0]}! 🐾 We have availability on ${selectedDate} near your area. Would you like to schedule a grooming appointment? Reply YES and we'll get you booked!`;
     console.log('Sending SMS to:', client.phone, 'companyId:', companyId);
-    const ok = await sendSMSApi(client.phone, msg, companyId);
+    const ok = await sendSMSApi(client.phone, msg, companyId, String(client.id), client.name);
     console.log('SMS result:', ok);
     if (ok) alert('✅ Message sent to ' + client.name + '!');
     else { console.log('Falling back to native SMS'); window.open(`sms:${client.phone}?body=${encodeURIComponent(msg)}`); }

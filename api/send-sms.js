@@ -1,10 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  'https://lpzwnbrjpayjhlwjmuda.supabase.co',
-  process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT'
-);
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { to, message, companyId, clientId, clientName } = req.body;
@@ -25,17 +18,28 @@ export default async function handler(req, res) {
     const data = await response.json();
     console.log('OpenPhone:', JSON.stringify(data));
     
-    // Guardar en Supabase
+    // Guardar en Supabase via fetch
     if (response.ok) {
-      await supabase.from('messages').insert({
-        phone: to,
-        body: message,
-        direction: 'outbound',
-        company_id: companyId || 'epw',
-        client_id: clientId || null,
-        client_name: clientName || null,
-        message_id: data.id || null,
-        status: 'sent',
+      await fetch('https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT',
+          'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          id: data.data?.id || `out_${Date.now()}`,
+          phone: to,
+          body: message,
+          direction: 'outbound',
+          company_id: companyId || 'epw',
+          client_id: clientId || null,
+          client_name: clientName || null,
+          message_id: data.data?.id || null,
+          status: 'sent',
+          created_at: new Date().toISOString(),
+        })
       });
     }
     
