@@ -706,6 +706,7 @@ const loadGroomers = async () => {
     id: g.id, name: g.name, pin: g.pin,
     commissionPct: parseFloat(g.commission_pct) || 45,
     vanId: g.van_id, active: g.active !== false, language: g.language || 'es',
+    companyId: g.company_id || 'epw',
   }));
 };
 const saveGroomer = async (groomer) => {
