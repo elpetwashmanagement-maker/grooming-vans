@@ -7621,8 +7621,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
 
                           {/* Save/Delete */}
                           <div style={{ display: 'flex', gap: 3 }}>
-                            {Object.keys(editingPrice).some(k => k.startsWith(price.id)) && (
-                              <button onClick={async () => {
+                            <button onClick={async () => {
                                 const updated = {
                                   ...price,
                                   name: editingPrice[`${price.id}_name`] !== undefined ? editingPrice[`${price.id}_name`] : (price.name || price.service_name),
@@ -7640,7 +7639,6 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                                   return n;
                                 });
                               }} style={{ background: '#0f766e', border: 'none', borderRadius: 6, padding: '4px 6px', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>✓</button>
-                            )}
                             <button onClick={async () => {
                               if (window.confirm('Delete this service?')) {
                                 await deleteServicePrice(price.id);
