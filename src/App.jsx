@@ -3962,8 +3962,10 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         ✅ Confirm
                       </button>
                       <button onClick={async () => {
-                        await updateApptStatus(appt.id, 'cancelled');
-                        await refreshAppointments();
+                        if (window.confirm('Cancel and delete this appointment?')) {
+                          await deleteAppt(appt.id);
+                          await refreshAppointments();
+                        }
                       }} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: '#dc2626' }}>
                         ✕
                       </button>
@@ -5031,7 +5033,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       )}
 
                       {appt.status !== 'cancelled' && appt.status !== 'completed' && isAdmin && (
-                        <button onClick={() => { if (confirm('Cancel this appointment?')) updateApptStatus(appt.id, 'cancelled'); }}
+                        <button onClick={async () => { if (confirm('Cancel and delete this appointment?')) { await deleteAppt(appt.id); await refreshAppointments(); } }}
                           style={{ ...styles.btnDanger, justifyContent: 'center' }}>
                           ✕ Cancel
                         </button>
