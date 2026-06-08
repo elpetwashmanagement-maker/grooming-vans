@@ -1,48 +1,38 @@
-// api/receive-sms.js — Webhook para SMS entrantes de Twilio
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  'https://lpzwnbrjpayjhlwjmuda.supabase.co',
+  process.env.SUPABASE_SERVICE_KEY || 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT'
+);
+
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method not allowed');
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  
+  try {
+    const { data } = req.body;
+    if (!data) return res.status(200).json({ ok: true });
+    
+    const msg = data.object;
+    if (!msg || msg.object !== 'message') return res.status(200).json({ ok: true });
+    
+    // Determinar empresa por número receptor
+    const to = msg.to?.[0];
+    const companyId = to === '+15619563957' ? 'atw' : 'epw';
+    const fromPhone = msg.from;
+    
+    // Guardar en Supabase
+    await supabase.from('messages').insert({
+      phone: fromPhone,
+      body: msg.content,
+      direction: 'inbound',
+      company_id: companyId,
+      message_id: msg.id,
+      status: 'received',
+    });
+    
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    return res.status(200).json({ ok: true });
   }
-
-  const { From, To, Body, MessageSid } = req.body;
-
-  if (!From || !Body) {
-    return res.status(400).send('Missing fields');
-  }
-
-  const { createClient } = await import('@supabase/supabase-js');
-  const supabase = createClient(
-    process.env.VITE_SUPABASE_URL || 'https://lpzwnbrjpayjhlwjmuda.supabase.co',
-    process.env.SUPABASE_SERVICE_KEY || process.env.VITE_SUPABASE_KEY
-  );
-
-  // Determinar company por número destino
-  const companyId = To === process.env.TWILIO_PHONE_ATW ? 'atw' : 'epw';
-
-  // Buscar cliente por teléfono
-  const cleanPhone = From.replace(/\D/g, '');
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, name')
-    .or(`phone.ilike.%${cleanPhone.slice(-10)}%`)
-    .limit(1);
-
-  const client = clients?.[0];
-
-  // Guardar mensaje entrante
-  await supabase.from('messages').insert({
-    id: MessageSid || `inbound-${Date.now()}`,
-    client_id: client?.id || null,
-    client_name: client?.name || From,
-    phone: From,
-    company_id: companyId,
-    direction: 'inbound',
-    body: Body,
-    status: 'received',
-    twilio_sid: MessageSid,
-  });
-
-  // Responder a Twilio con TwiML vacío
-  res.setHeader('Content-Type', 'text/xml');
-  return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
 }
