@@ -2798,7 +2798,7 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'messages',       label: 'Messages',          icon: '💬', show: (isAdmin || isManager) && !isFinance },
     { id: 'requests',       label: 'Booking Requests',  icon: '📩', show: (isAdmin || isManager) && !isFinance },
     { id: 'divider1',       label: '── Finance ──',     icon: '',   show: (isAdmin || isManager || isFinance) && !isGroomer, divider: true },
-    { id: 'close-review',   label: 'Close Review',      icon: '💰', show: isAdmin || isFinance },
+    { id: 'close-review',   label: 'Close Review',      icon: '💰', show: isAdmin || isFinance || isManager },
     { id: 'payroll',        label: 'Payroll',           icon: '💸', show: (isAdmin || isViewer || isFinance) && isEnabled('payroll') },
     { id: 'gastos-company', label: 'Expenses',          icon: '💼', show: isAdmin || isFinance },
     { id: 'week',           label: 'Weekly Report',     icon: '📈', show: isAdmin || isManager || isViewer || isFinance },
