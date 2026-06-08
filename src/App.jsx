@@ -10923,6 +10923,62 @@ function MessagesTab({ clients, vans, session }) {
 
 
 // ===== SMART FILL TAB =====
+function SmartFillMap({ suggestions, apiKey, onSelect }) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+
+  useEffect(() => {
+    if (!mapRef.current || !window.google) return;
+    const addresses = suggestions.filter(s => s.client.address);
+    if (addresses.length === 0) return;
+
+    const geocoder = new window.google.maps.Geocoder();
+    const bounds = new window.google.maps.LatLngBounds();
+
+    if (!mapInstance.current) {
+      mapInstance.current = new window.google.maps.Map(mapRef.current, {
+        zoom: 12,
+        center: { lat: 25.7617, lng: -80.1918 }, // Miami default
+        mapTypeControl: false,
+        streetViewControl: false,
+      });
+    }
+
+    suggestions.forEach((s, i) => {
+      if (!s.client.address) return;
+      geocoder.geocode({ address: s.client.address }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const pos = results[0].geometry.location;
+          bounds.extend(pos);
+          const marker = new window.google.maps.Marker({
+            position: pos,
+            map: mapInstance.current,
+            title: s.client.name,
+            label: { text: String(i + 1), color: '#fff', fontSize: '12px', fontWeight: 'bold' },
+            icon: {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 18,
+              fillColor: '#0f766e',
+              fillOpacity: 1,
+              strokeColor: '#fff',
+              strokeWeight: 2,
+            }
+          });
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `<div style="font-size:13px;padding:4px"><b>${s.client.name}</b><br/>${s.pets.map(p => p.name).join(', ')}<br/>${s.weeksSince} weeks ago<br/><button onclick="window.__smartFillSelect(${i})" style="margin-top:6px;background:#0f766e;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer">📅 Book</button></div>`
+          });
+          marker.addListener('click', () => infoWindow.open(mapInstance.current, marker));
+          mapInstance.current.fitBounds(bounds);
+        }
+      });
+    });
+
+    window.__smartFillSelect = (i) => { onSelect(suggestions[i]); };
+  }, [suggestions]);
+
+  return <div ref={mapRef} style={{ width: '100%', height: '380px' }} />;
+}
+
 function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, addAppointment, servicePrices, session }) {
   const [selectedDate, setSelectedDate] = useState(todayISO());
   const [selectedGroomer, setSelectedGroomer] = useState('');
@@ -11158,12 +11214,8 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
             </button>
           </div>
           {showMap && (
-            <div style={{ marginBottom: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', height: 350 }}>
-              <iframe
-                title="Smart Fill Map"
-                width="100%" height="350" style={{ border: 'none' }}
-                src={`https://www.google.com/maps/embed/v1/search?key=AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE&q=${encodeURIComponent(suggestions.map(s => s.client.address).filter(Boolean).join('|'))}&zoom=12`}
-              />
+            <div style={{ marginBottom: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', height: 380 }}>
+              <SmartFillMap suggestions={suggestions} apiKey="AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE" onSelect={bookClient} />
             </div>
           )}
           {suggestions.map((s, i) => (
