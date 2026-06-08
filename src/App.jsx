@@ -7877,7 +7877,7 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
 
   const startEditClient = (c) => {
     setEditingClient(c);
-    setEditClientForm({ name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', notes: c.notes || '' });
+    setEditClientForm({ name: c.name, phone: c.phone || '', email: c.email || '', address: c.address || '', notes: c.notes || '', notifySms: c.notifySms || c.notify_sms || false });
     setShowEditClient(true);
     setShowEditPet(false);
   };
@@ -8335,6 +8335,13 @@ function ClientsTab({ clients, pets, appointments, session, isAdmin, addClient, 
                   </div>
                   <div><label style={styles.lbl}>Email</label><input value={editClientForm.email} onChange={e => setEditClientForm(f => ({...f, email: e.target.value}))} style={styles.input} /></div>
                   <div><label style={styles.lbl}>Notes internas</label><input value={editClientForm.notes} onChange={e => setEditClientForm(f => ({...f, notes: e.target.value}))} style={styles.input} /></div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label style={styles.lbl}>Notifications</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: editClientForm.notifySms ? '#f0fdfa' : '#f8fafc', border: `1.5px solid ${editClientForm.notifySms ? '#0f766e' : '#e2e8f0'}`, borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: editClientForm.notifySms ? 600 : 400, marginTop: 4 }}>
+                      <input type="checkbox" checked={editClientForm.notifySms || false} onChange={e => setEditClientForm(f => ({...f, notifySms: e.target.checked}))} style={{ display: 'none' }} />
+                      📱 SMS notifications {editClientForm.notifySms ? '✅' : ''}
+                    </label>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
                   <button onClick={() => { setShowEditClient(false); setEditingClient(null); }} style={styles.btnSecondary}><X size={14} /> Cancel</button>
