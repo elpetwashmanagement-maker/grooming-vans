@@ -3394,6 +3394,12 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [date, setDate] = useState(todayISO());
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [showGroomingForm, setShowGroomingForm] = useState(null);
+  const [openChatApptId, setOpenChatApptId] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [openChatApptId, setOpenChatApptId] = useState(null);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState('');
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [showNewClient, setShowNewClient] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -5007,7 +5013,13 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         ];
                         return (
                           <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>📱 Quick Messages</div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>📱 Quick Messages</div>
+                              <button onClick={() => setOpenChatApptId(openChatApptId === appt.id ? null : appt.id)}
+                                style={{ background: openChatApptId === appt.id ? '#0f766e' : '#f0fdfa', border: '1px solid #0f766e', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: openChatApptId === appt.id ? '#fff' : '#0f766e', fontWeight: 600 }}>
+                                💬 Chat
+                              </button>
+                            </div>
                             {msgs.map((m, i) => (
                               <button key={i} onClick={async () => {
                                 const companyId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
@@ -5018,6 +5030,42 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                                 {m.icon} {m.label}
                               </button>
                             ))}
+                          {openChatApptId === appt.id && (
+                            <div style={{ marginTop: 8, border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+                              <div style={{ padding: '8px 12px', background: '#f0fdfa', borderBottom: '1px solid #e2e8f0', fontSize: 12, fontWeight: 700, color: '#0f766e' }}>
+                                💬 Chat with {appt.client.name}
+                              </div>
+                              <div style={{ maxHeight: 200, overflowY: 'auto', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                {chatMessages.filter(m => m.apptId === appt.id).map((m, i) => (
+                                  <div key={i} style={{ display: 'flex', justifyContent: m.direction === 'out' ? 'flex-end' : 'flex-start' }}>
+                                    <div style={{ maxWidth: '80%', padding: '6px 10px', borderRadius: 10, background: m.direction === 'out' ? '#0f766e' : '#f1f5f9', color: m.direction === 'out' ? '#fff' : '#0f172a', fontSize: 13 }}>
+                                      {m.text}
+                                    </div>
+                                  </div>
+                                ))}
+                                {chatMessages.filter(m => m.apptId === appt.id).length === 0 && (
+                                  <div style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 8 }}>No messages yet</div>
+                                )}
+                              </div>
+                              <div style={{ padding: 8, borderTop: '1px solid #e2e8f0', display: 'flex', gap: 6 }}>
+                                <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                                  onKeyDown={async e => {
+                                    if (e.key === 'Enter' && chatInput.trim()) {
+                                      const cId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
+                                      const ok = await sendSMSApi(appt.client.phone, chatInput.trim(), cId, String(appt.clientId), appt.client.name);
+                                      if (ok) { setChatMessages(prev => [...prev, { apptId: appt.id, text: chatInput.trim(), direction: 'out' }]); setChatInput(''); }
+                                    }
+                                  }}
+                                  placeholder="Type a message..." style={{ flex: 1, padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
+                                <button onClick={async () => {
+                                  if (!chatInput.trim()) return;
+                                  const cId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
+                                  const ok = await sendSMSApi(appt.client.phone, chatInput.trim(), cId, String(appt.clientId), appt.client.name);
+                                  if (ok) { setChatMessages(prev => [...prev, { apptId: appt.id, text: chatInput.trim(), direction: 'out' }]); setChatInput(''); }
+                                }} style={{ padding: '6px 12px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13 }}>→</button>
+                              </div>
+                            </div>
+                          )}
                           </div>
                         );
                       })()}
