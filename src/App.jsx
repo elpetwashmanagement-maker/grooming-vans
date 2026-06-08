@@ -10581,7 +10581,7 @@ function MessagesTab({ clients, vans, session }) {
         };
       }
       map[key].messages.push(m);
-      if (m.direction === 'inbound') map[key].unread++;
+      if (m.direction === 'inbound' && m.status !== 'read') map[key].unread++;
     });
     return Object.values(map)
       .filter(c => {
@@ -10744,6 +10744,11 @@ function MessagesTab({ clients, vans, session }) {
               <div key={conv.phone} onClick={() => {
                 setSelectedConversation(conv);
                 loadConversationHistory(conv.phone);
+                // Marcar como leído
+                setMessages(prev => prev.map(m => 
+                  m.phone?.replace(/\D/g,'').slice(-10) === conv.phone?.replace(/\D/g,'').slice(-10) && m.direction === 'inbound'
+                  ? { ...m, status: 'read' } : m
+                ));
               }}
                 style={{ padding: '12px 14px', background: isSelected ? '#f0fdfa' : '#fff', border: `1.5px solid ${isSelected ? '#0f766e' : '#e2e8f0'}`, borderRadius: 12, cursor: 'pointer', position: 'relative' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
