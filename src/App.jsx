@@ -10514,6 +10514,7 @@ function MessagesTab({ clients, vans, session }) {
 
   const barkSound = typeof Audio !== 'undefined' ? new Audio('https://www.soundjay.com/animals/sounds/dog-barking-1.mp3') : null;
   const prevMessageIds = useRef(new Set());
+  const readMessageIds = useRef(new Set());
 
   const loadMessages = async () => {
     const { data, error } = await supabase
@@ -10530,7 +10531,12 @@ function MessagesTab({ clients, vans, session }) {
         try { barkSound?.play(); } catch(e) {}
       }
       prevMessageIds.current = new Set(data.map(m => m.id));
-      setMessages(data);
+      // Aplicar estado read a mensajes ya leídos
+      const dataWithRead = data.map(m => 
+        readMessageIds.current.has(m.phone?.replace(/\D/g,'').slice(-10)) && m.direction === 'inbound'
+        ? { ...m, status: 'read' } : m
+      );
+      setMessages(dataWithRead);
     }
     setLoading(false);
   };
@@ -10745,8 +10751,10 @@ function MessagesTab({ clients, vans, session }) {
                 setSelectedConversation(conv);
                 loadConversationHistory(conv.phone);
                 // Marcar como leído
+                const cleanPhone = conv.phone?.replace(/\D/g,'').slice(-10);
+                readMessageIds.current.add(cleanPhone);
                 setMessages(prev => prev.map(m => 
-                  m.phone?.replace(/\D/g,'').slice(-10) === conv.phone?.replace(/\D/g,'').slice(-10) && m.direction === 'inbound'
+                  m.phone?.replace(/\D/g,'').slice(-10) === cleanPhone && m.direction === 'inbound'
                   ? { ...m, status: 'read' } : m
                 ));
               }}
