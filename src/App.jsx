@@ -11216,7 +11216,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
           </div>
           {showMap && (
             <div style={{ marginBottom: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', height: 380 }}>
-              <SmartFillMap suggestions={suggestions} apiKey="AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE" onSelect={bookClient} />
+              <SmartFillMap suggestions={suggestions} apiKey="AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE" onSelect={bookClient} onSMS={sendSMS} />
             </div>
           )}
           {suggestions.map((s, i) => (
