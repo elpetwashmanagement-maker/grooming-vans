@@ -9941,9 +9941,9 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
             {showHistory === g.id && (
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: '#64748b', marginBottom: 8 }}>Payment History</div>
-                {groomerPayments.filter(p => p.groomer_id === g.id).length === 0 ? (
+                {groomerPayments.filter(p => (p.groomer_id === g.id || p.groomerId === g.id)).length === 0 ? (
                   <div style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', padding: 12 }}>No payments yet</div>
-                ) : groomerPayments.filter(p => p.groomer_id === g.id).slice(0, 10).map(p => (
+                ) : groomerPayments.filter(p => (p.groomer_id === g.id || p.groomerId === g.id)).slice(0, 10).map(p => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#f0fdfa', borderRadius: 8, marginBottom: 6 }}>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 600, color: '#0f766e' }}>{fmt(parseFloat(p.amount))}</div>
