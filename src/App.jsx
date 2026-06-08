@@ -10932,6 +10932,7 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const [manualZip, setManualZip] = useState('');
   const [manualCity, setManualCity] = useState('');
   const [minWeeks, setMinWeeks] = useState(0);
+  const [showMap, setShowMap] = useState(false);
   const GOOGLE_API_KEY = 'AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE';
 
   // Citas del groomer en la fecha seleccionada
@@ -11147,9 +11148,24 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
       {/* Sugerencias */}
       {suggestions.length > 0 && (
         <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>
-            📍 {suggestions.length} nearby clients found
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b' }}>
+              📍 {suggestions.length} nearby clients found
+            </div>
+            <button onClick={() => setShowMap(m => !m)}
+              style={{ background: showMap ? '#0f766e' : '#f0fdfa', border: '1px solid #0f766e', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 12, color: showMap ? '#fff' : '#0f766e', fontWeight: 600 }}>
+              {showMap ? '📋 List' : '🗺️ Map'}
+            </button>
           </div>
+          {showMap && (
+            <div style={{ marginBottom: 16, borderRadius: 14, overflow: 'hidden', border: '1px solid #e2e8f0', height: 350 }}>
+              <iframe
+                title="Smart Fill Map"
+                width="100%" height="350" style={{ border: 'none' }}
+                src={`https://www.google.com/maps/embed/v1/search?key=AIzaSyBR-RQ639CWkt-SprO3EM4iHp89ahPVvmE&q=${encodeURIComponent(suggestions.map(s => s.client.address).filter(Boolean).join('|'))}&zoom=12`}
+              />
+            </div>
+          )}
           {suggestions.map((s, i) => (
             <div key={i} style={{ background: '#fff', borderRadius: 14, border: '1px solid #e2e8f0', padding: 14, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
