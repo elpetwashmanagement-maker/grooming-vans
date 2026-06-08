@@ -4944,6 +4944,14 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   payment_method: editPayForm.method,
                   payment_tip: editPayForm.tip,
                 }).eq('id', appt.id);
+                // Update appointment_pets tip y method
+                const { data: apptPets } = await supabase.from('appointment_pets').select('id').eq('appointment_id', appt.id);
+                if (apptPets && apptPets.length > 0) {
+                  await supabase.from('appointment_pets').update({
+                    tip: editPayForm.tip,
+                    method: editPayForm.method,
+                  }).eq('appointment_id', appt.id);
+                }
                 await refreshAppointments();
                 setEditingCompletedAppt(null);
                 alert('✅ Payment updated!');
