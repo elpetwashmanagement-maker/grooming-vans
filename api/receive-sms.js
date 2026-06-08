@@ -2,6 +2,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   
   try {
+    console.log('Webhook body:', JSON.stringify(req.body));
     const { data } = req.body;
     if (!data) return res.status(200).json({ ok: true });
     
@@ -11,11 +12,12 @@ export default async function handler(req, res) {
     const to = msg.to?.[0];
     const companyId = to === '+15619563957' ? 'atw' : 'epw';
     const fromPhone = msg.from;
+    const body = msg.content || msg.text || msg.body || '';
     
     const payload = {
       id: msg.id || `msg_${Date.now()}`,
       phone: fromPhone,
-      body: msg.content,
+      body: body,
       direction: 'inbound',
       company_id: companyId,
       message_id: msg.id,
