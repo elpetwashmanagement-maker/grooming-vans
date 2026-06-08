@@ -10684,9 +10684,14 @@ function MessagesTab({ clients, vans, session }) {
     <div style={{ animation: 'fadeIn 0.3s ease', height: 'calc(100vh - 160px)', display: 'flex', flexDirection: 'column' }}>
       <SectionTitle eyebrow="Communications" title={`💬 Messages${totalUnread > 0 ? ` · ${totalUnread} new` : ''}`}
         right={
-          <button onClick={() => setShowNewMsg(true)} style={styles.btnPrimary}>
-            <Plus size={14} /> New Message
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => playBark()} style={{ ...styles.btnSecondary, fontSize: 12, padding: '6px 10px' }}>
+              🔔 Test
+            </button>
+            <button onClick={() => setShowNewMsg(true)} style={styles.btnPrimary}>
+              <Plus size={14} /> New Message
+            </button>
+          </div>
         }
       />
 
