@@ -11078,7 +11078,13 @@ function SmartFillTab({ groomers, vans, appointments, clients, pets, settings, a
   const sendSMS = async (client) => {
     const groomer = groomers.find(g => g.id === selectedGroomer);
     const companyId = groomer?.companyId || vans.find(v => v.id === groomer?.vanId)?.companyId || 'epw';
-    const msg = `Hi ${client.name.split(' ')[0]}! 🐾 We have availability on ${selectedDate} near your area. Would you like to schedule a grooming appointment? Reply YES and we'll get you booked!`;
+    const clientPets = pets.filter(p => String(p.client_id) === String(client.id));
+    const petNames = clientPets.map(p => p.name).join(' & ') || 'your pet';
+    const firstName = client.name.split(' ')[0];
+    const isSpanish = /[áéíóúüñ¿¡]/i.test(client.name) || client.language === 'es';
+    const msg = isSpanish
+      ? `Hola ${firstName}! 🐾 Estamos cerca de tu área y queremos saber si deseas el servicio para ${petNames}. ¿Te gustaría agendar una cita? — ${groomer?.companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash'}`
+      : `Hi ${firstName}! 🐾 We are near your area and wanted to check if you'd like grooming service for ${petNames}. Would you like to schedule an appointment? — ${groomer?.companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash'}`;
     console.log('Sending SMS to:', client.phone, 'companyId:', companyId);
     const ok = await sendSMSApi(client.phone, msg, companyId, String(client.id), client.name);
     console.log('SMS result:', ok);
