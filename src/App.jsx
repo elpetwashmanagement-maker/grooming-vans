@@ -5130,7 +5130,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                                   const cId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
                                   const ok = await sendSMSApi(appt.client.phone, chatInput.trim(), cId, String(appt.clientId), appt.client.name);
                                   if (ok) { setChatMessages(prev => [...prev, { apptId: appt.id, text: chatInput.trim(), direction: 'out' }]); setChatInput(''); }
-                                }} style={{ padding: '6px 12px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13 }}>→</button>
+                                }} style={{ padding: '6px 12px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13 }}>Send</button>
                               </div>
                             </div>
                           )}
