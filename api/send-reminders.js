@@ -27,8 +27,11 @@ export default async function handler(req, res) {
       if (!client?.phone) continue;
       const companyId = appt.company_id || 'epw';
       const companyName = companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash';
-      const time = appt.time_start || '';
-      const msg = 'Hi ' + client.name.split(' ')[0] + '! Your grooming appointment is tomorrow' + (time ? ' at ' + time : '') + '. We will come to your home. See you then! - ' + companyName;
+      const timeStart = appt.time_start || '';
+      const timeEnd = appt.time_end || '';
+      const timeRange = timeStart && timeEnd ? ' between ' + timeStart + '-' + timeEnd : timeStart ? ' at ' + timeStart : '';
+      const firstName = client.name.split(' ')[0];
+      const msg = 'Hi ' + firstName + '! Your grooming appointment is tomorrow' + timeRange + '. We will come to your home. Reply YES to confirm or NO to reschedule. - ' + companyName;
       await fetch('https://grooming-vans.vercel.app/api/send-sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

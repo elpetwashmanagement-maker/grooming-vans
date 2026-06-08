@@ -10,26 +10,17 @@ export default async function handler(req, res) {
     const fromPhone = msg.from;
     const body = msg.content || msg.text || msg.body || '';
     const cleanPhone = fromPhone.replace(/\D/g, '').slice(-10);
+
+    // Buscar cliente
     const clientRes = await fetch(
-      `https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/clients?select=id,name&phone=ilike.*${cleanPhone}*&limit=1`,
+      'https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/clients?select=id,name&phone=ilike.*' + cleanPhone + '*&limit=1',
       { headers: { 'apikey': 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT', 'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT' } }
     );
     const clients = await clientRes.json();
     const client = clients?.[0];
-    const payload = {
-      id: msg.id || `msg_${Date.now()}`,
-      phone: fromPhone,
-      body,
-      direction: 'inbound',
-      company_id: companyId,
-      client_id: client?.id || null,
-      client_name: client?.name || null,
-      message_id: msg.id,
-      status: 'received',
-      created_at: new Date().toISOString(),
-    };
-    console.log('Inserting message:', JSON.stringify(payload));
-    const r = await fetch('https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/messages', {
+
+    // Guardar mensaje
+    await fetch('https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,10 +28,52 @@ export default async function handler(req, res) {
         'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT',
         'Prefer': 'return=minimal'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({
+        id: msg.id || 'msg_' + Date.now(),
+        phone: fromPhone,
+        body,
+        direction: 'inbound',
+        company_id: companyId,
+        client_id: client?.id || null,
+        client_name: client?.name || null,
+        message_id: msg.id,
+        status: 'received',
+        created_at: new Date().toISOString(),
+      })
     });
-    const text = await r.text();
-    console.log('Supabase response:', r.status, text);
+
+    // Detectar YES/NO
+    const response = body.trim().toUpperCase();
+    const companyName = companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash';
+    const fromNumber = companyId === 'atw' ? '+15619563957' : '+19542870564';
+    const firstName = client?.name?.split(' ')[0] || 'there';
+
+    if (response === 'YES' || response === 'SI' || response === 'SÍ') {
+      // Confirmar cita
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowISO = tomorrow.toISOString().split('T')[0];
+      if (client?.id) {
+        await fetch(
+          'https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/appointments?client_id=eq.' + client.id + '&date=eq.' + tomorrowISO,
+          { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'apikey': 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT', 'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT' }, body: JSON.stringify({ status: 'confirmed' }) }
+        );
+      }
+      // Responder confirmación
+      await fetch('https://api.openphone.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': process.env.OPENPHONE_API_KEY },
+        body: JSON.stringify({ from: fromNumber, to: [fromPhone], content: 'Thank you ' + firstName + '! Your appointment is confirmed. See you tomorrow! - ' + companyName })
+      });
+    } else if (response === 'NO') {
+      // Pedir reagendar
+      await fetch('https://api.openphone.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': process.env.OPENPHONE_API_KEY },
+        body: JSON.stringify({ from: fromNumber, to: [fromPhone], content: 'No problem ' + firstName + '! What day works better for you? Please reply with a date and we will reschedule. - ' + companyName })
+      });
+    }
+
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Webhook error:', err.message);
