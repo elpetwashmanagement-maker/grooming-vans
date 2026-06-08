@@ -10512,13 +10512,26 @@ function MessagesTab({ clients, vans, session }) {
     setNewMsgClient(null);
   };
 
+  const barkSound = typeof Audio !== 'undefined' ? new Audio('https://www.soundjay.com/animals/sounds/dog-barking-1.mp3') : null;
+  const prevMessageIds = useRef(new Set());
+
   const loadMessages = async () => {
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(500);
-    if (!error && data) setMessages(data);
+    if (!error && data) {
+      // Detectar mensajes nuevos inbound
+      const newInbound = data.filter(m => 
+        m.direction === 'inbound' && !prevMessageIds.current.has(m.id)
+      );
+      if (newInbound.length > 0 && prevMessageIds.current.size > 0) {
+        try { barkSound?.play(); } catch(e) {}
+      }
+      prevMessageIds.current = new Set(data.map(m => m.id));
+      setMessages(data);
+    }
     setLoading(false);
   };
 
@@ -10746,7 +10759,7 @@ function MessagesTab({ clients, vans, session }) {
                       {new Date(lastMsg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </div>
                     {conv.unread > 0 && (
-                      <div style={{ background: '#0f766e', color: '#fff', borderRadius: '50%', width: 18, height: 18, fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ background: '#ef4444', color: '#fff', borderRadius: '50%', width: 20, height: 20, fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'pulse 1.5s infinite', boxShadow: '0 0 0 3px rgba(239,68,68,0.3)' }}>
                         {conv.unread}
                       </div>
                     )}
