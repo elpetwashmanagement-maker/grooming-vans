@@ -4903,64 +4903,6 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
         );
       })()}
 
-      {/* Modal Edit Payment */}
-      {editingCompletedAppt && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 400 }}>
-            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 800, marginBottom: 4 }}>✏️ Edit Payment</div>
-            <div style={{ fontSize: 13, color: '#64748b', marginBottom: 16 }}>{editingCompletedAppt.client?.name} · {editingCompletedAppt.date}</div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Method</label>
-              <select value={editPayForm.method} onChange={e => setEditPayForm(f => ({...f, method: e.target.value}))}
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14 }}>
-                <option value="Cash">💵 Cash</option>
-                <option value="Zelle">📱 Zelle</option>
-                <option value="Credit Card">💳 Credit Card</option>
-                <option value="Check">📄 Check</option>
-              </select>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Tip</label>
-              <input type="number" value={editPayForm.tip} onChange={e => setEditPayForm(f => ({...f, tip: parseFloat(e.target.value) || 0}))}
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Service Price</label>
-              <input type="number" value={editPayForm.price} onChange={e => setEditPayForm(f => ({...f, price: parseFloat(e.target.value) || 0}))}
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 10, fontSize: 14, boxSizing: 'border-box' }} />
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setEditingCompletedAppt(null); }} style={{ flex: 1, padding: 12, background: '#f1f5f9', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button onClick={async () => {
-                const appt = editingCompletedAppt;
-                // Update invoice
-                await supabase.from('invoices').update({
-                  tip: editPayForm.tip,
-                  payment_method: editPayForm.method,
-                  subtotal: editPayForm.price,
-                  total: editPayForm.price + editPayForm.tip,
-                }).eq('appointment_id', appt.id);
-                // Update appointment
-                await supabase.from('appointments').update({
-                  payment_method: editPayForm.method,
-                  payment_tip: editPayForm.tip,
-                }).eq('id', appt.id);
-                // Update appointment_pets tip y method
-                const { data: apptPets } = await supabase.from('appointment_pets').select('id').eq('appointment_id', appt.id);
-                if (apptPets && apptPets.length > 0) {
-                  await supabase.from('appointment_pets').update({
-                    tip: editPayForm.tip,
-                    method: editPayForm.method,
-                  }).eq('appointment_id', appt.id);
-                }
-                await refreshAppointments();
-                setEditingCompletedAppt(null);
-                alert('✅ Payment updated!');
-              }} style={{ flex: 1, padding: 12, background: '#0f766e', border: 'none', borderRadius: 10, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* ===== VISTA LISTA ===== */}
       {viewMode === 'lista' && (dayAppts.length === 0 ? (
         <div style={styles.empty}>
