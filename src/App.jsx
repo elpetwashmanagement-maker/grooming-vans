@@ -1778,7 +1778,7 @@ function AppMain() {
           />
         </ModuleGuard>)}
         {tab === 'auditoria' && isAdmin && <ModuleGuard module="audit"><AuditoriaTab /></ModuleGuard>}
-        {tab === 'messages' && isAdmin && (
+        {tab === 'messages' && (isAdmin || isManager) && (
           <MessagesTab clients={clients} vans={vans} session={session} />
         )}
         {tab === 'close-review' && (isAdmin || isFinance) && (
