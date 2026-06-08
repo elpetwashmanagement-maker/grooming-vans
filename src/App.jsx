@@ -10512,7 +10512,24 @@ function MessagesTab({ clients, vans, session }) {
     setNewMsgClient(null);
   };
 
-  const barkSound = typeof Audio !== 'undefined' ? new Audio('https://www.soundjay.com/animals/sounds/dog-barking-1.mp3') : null;
+  const playBark = () => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Generar sonido de ladrido sintético
+      const oscillator = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      oscillator.frequency.setValueAtTime(800, ctx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(600, ctx.currentTime + 0.15);
+      oscillator.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 0.25);
+      gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+      oscillator.start(ctx.currentTime);
+      oscillator.stop(ctx.currentTime + 0.25);
+    } catch(e) {}
+  };
   const prevMessageIds = useRef(new Set());
   const readMessageIds = useRef(new Set(
     JSON.parse(localStorage.getItem('raykota_read_msgs') || '[]')
@@ -10530,7 +10547,7 @@ function MessagesTab({ clients, vans, session }) {
         m.direction === 'inbound' && !prevMessageIds.current.has(m.id)
       );
       if (newInbound.length > 0 && prevMessageIds.current.size > 0) {
-        try { barkSound?.play(); } catch(e) {}
+        playBark();
       }
       prevMessageIds.current = new Set(data.map(m => m.id));
       // Aplicar estado read a mensajes ya leídos
