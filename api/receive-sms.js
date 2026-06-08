@@ -6,7 +6,6 @@ export default async function handler(req, res) {
     const msg = data.object;
     if (!msg || msg.object !== 'message') return res.status(200).json({ ok: true });
     const to = msg.to?.[0];
-    const companyId = to === '+15619563957' ? 'atw' : 'epw';
     const fromPhone = msg.from;
     const body = msg.content || msg.text || msg.body || '';
     const cleanPhone = fromPhone.replace(/\D/g, '').slice(-10);
@@ -18,6 +17,26 @@ export default async function handler(req, res) {
     );
     const clients = await clientRes.json();
     const client = clients?.[0];
+
+    // Buscar cita de mañana para saber empresa correcta
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowISO = tomorrow.toISOString().split('T')[0];
+    let apptCompanyId = to === '+15619563957' ? 'atw' : 'epw';
+
+    if (client?.id) {
+      const apptRes = await fetch(
+        'https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/appointments?select=company_id&client_id=eq.' + client.id + '&date=eq.' + tomorrowISO + '&limit=1',
+        { headers: { 'apikey': 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT', 'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT' } }
+      );
+      const appts = await apptRes.json();
+      if (appts?.[0]?.company_id) apptCompanyId = appts[0].company_id;
+    }
+
+    const companyId = apptCompanyId;
+    const companyName = companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash';
+    const fromNumber = companyId === 'atw' ? '+15619563957' : '+19542870564';
+    const firstName = client?.name?.split(' ')[0] || 'there';
 
     // Guardar mensaje
     await fetch('https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/messages', {
@@ -44,29 +63,20 @@ export default async function handler(req, res) {
 
     // Detectar YES/NO
     const response = body.trim().toUpperCase();
-    const companyName = companyId === 'atw' ? 'All Tails Wag' : 'El Pet Wash';
-    const fromNumber = companyId === 'atw' ? '+15619563957' : '+19542870564';
-    const firstName = client?.name?.split(' ')[0] || 'there';
 
     if (response === 'YES' || response === 'SI' || response === 'SÍ') {
-      // Confirmar cita
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowISO = tomorrow.toISOString().split('T')[0];
       if (client?.id) {
         await fetch(
           'https://lpzwnbrjpayjhlwjmuda.supabase.co/rest/v1/appointments?client_id=eq.' + client.id + '&date=eq.' + tomorrowISO,
           { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'apikey': 'sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT', 'Authorization': 'Bearer sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT' }, body: JSON.stringify({ status: 'confirmed' }) }
         );
       }
-      // Responder confirmación
       await fetch('https://api.openphone.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': process.env.OPENPHONE_API_KEY },
         body: JSON.stringify({ from: fromNumber, to: [fromPhone], content: 'Thank you ' + firstName + '! Your appointment is confirmed. See you tomorrow! - ' + companyName })
       });
     } else if (response === 'NO') {
-      // Pedir reagendar
       await fetch('https://api.openphone.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': process.env.OPENPHONE_API_KEY },
