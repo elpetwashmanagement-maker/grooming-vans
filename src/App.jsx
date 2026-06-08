@@ -1782,7 +1782,7 @@ function AppMain() {
         {tab === 'messages' && (isAdmin || isManager) && (
           <MessagesTab clients={clients} vans={vans} session={session} />
         )}
-        {tab === 'close-review' && (isAdmin || isFinance) && (
+        {tab === 'close-review' && (isAdmin || isFinance || isManager) && (
           <CloseReviewTab
             appointments={appointments} vans={vans} settings={settings}
             refreshAppointments={refreshAppointments} updateApptStatus={updateApptStatus}
