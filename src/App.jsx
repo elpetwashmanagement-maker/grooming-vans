@@ -10514,7 +10514,9 @@ function MessagesTab({ clients, vans, session }) {
 
   const barkSound = typeof Audio !== 'undefined' ? new Audio('https://www.soundjay.com/animals/sounds/dog-barking-1.mp3') : null;
   const prevMessageIds = useRef(new Set());
-  const readMessageIds = useRef(new Set());
+  const readMessageIds = useRef(new Set(
+    JSON.parse(localStorage.getItem('raykota_read_msgs') || '[]')
+  ));
 
   const loadMessages = async () => {
     const { data, error } = await supabase
@@ -10753,6 +10755,7 @@ function MessagesTab({ clients, vans, session }) {
                 // Marcar como leído
                 const cleanPhone = conv.phone?.replace(/\D/g,'').slice(-10);
                 readMessageIds.current.add(cleanPhone);
+                localStorage.setItem('raykota_read_msgs', JSON.stringify([...readMessageIds.current]));
                 setMessages(prev => prev.map(m => 
                   m.phone?.replace(/\D/g,'').slice(-10) === cleanPhone && m.direction === 'inbound'
                   ? { ...m, status: 'read' } : m
