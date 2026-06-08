@@ -9653,6 +9653,7 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
   const [payForm, setPayForm] = useState({ method: 'cash', notes: '', date: todayISO() });
   const [saving, setSaving] = useState(false);
   const [showHistory, setShowHistory] = useState(null);
+  const [paymentReceipt, setPaymentReceipt] = useState(null);
 
   const navigateWeek = (direction) => {
     const newWeek = direction === 'prev' ? getPrevWeek(weekStart) : getNextWeek(weekStart);
@@ -9742,7 +9743,7 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
       setGroomerPayments(prev => [payment, ...prev]);
       setPayingGroomer(null);
       setPayForm({ method: 'cash', notes: '', date: todayISO() });
-      alert(`✅ Payment of ${fmt(groomer.balance)} to ${groomer.name} recorded!`);
+      setPaymentReceipt({ ...payment, groomer, weekStart, weekEnd, appts: groomer.weekAppts || [] });
     }
     setSaving(false);
   };
