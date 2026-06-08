@@ -3657,6 +3657,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const handleCreateAppt = async () => {
     if (!newApptForm.clientId) { alert('Select a client'); return; }
     if (!newApptForm.timeStart) { alert('Enter start time'); return; }
+    if (newApptForm.timeStart < '06:00') { alert('⚠️ Start time cannot be before 6:00 AM'); return; }
 
     // Validar conflicto de horario
     const conflict = appointments.filter(a =>
