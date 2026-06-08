@@ -4030,8 +4030,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                 style={styles.input} />
             </div>
             <div>
-              <label style={styles.lbl}>⏰ Start Time *</label>
-              <input type="time" value={newApptForm.timeStart}
+              <label style={styles.lbl}>⏰ Time Block *</label>
+              <select value={newApptForm.timeStart}
                 onChange={e => {
                   const start = e.target.value;
                   const numPets = newApptForm.petIds.length || 1;
@@ -4041,7 +4041,20 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                   const endTime = `${String(endH).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
                   setNewApptForm(f => ({...f, timeStart: start, timeEnd: endTime}));
                 }}
-                style={styles.input} />
+                style={styles.input}>
+                <option value="">Select time block...</option>
+                <option value="07:00">7:00 AM — 9:00 AM</option>
+                <option value="08:00">8:00 AM — 10:00 AM</option>
+                <option value="09:00">9:00 AM — 11:00 AM</option>
+                <option value="10:00">10:00 AM — 12:00 PM</option>
+                <option value="11:00">11:00 AM — 1:00 PM</option>
+                <option value="12:00">12:00 PM — 2:00 PM</option>
+                <option value="13:00">1:00 PM — 3:00 PM</option>
+                <option value="14:00">2:00 PM — 4:00 PM</option>
+                <option value="15:00">3:00 PM — 5:00 PM</option>
+                <option value="16:00">4:00 PM — 6:00 PM</option>
+                <option value="17:00">5:00 PM — 7:00 PM</option>
+              </select>
             </div>
           </div>
 
