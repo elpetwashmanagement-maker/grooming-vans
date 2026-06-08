@@ -9750,6 +9750,37 @@ function PayrollTab({ groomers, vans, services, appointments, settings, groomerP
   const weekLabel = `${formatDateNice(weekStart)} — ${formatDateNice(weekEnd)}`;
   const isCurrentWeek = weekStart === week.start;
 
+  if (paymentReceipt) {
+    const r = paymentReceipt;
+    return (
+      <div style={{ padding: 16, maxWidth: 600, margin: '0 auto', paddingBottom: 100 }}>
+        <div style={{ background: '#fff', borderRadius: 16, border: '2px solid #0f766e', padding: 24, marginBottom: 16 }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ fontSize: 40 }}>✅</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 22, fontWeight: 800, color: '#0f172a', marginTop: 8 }}>Payment Receipt</div>
+            <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Payment recorded successfully</div>
+          </div>
+          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 16, marginBottom: 16 }}>
+            {[['Groomer', r.groomerName], ['Period', r.periodStart + ' to ' + r.periodEnd], ['Method', r.method], ['Date', r.date]].filter(x => x[1]).map(([k, v]) => (
+              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ color: '#64748b', fontSize: 13 }}>{k}</span>
+                <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{v}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: '#f0fdfa', borderRadius: 12, padding: 16, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, color: '#64748b' }}>Total Amount Paid</div>
+            <div style={{ fontFamily: 'Fraunces, serif', fontSize: 36, fontWeight: 800, color: '#0f766e' }}>${r.amount?.toFixed(2)}</div>
+          </div>
+        </div>
+        <button onClick={() => setPaymentReceipt(null)}
+          style={{ width: '100%', padding: 14, background: '#0f766e', border: 'none', borderRadius: 14, color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+          Back to Payroll
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ animation: 'fadeIn 0.3s ease' }}>
       <SectionTitle eyebrow="Finance" title="💸 Payroll" />
