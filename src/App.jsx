@@ -10531,9 +10531,9 @@ function MessagesTab({ clients, vans, session }) {
     } catch(e) {}
   };
   const prevMessageIds = useRef(new Set());
-  const readMessageIds = useRef(new Set(
-    JSON.parse(localStorage.getItem('raykota_read_msgs') || '[]')
-  ));
+  const readPhones = useRef(new Set());
+  // lastReadTime: { phone: timestamp } — guarda cuándo se leyó cada conversación
+  const lastReadTime = useRef(JSON.parse(localStorage.getItem('raykota_last_read') || '{}'));
 
   const loadMessages = async () => {
     const { data, error } = await supabase
@@ -10550,11 +10550,16 @@ function MessagesTab({ clients, vans, session }) {
         playBark();
       }
       prevMessageIds.current = new Set(data.map(m => m.id));
-      // Aplicar estado read a mensajes ya leídos
-      const dataWithRead = data.map(m => 
-        readMessageIds.current.has(m.phone?.replace(/\D/g,'').slice(-10)) && m.direction === 'inbound'
-        ? { ...m, status: 'read' } : m
-      );
+      // Aplicar estado read basado en lastReadTime
+      const dataWithRead = data.map(m => {
+        if (m.direction !== 'inbound') return m;
+        const phone = m.phone?.replace(/\D/g,'').slice(-10);
+        const readTime = lastReadTime.current[phone];
+        if (readTime && new Date(m.created_at) <= new Date(readTime)) {
+          return { ...m, status: 'read' };
+        }
+        return m;
+      });
       setMessages(dataWithRead);
     }
     setLoading(false);
@@ -10771,8 +10776,9 @@ function MessagesTab({ clients, vans, session }) {
                 loadConversationHistory(conv.phone);
                 // Marcar como leído
                 const cleanPhone = conv.phone?.replace(/\D/g,'').slice(-10);
-                readMessageIds.current.add(cleanPhone);
-                localStorage.setItem('raykota_read_msgs', JSON.stringify([...readMessageIds.current]));
+                const now = new Date().toISOString();
+                lastReadTime.current[cleanPhone] = now;
+                localStorage.setItem('raykota_last_read', JSON.stringify(lastReadTime.current));
                 setMessages(prev => prev.map(m => 
                   m.phone?.replace(/\D/g,'').slice(-10) === cleanPhone && m.direction === 'inbound'
                   ? { ...m, status: 'read' } : m
