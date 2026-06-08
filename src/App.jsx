@@ -10745,18 +10745,23 @@ function MessagesTab({ clients, vans, session }) {
             {/* Quick Replies */}
             <div style={{ padding: '8px 16px', borderTop: '1px solid #f1f5f9', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
-                '👋 Hi! Welcome to our grooming service! How can we help?',
-                '📅 Would you like to schedule an appointment?',
-                '✅ Your appointment is confirmed!',
-                '🚗 Your groomer is on the way!',
-                '🐾 Your pet is ready for pickup!',
-                '📋 Please reply with your name, address and pet info to get started!',
-              ].map((msg, i) => (
-                <button key={i} onClick={() => setNewMessage(msg)}
-                  style={{ padding: '4px 10px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
-                  {msg.slice(0, 30)}...
-                </button>
-              ))}
+                { en: '👋 Hi! Welcome to our grooming service! How can we help?', es: '👋 ¡Hola! Bienvenido a nuestro servicio de grooming. ¿En qué podemos ayudarte?' },
+                { en: '📅 Would you like to schedule an appointment?', es: '📅 ¿Te gustaría agendar una cita?' },
+                { en: '✅ Your appointment is confirmed!', es: '✅ ¡Tu cita está confirmada!' },
+                { en: '🚗 Your groomer is on the way!', es: '🚗 ¡Tu groomer está en camino!' },
+                { en: '🐾 Your pet is ready for pickup!', es: '🐾 ¡Tu mascota está lista para recoger!' },
+                { en: '📋 Please reply with your name, address and pet info to get started!', es: '📋 Por favor responde con tu nombre, dirección e info de tu mascota para comenzar.' },
+              ].map((msg, i) => {
+                const lastClientMsg = conversationMessages.filter(m => m.direction === 'inbound').slice(-1)[0]?.body || '';
+                const isSpanish = /[áéíóúüñ¿¡]/i.test(lastClientMsg) || /(hola|gracias|cita|mascota|perro|gato|quiero|necesito|ayuda)/i.test(lastClientMsg);
+                const text = isSpanish ? msg.es : msg.en;
+                return (
+                  <button key={i} onClick={() => setNewMessage(text)}
+                    style={{ padding: '4px 10px', borderRadius: 20, border: '1px solid #e2e8f0', background: '#f8fafc', cursor: 'pointer', fontSize: 11, color: '#64748b', whiteSpace: 'nowrap' }}>
+                    {text.slice(0, 30)}...
+                  </button>
+                );
+              })}
             </div>
             {/* Input */}
             <div style={{ padding: '12px 16px', borderTop: '1px solid #e2e8f0', display: 'flex', gap: 8 }}>
