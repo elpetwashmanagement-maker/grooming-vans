@@ -10923,7 +10923,7 @@ function MessagesTab({ clients, vans, session }) {
 
 
 // ===== SMART FILL TAB =====
-function SmartFillMap({ suggestions, apiKey, onSelect }) {
+function SmartFillMap({ suggestions, apiKey, onSelect, onSMS }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
 
@@ -10965,7 +10965,7 @@ function SmartFillMap({ suggestions, apiKey, onSelect }) {
             }
           });
           const infoWindow = new window.google.maps.InfoWindow({
-            content: `<div style="font-size:13px;padding:4px"><b>${s.client.name}</b><br/>${s.pets.map(p => p.name).join(', ')}<br/>${s.weeksSince} weeks ago<br/><button onclick="window.__smartFillSelect(${i})" style="margin-top:6px;background:#0f766e;color:#fff;border:none;padding:4px 10px;border-radius:6px;cursor:pointer">📅 Book</button></div>`
+            content: `<div style="font-size:13px;padding:4px;min-width:160px"><b>${s.client.name}</b><br/><span style="color:#64748b">${s.pets.map(p => p.name).join(', ')}</span><br/><span style="color:#64748b">${s.weeksSince} weeks ago</span><br/><div style="display:flex;gap:6px;margin-top:8px"><button onclick="window.__smartFillSelect(${i})" style="background:#0f766e;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px">📅 Book</button><button onclick="window.__smartFillSMS(${i})" style="background:#3b82f6;color:#fff;border:none;padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px">📱 SMS</button></div></div>`
           });
           marker.addListener('click', () => infoWindow.open(mapInstance.current, marker));
           mapInstance.current.fitBounds(bounds);
@@ -10974,6 +10974,7 @@ function SmartFillMap({ suggestions, apiKey, onSelect }) {
     });
 
     window.__smartFillSelect = (i) => { onSelect(suggestions[i]); };
+    window.__smartFillSMS = (i) => { if (onSMS) onSMS(suggestions[i].client); };
   }, [suggestions]);
 
   return <div ref={mapRef} style={{ width: '100%', height: '380px' }} />;
