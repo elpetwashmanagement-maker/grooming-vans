@@ -5124,7 +5124,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                                     }
                                   }}
                                   placeholder="Type a message..." style={{ flex: 1, padding: '6px 10px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }} />
-                                <button onClick={async () => {
+                                {Object.keys(editingPrice).some(k => k === price.id || k.startsWith(price.id + '_')) && (
+                            <button onClick={async () => {
                                   if (!chatInput.trim()) return;
                                   const cId = vans.find(v => v.id === appt.vanId)?.companyId || 'epw';
                                   const ok = await sendSMSApi(appt.client.phone, chatInput.trim(), cId, String(appt.clientId), appt.client.name);
@@ -7709,6 +7710,7 @@ function ConfigTab({ vans, updateVans, settings, updateSettings, services, clear
                                   return n;
                                 });
                               }} style={{ background: '#0f766e', border: 'none', borderRadius: 6, padding: '4px 6px', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>✓</button>
+                            )}
                             <button onClick={async () => {
                               if (window.confirm('Delete this service?')) {
                                 await deleteServicePrice(price.id);
