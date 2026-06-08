@@ -3397,9 +3397,6 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [openChatApptId, setOpenChatApptId] = useState(null);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
-  const [openChatApptId, setOpenChatApptId] = useState(null);
-  const [chatMessages, setChatMessages] = useState([]);
-  const [chatInput, setChatInput] = useState('');
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [showNewClient, setShowNewClient] = useState(false);
   const [saving, setSaving] = useState(false);
