@@ -10402,6 +10402,8 @@ function MessagesTab({ clients, vans, session }) {
   const [newMsgClient, setNewMsgClient] = useState(null);
   const [newMsgCompany, setNewMsgCompany] = useState('epw');
   const messagesEndRef = useRef(null);
+  const [parsedClient, setParsedClient] = useState(null);
+  const [showParsedClient, setShowParsedClient] = useState(false);
 
   // Clientes filtrados para nuevo mensaje
   const newMsgClients = useMemo(() => {
@@ -10688,19 +10690,33 @@ function MessagesTab({ clients, vans, session }) {
               {!selectedConversation.clientId && (
                 <button onClick={async () => {
                   const msgs = conversationMessages.map(m => `${m.direction === 'inbound' ? 'Client' : 'Us'}: ${m.body}`).join('\n');
-                  const prompt = `Extract client info from these messages and return ONLY a JSON object with fields: name, address, petName, petBreed, petSize (small/medium/large). If info not found leave empty string.\n\nMessages:\n${msgs}`;
                   try {
-                    const r = await fetch('https://api.anthropic.com/v1/messages', {
+                    const r = await fetch('/api/parse-client', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 500, messages: [{ role: 'user', content: prompt }] })
+                      body: JSON.stringify({ messages: msgs })
                     });
-                    const data = await r.json();
-                    const text = data.content?.[0]?.text || '{}';
-                    const clean = text.replace(/```json|```/g, '').trim();
-                    const info = JSON.parse(clean);
-                    alert(`✅ Parsed:\nName: ${info.name}\nAddress: ${info.address}\nPet: ${info.petName} (${info.petBreed}, ${info.petSize})`);
-                  } catch(e) { alert('Could not parse. Try again.'); }
+                    const result = await r.json();
+                    if (result.success && result.data) {
+                      const info = result.data;
+                      setParsedClient({
+                        name: info.name || '',
+                        phone: selectedConversation.phone || '',
+                        address: info.address || '',
+                        zip: info.zip || '',
+                        city: info.city || '',
+                        state: info.state || 'FL',
+                        petName: info.petName || '',
+                        petBreed: info.petBreed || '',
+                        petSize: info.petSize || 'medium',
+                        petSpecies: info.petSpecies || 'dog',
+                        companyId: selectedConversation.companyId || 'epw',
+                      });
+                      setShowParsedClient(true);
+                    } else {
+                      alert('Could not parse client info. Try again.');
+                    }
+                  } catch(e) { alert('Error: ' + e.message); }
                 }} style={{ background: '#7c3aed', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 13, color: '#fff', fontWeight: 600 }}>
                   🤖 Parse & Create
                 </button>
