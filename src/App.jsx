@@ -3423,7 +3423,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [editingPetInline, setEditingPetInline] = useState(null);
   const [editPetInlineForm, setEditPetInlineForm] = useState({});
-  useEffect(() => { window.__onPetUpdated = onPetUpdated; }, [onPetUpdated]);
+  useEffect(() => { window.__onPetUpdated = (pet) => { if (onPetUpdated) onPetUpdated(pet); }; }, []);
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
