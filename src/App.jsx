@@ -4154,13 +4154,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
           )}
           {/* STEP 3: Client */}
           <div style={{ marginBottom: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label style={styles.lbl}>🔍 Client *</label>
-              <button onClick={() => setShowClientQuickModal(true)}
-                style={{ background: '#f0fdfa', border: '1px solid #0f766e', borderRadius: 8, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
-                👤 Edit / New Client
-              </button>
-            </div>
+            <label style={styles.lbl}>🔍 Client *</label>
             {newApptForm.clientId ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
                 <div style={{ flex: 1 }}>
@@ -4362,15 +4356,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       </button>
                     );
                   })}
-                  {newApptForm.petIds.length > 0 && (() => {
-                    const selPet = clientPetsLocal.find(p => String(p.id) === String(newApptForm.petIds[0]));
-                    return selPet ? (
-                      <button type="button" onClick={() => { setEditingPetInline(selPet.id); setEditPetInlineForm({ size: selPet.size || '', hair_type: selPet.hair_type || '', breed: selPet.breed || '', weight: selPet.weight || '' }); }}
-                        style={{ padding: '4px 10px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#92400e', marginTop: 4 }}>
-                        ✏️ Edit Pet Info
-                      </button>
-                    ) : null;
-                  })()}
+
                 </div>
                 {/* Edit pet inline */}
                 {editingPetInline && (
