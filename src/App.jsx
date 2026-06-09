@@ -4262,12 +4262,17 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         {p.size && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.size.split(' ')[0]}</span>}
                         {p.hair_type && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.hair_type.split(' ')[0]}</span>}
                       </button>
-                      {selected && (
-                        <button type="button" onClick={e => { e.stopPropagation(); setEditingPetInline(p.id); setEditPetInlineForm({ size: p.size || '', hair_type: p.hair_type || '', breed: p.breed || '', weight: p.weight || '' }); }}
-                          style={{ padding: '4px 8px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'pointer', fontSize: 11, color: '#92400e' }}>✏️</button>
-                      )}
                     );
                   })}
+                  {newApptForm.petIds.length > 0 && (() => {
+                    const selPet = clientPetsLocal.find(p => String(p.id) === String(newApptForm.petIds[0]));
+                    return selPet ? (
+                      <button type="button" onClick={() => { setEditingPetInline(selPet.id); setEditPetInlineForm({ size: selPet.size || '', hair_type: selPet.hair_type || '', breed: selPet.breed || '', weight: selPet.weight || '' }); }}
+                        style={{ padding: '4px 10px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: '#92400e', marginTop: 4 }}>
+                        ✏️ Edit Pet Info
+                      </button>
+                    ) : null;
+                  })()}
                 </div>
                 {/* Edit pet inline */}
                 {editingPetInline && (
