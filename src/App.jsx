@@ -3423,6 +3423,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [editingPetInline, setEditingPetInline] = useState(null);
   const [editPetInlineForm, setEditPetInlineForm] = useState({});
+  useEffect(() => { window.__onPetUpdated = onPetUpdated; }, [onPetUpdated]);
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
@@ -4317,7 +4318,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                       <button onClick={async () => {
                         await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: parseFloat(editPetInlineForm.weight) || 0 }).eq('id', editingPetInline);
-                        onPetUpdated({ id: editingPetInline, ...editPetInlineForm });
+                        if (window.__onPetUpdated) window.__onPetUpdated({ id: editingPetInline, ...editPetInlineForm });
                         setEditingPetInline(null);
                         alert('✅ Pet updated!');
                         setEditingPetInline(null);
