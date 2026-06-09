@@ -4137,7 +4137,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                               <button onClick={() => setEditingQuickPet(null)} style={{ flex: 1, padding: 8, background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
                               <button onClick={async () => {
                                 await supabase.from('pets').update({ size: quickPetForm.size, hair_type: quickPetForm.hair_type, breed: quickPetForm.breed, weight: parseFloat(quickPetForm.weight) || 0 }).eq('id', pet.id);
-                                if (window.__onPetUpdated) window.__onPetUpdated({ id: pet.id, size: quickPetForm.size, hair_type: quickPetForm.hair_type, hairType: quickPetForm.hair_type, breed: quickPetForm.breed });
+                                setClientQuickPets(prev => prev.map(p => p.id === pet.id ? {...p, ...quickPetForm} : p));
                                 setClientQuickPets(prev => prev.map(p => p.id === pet.id ? { ...p, ...quickPetForm } : p));
                                 setEditingQuickPet(null);
                                 alert('Pet updated!');
