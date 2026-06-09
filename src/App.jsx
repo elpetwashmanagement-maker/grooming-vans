@@ -1581,6 +1581,10 @@ function AppMain() {
     const appts = await loadAppointments();
     setAppointments(appts);
   };
+  const refreshPets = async () => {
+    const { data } = await supabase.from('pets').select('*');
+    if (data) setPets(data.map(p => ({ id: p.id, clientId: p.client_id, client_id: p.client_id, name: p.name, breed: p.breed || '', size: p.size || '', hair_type: p.hair_type || '', hairType: p.hair_type || '', weight: p.weight || 0, species: p.species || 'dog', allergies: p.allergies || '', medical_notes: p.medical_notes || '', behavior_notes: p.behavior_notes || '' })));
+  };
 
   // Clients
   const addClient = async (client) => {
@@ -4313,6 +4317,7 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                       <button onClick={async () => {
                         await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: parseFloat(editPetInlineForm.weight) || 0 }).eq('id', editingPetInline);
+                        await refreshPets();
                         await refreshAppointments();
                         setEditingPetInline(null);
                       }} style={{ flex: 2, padding: '6px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Save</button>
