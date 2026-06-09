@@ -2818,6 +2818,8 @@ function Header({ tab, setTab, session, currentVan, canViewFinances, canViewRepo
     { id: 'breeds',         label: 'AI Breeds',         icon: '🐾', show: !isViewer && !isFinance },
     { id: 'auditoria',      label: 'Audit Log',         icon: '🔍', show: isAdmin && isEnabled('audit') },
     { id: 'config',         label: 'Settings',          icon: '⚙️', show: isAdmin || isManager },
+    { id: 'divider4',       label: '── Super Admin ──',  icon: '',   show: session?.role === 'superadmin', divider: true },
+    { id: 'superadmin',     label: 'Hotel Raykota',     icon: '🏨', show: session?.role === 'superadmin' },
   ].filter(t => t.show);
 
   const roleColors = { admin: '#0f172a', manager: '#7c3aed', groomer: '#0f766e', viewer: '#b45309', finance: '#0369a1' };
