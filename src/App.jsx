@@ -3422,6 +3422,12 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
   const [editingPetInline, setEditingPetInline] = useState(null);
+  const [showClientQuickModal, setShowClientQuickModal] = useState(false);
+  const [clientQuickSearch, setClientQuickSearch] = useState('');
+  const [clientQuickSelected, setClientQuickSelected] = useState(null);
+  const [clientQuickPets, setClientQuickPets] = useState([]);
+  const [editingQuickPet, setEditingQuickPet] = useState(null);
+  const [quickPetForm, setQuickPetForm] = useState({});
   const [editPetInlineForm, setEditPetInlineForm] = useState({});
   useEffect(() => { window.__onPetUpdated = (pet) => { if (onPetUpdated) onPetUpdated(pet); }; }, []);
   const [addingPet, setAddingPet] = useState(false);
@@ -4065,9 +4071,96 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
             </div>
           </div>
 
+          {/* Modal Edit/New Client */}
+          {showClientQuickModal && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: '#fff', borderRadius: 16, padding: 20, width: '100%', maxWidth: 480, maxHeight: '80vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontFamily: 'Fraunces, serif', fontSize: 18, fontWeight: 800 }}>Edit / New Client</div>
+                  <button onClick={() => { setShowClientQuickModal(false); setClientQuickSelected(null); setClientQuickSearch(''); }} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>x</button>
+                </div>
+                {!clientQuickSelected ? (
+                  <div>
+                    <input value={clientQuickSearch} onChange={e => setClientQuickSearch(e.target.value)}
+                      style={{ ...styles.input, marginBottom: 8 }} placeholder="Search client..." autoFocus />
+                    {clients.filter(c => clientQuickSearch && c.name.toLowerCase().includes(clientQuickSearch.toLowerCase())).slice(0, 6).map(c => (
+                      <button key={c.id} onClick={async () => {
+                        setClientQuickSelected(c);
+                        const { data } = await supabase.from('pets').select('*').eq('client_id', c.id);
+                        setClientQuickPets(data || []);
+                      }} style={{ width: '100%', padding: '10px 14px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, cursor: 'pointer', textAlign: 'left', marginBottom: 6, fontSize: 14 }}>
+                        <div style={{ fontWeight: 700 }}>{c.name}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>{c.address}</div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <button onClick={() => { setClientQuickSelected(null); setEditingQuickPet(null); }} style={{ background: 'none', border: 'none', color: '#0f766e', fontWeight: 600, cursor: 'pointer', marginBottom: 12, fontSize: 13 }}>Back</button>
+                    <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 12 }}>{clientQuickSelected.name}</div>
+                    {clientQuickPets.map(pet => (
+                      <div key={pet.id}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: 10, marginBottom: 6, border: '1px solid #e2e8f0' }}>
+                          <div>
+                            <div style={{ fontWeight: 700 }}>{pet.name}</div>
+                            <div style={{ fontSize: 12, color: '#64748b' }}>{pet.breed} - {pet.size} - {pet.hair_type}</div>
+                          </div>
+                          <button onClick={() => { setEditingQuickPet(pet.id); setQuickPetForm({ size: pet.size || '', hair_type: pet.hair_type || '', breed: pet.breed || '', weight: pet.weight || '' }); }}
+                            style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, padding: '4px 10px', cursor: 'pointer', fontSize: 12, color: '#92400e' }}>Edit</button>
+                        </div>
+                        {editingQuickPet === pet.id && (
+                          <div style={{ padding: 12, background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b', marginBottom: 8 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                              <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
+                                <select value={quickPetForm.size} onChange={e => setQuickPetForm(f => ({...f, size: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                                  <option value="Small (1-20 lbs)">Small</option>
+                                  <option value="Medium (21-40 lbs)">Medium</option>
+                                  <option value="Large (41-60 lbs)">Large</option>
+                                  <option value="Big (61-80 lbs)">Big</option>
+                                  <option value="Extra Large (81-100 lbs)">XLarge</option>
+                                  <option value="Giant (100-120 lbs)">Giant</option>
+                                  <option value="Extra Giant (+120 lbs)">XGiant</option>
+                                </select></div>
+                              <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
+                                <select value={quickPetForm.hair_type} onChange={e => setQuickPetForm(f => ({...f, hair_type: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                                  <option value="Short Hair">Short Hair</option>
+                                  <option value="Long Hair">Long Hair</option>
+                                  <option value="Double Coat">Double Coat</option>
+                                  <option value="Curly">Curly</option>
+                                </select></div>
+                              <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Breed</label>
+                                <input value={quickPetForm.breed} onChange={e => setQuickPetForm(f => ({...f, breed: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} /></div>
+                              <div><label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Weight</label>
+                                <input type="number" value={quickPetForm.weight} onChange={e => setQuickPetForm(f => ({...f, weight: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} /></div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={() => setEditingQuickPet(null)} style={{ flex: 1, padding: 8, background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Cancel</button>
+                              <button onClick={async () => {
+                                await supabase.from('pets').update({ size: quickPetForm.size, hair_type: quickPetForm.hair_type, breed: quickPetForm.breed, weight: parseFloat(quickPetForm.weight) || 0 }).eq('id', pet.id);
+                                setPets(prev => prev.map(p => String(p.id) === String(pet.id) ? { ...p, size: quickPetForm.size, hair_type: quickPetForm.hair_type, hairType: quickPetForm.hair_type, breed: quickPetForm.breed } : p));
+                                setClientQuickPets(prev => prev.map(p => p.id === pet.id ? { ...p, ...quickPetForm } : p));
+                                setEditingQuickPet(null);
+                                alert('Pet updated!');
+                              }} style={{ flex: 2, padding: 8, background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontWeight: 700 }}>Save</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {/* STEP 3: Client */}
           <div style={{ marginBottom: 16 }}>
-            <label style={styles.lbl}>🔍 Client *</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label style={styles.lbl}>🔍 Client *</label>
+              <button onClick={() => setShowClientQuickModal(true)}
+                style={{ background: '#f0fdfa', border: '1px solid #0f766e', borderRadius: 8, padding: '3px 10px', cursor: 'pointer', fontSize: 12, color: '#0f766e', fontWeight: 600 }}>
+                👤 Edit / New Client
+              </button>
+            </div>
             {newApptForm.clientId ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f0fdfa', borderRadius: 10, border: '1.5px solid #0f766e' }}>
                 <div style={{ flex: 1 }}>
