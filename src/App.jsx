@@ -3417,6 +3417,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
   const [loadingApptPets, setLoadingApptPets] = useState(false);
   const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', address: '', email: '', zip: '', city: '', state: 'FL' });
   const [newPetForm, setNewPetForm] = useState({ name: '', breed: '', size: 'Small (1-20 lbs)', hairType: 'Short Hair', age: '', allergies: '' });
+  const [editingPetInline, setEditingPetInline] = useState(null);
+  const [editPetInlineForm, setEditPetInlineForm] = useState({});
   const [addingPet, setAddingPet] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
 
@@ -4260,9 +4262,103 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                         {p.size && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.size.split(' ')[0]}</span>}
                         {p.hair_type && <span style={{ fontSize: 10, color: '#94a3b8' }}>{p.hair_type.split(' ')[0]}</span>}
                       </button>
+                      {selected && (
+                        <button type="button" onClick={e => { e.stopPropagation(); setEditingPetInline(p.id); setEditPetInlineForm({ size: p.size || '', hair_type: p.hair_type || '', breed: p.breed || '', weight: p.weight || '' }); }}
+                          style={{ padding: '4px 8px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8, cursor: 'pointer', fontSize: 11, color: '#92400e' }}>✏️</button>
+                      )}
                     );
                   })}
                 </div>
+                {/* Edit pet inline */}
+                {editingPetInline && (
+                  <div style={{ marginTop: 10, padding: 12, background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 8 }}>Edit Pet Info</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
+                        <select value={editPetInlineForm.size} onChange={e => setEditPetInlineForm(f => ({...f, size: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                          <option value="Small (1-20 lbs)">Small</option>
+                          <option value="Medium (21-40 lbs)">Medium</option>
+                          <option value="Large (41-60 lbs)">Large</option>
+                          <option value="Big (61-80 lbs)">Big</option>
+                          <option value="Extra Large (81-100 lbs)">XLarge</option>
+                          <option value="Giant (100-120 lbs)">Giant</option>
+                          <option value="Extra Giant (+120 lbs)">XGiant</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
+                        <select value={editPetInlineForm.hair_type} onChange={e => setEditPetInlineForm(f => ({...f, hair_type: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                          <option value="Short Hair">Short Hair</option>
+                          <option value="Long Hair">Long Hair</option>
+                          <option value="Double Coat">Double Coat</option>
+                          <option value="Curly">Curly</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Breed</label>
+                        <input value={editPetInlineForm.breed} onChange={e => setEditPetInlineForm(f => ({...f, breed: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Weight (lbs)</label>
+                        <input type="number" value={editPetInlineForm.weight} onChange={e => setEditPetInlineForm(f => ({...f, weight: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                      <button onClick={async () => {
+                        await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: editPetInlineForm.weight }).eq('id', editingPetInline);
+                        setClientPetsLocal(prev => prev.map(p => p.id === editingPetInline ? { ...p, ...editPetInlineForm } : p));
+                        setEditingPetInline(null);
+                      }} style={{ flex: 2, padding: '6px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Save</button>
+                    </div>
+                  </div>
+                )}
+                {/* Edit pet inline */}
+                {editingPetInline && (
+                  <div style={{ marginTop: 10, padding: 12, background: '#fffbeb', borderRadius: 10, border: '1.5px solid #f59e0b' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 8 }}>Edit Pet Info</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Size</label>
+                        <select value={editPetInlineForm.size} onChange={e => setEditPetInlineForm(f => ({...f, size: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                          <option value="Small (1-20 lbs)">Small</option>
+                          <option value="Medium (21-40 lbs)">Medium</option>
+                          <option value="Large (41-60 lbs)">Large</option>
+                          <option value="Big (61-80 lbs)">Big</option>
+                          <option value="Extra Large (81-100 lbs)">XLarge</option>
+                          <option value="Giant (100-120 lbs)">Giant</option>
+                          <option value="Extra Giant (+120 lbs)">XGiant</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Hair Type</label>
+                        <select value={editPetInlineForm.hair_type} onChange={e => setEditPetInlineForm(f => ({...f, hair_type: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13 }}>
+                          <option value="Short Hair">Short Hair</option>
+                          <option value="Long Hair">Long Hair</option>
+                          <option value="Double Coat">Double Coat</option>
+                          <option value="Curly">Curly</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Breed</label>
+                        <input value={editPetInlineForm.breed} onChange={e => setEditPetInlineForm(f => ({...f, breed: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>Weight (lbs)</label>
+                        <input type="number" value={editPetInlineForm.weight} onChange={e => setEditPetInlineForm(f => ({...f, weight: e.target.value}))} style={{ width: '100%', padding: '6px 8px', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 13, boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                      <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
+                      <button onClick={async () => {
+                        await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: editPetInlineForm.weight }).eq('id', editingPetInline);
+                        setClientPetsLocal(prev => prev.map(p => p.id === editingPetInline ? { ...p, ...editPetInlineForm } : p));
+                        setEditingPetInline(null);
+                      }} style={{ flex: 2, padding: '6px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Save</button>
+                    </div>
+                  </div>
+                )}
                 {/* Duration indicator */}
                 {newApptForm.petIds.length > 0 && (
                   <div style={{ marginTop: 6, fontSize: 12, color: '#0f766e' }}>
