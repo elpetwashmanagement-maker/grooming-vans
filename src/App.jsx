@@ -1809,7 +1809,7 @@ function AppMain() {
       </main>
 
       {/* ===== BOTTOM NAVIGATION ===== */}
-      {(() => {
+      {session?.role !== 'superadmin' && (() => {
         const isAdmin = session?.role === 'admin';
         const isManager = session?.role === 'manager';
         const isGroomer = session?.role === 'groomer';
