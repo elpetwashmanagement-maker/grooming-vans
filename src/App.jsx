@@ -1691,10 +1691,10 @@ function AppMain() {
         .pin-btn:active { transform: scale(0.94); }
         .van-tile:hover { transform: translateY(-2px); box-shadow: 0 8px 20px -6px rgba(15,118,110,0.25) !important; border-color: #0f766e !important; }
       `}</style>
-      <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
+      {session?.role !== 'superadmin' && <Header tab={tab} setTab={setTab} session={session} currentVan={currentVan}
         canViewFinances={canViewFinances} canViewReports={canViewReports} canEditConfig={canEditConfig}
         onLogout={() => setSession(null)}
-        activeCompany={activeCompany} isOnline={isOnline} />
+        activeCompany={activeCompany} isOnline={isOnline} />}
       <main style={styles.main}>
         {tab === 'home' && !isViewer && <HomeTab session={session} appointments={appointments} vans={vans} clients={clients} pets={pets} settings={settings} setTab={setTab} groomers={groomers} />}
         {tab === 'home' && isViewer && (
@@ -1745,7 +1745,7 @@ function AppMain() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={vans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
-        {tab === 'superadmin' && isSuperAdmin && <SuperAdminTab />}
+        {tab === 'superadmin' && isSuperAdmin && <SuperAdminTab onLogout={() => setSession(null)} />}
         {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
         {tab === 'week' && canViewReports && <WeekTab vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} lockedCompanyId={isFinance ? session.companyId : null} />}

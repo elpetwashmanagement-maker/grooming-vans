@@ -6,7 +6,7 @@ const supabase = createClient(
   "sb_publishable_lhP4mOguArbd8w-GFDn1CA_8lqEyseT"
 );
 
-export default function SuperAdminTab() {
+export default function SuperAdminTab({ onLogout }) {
   const [tenants, setTenants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -60,6 +60,10 @@ export default function SuperAdminTab() {
           <div style={{ fontFamily: 'Fraunces, serif', fontSize: 24, fontWeight: 800 }}>🏨 Hotel Raykota</div>
           <div style={{ fontSize: 13, color: '#64748b' }}>Super Admin — All Tenants</div>
         </div>
+        <button onClick={onLogout}
+          style={{ background: '#f1f5f9', border: 'none', borderRadius: 10, padding: '10px 16px', color: '#64748b', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>
+          🚪 Logout
+        </button>
         <button onClick={() => setShowAddForm(true)}
           style={{ background: '#0f766e', border: 'none', borderRadius: 10, padding: '10px 16px', color: '#fff', cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>
           ➕ New Tenant
