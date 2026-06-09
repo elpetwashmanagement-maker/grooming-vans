@@ -1480,6 +1480,7 @@ function AppMain() {
     if (!session) return;
     if (session.role === 'groomer') setTab('home');
     if (session.role === 'admin' || session.role === 'manager') setTab('home');
+    if (session.role === 'superadmin') setTab('superadmin');
     if (session.role === 'viewer') setTab('appointments');
     if (session.role === 'finance') setTab('week');
   }, [session?.role]);
@@ -2341,7 +2342,7 @@ function LoginScreen({ users, vans, groomers: groomersList, companies, onLogin, 
       if (!appUser) { setError('User not configured'); setLoggingIn(false); return; }
       onLogin({
         userId: data.user.id, userName: appUser.name, role: appUser.role,
-        vanId: null, commissionPct: 0, companyId: 'epw',
+        vanId: null, commissionPct: 0, companyId: appUser.role === 'superadmin' ? 'raykota' : 'epw',
         permissions: {
           can_create_clients: true, can_view_clients: true, can_schedule: true,
           can_view_all_schedule: true, can_view_finances: appUser.role === 'admin',
