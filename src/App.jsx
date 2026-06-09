@@ -8,6 +8,7 @@ import { ModulesProvider, useModulesContext } from "./context/ModulesContext";
 import { ModuleGuard } from "./components/ModuleGuard";
 import { RaykotaPay } from "./components/RaykotaPay";
 import { RouteMapView } from "./components/RouteMapView";
+import SuperAdminTab from "./components/SuperAdminTab";
 import { ModulesAdmin } from "./components/ModulesAdmin";
 import { AlertsPanel } from "./components/AlertsPanel";
 import { CombosAdmin, ComboChip, DEFAULT_COMBOS, DEFAULT_BLADES } from "./components/CombosAdmin";
@@ -1646,6 +1647,7 @@ function AppMain() {
 
   const isAdmin = session.role === 'admin';
   const isManager = session.role === 'manager';
+  const isSuperAdmin = session.role === 'superadmin';
   const isGroomer = session.role === 'groomer';
   const isViewer = session.role === 'viewer' || session.role === 'viewer-epw' || session.role === 'viewer-atw';
   const isFinance = session.role === 'finance';
@@ -1742,6 +1744,7 @@ function AppMain() {
           />
         )}
         {tab === 'cierre' && <CierreTab vans={vans} services={visibleServices} expenses={visibleExpenses} isAdmin={canViewAllSchedule} settings={settings} />}
+        {tab === 'superadmin' && isSuperAdmin && <SuperAdminTab />}
         {tab === 'boarding' && <ModuleGuard module="boarding"><BoardingTab clients={clients} pets={pets} session={session} settings={settings} /></ModuleGuard>}
         {tab === 'week' && canViewReports && <WeekTab vans={(isViewer || isFinance) ? visibleVans : vans} services={(isViewer || isFinance) ? services.filter(s => visibleVans.some(v => v.id === s.vanId)) : services} expenses={expenses} settings={settings} appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments} groomers={(isViewer || isFinance) ? groomers.filter(g => visibleVans.some(v => v.id === g.vanId)) : groomers} />}
         {tab === 'dashboard' && (isAdmin || isFinance) && <DashboardTab vans={vans} services={services} expenses={expenses} settings={settings} appointments={appointments} groomers={groomers} companies={companies} companyExpenses={companyExpenses} vanLocations={vanLocations} lockedCompanyId={isFinance ? session.companyId : null} />}
