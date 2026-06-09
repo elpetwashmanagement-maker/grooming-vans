@@ -1707,7 +1707,7 @@ function AppMain() {
         {tab === 'appointments' && (
           <AppointmentsTab
             appointments={(isViewer || isFinance) ? appointments.filter(a => visibleVans.some(v => v.id === a.vanId)) : appointments}
-            vans={vans} clients={clients} pets={pets}
+            vans={vans} clients={clients} pets={pets} onPetUpdated={(updatedPet) => setPets(prev => prev.map(p => String(p.id) === String(updatedPet.id) ? {...p, ...updatedPet} : p))}
             session={{ ...session, groomers }} settings={settings} isAdmin={isAdmin || session?.role === 'manager'}
             canViewAllSchedule={canViewAllSchedule} updateApptStatus={updateApptStatus}
             addAppointment={isViewer ? () => {} : addAppointment} addClient={addClient} addPet={addPet}
@@ -4317,8 +4317,9 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                       <button onClick={async () => {
                         await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: parseFloat(editPetInlineForm.weight) || 0 }).eq('id', editingPetInline);
+                        onPetUpdated({ id: editingPetInline, ...editPetInlineForm });
                         setEditingPetInline(null);
-                        alert('✅ Pet updated! Please close and reopen this form to see updated prices.');
+                        alert('✅ Pet updated!');
                         setEditingPetInline(null);
                       }} style={{ flex: 2, padding: '6px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Save</button>
                     </div>
