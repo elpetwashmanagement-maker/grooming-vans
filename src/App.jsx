@@ -4317,8 +4317,8 @@ function AppointmentsTab({ appointments, vans, clients, pets, session, settings,
                       <button onClick={() => setEditingPetInline(null)} style={{ flex: 1, padding: '6px', background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>Cancel</button>
                       <button onClick={async () => {
                         await supabase.from('pets').update({ size: editPetInlineForm.size, hair_type: editPetInlineForm.hair_type, breed: editPetInlineForm.breed, weight: parseFloat(editPetInlineForm.weight) || 0 }).eq('id', editingPetInline);
-                        await refreshPets();
                         await refreshAppointments();
+                        window.location.reload();
                         setEditingPetInline(null);
                       }} style={{ flex: 2, padding: '6px', background: '#0f766e', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>Save</button>
                     </div>
