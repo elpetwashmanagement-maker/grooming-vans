@@ -6144,7 +6144,7 @@ function BoardingTab({ clients, pets, session, settings }) {
     return Math.max(0, Math.round((new Date(b) - new Date(a)) / 86400000));
   };
 
-  const calcTotal = (f) => nights(f.checkIn, f.checkOut) * (BOARDING_PRICES[f.size]?.price || 40) + (f.includesBath ? (f.bathPrice || 0) : 0);
+  const calcTotal = (f) => nights(f.checkIn, f.checkOut) * (BOARDING_PRICES[f.size]?.price || 40) + (f.includesBath ? (f.bathPrice || 0) : 0) + (f.earlyCheckInFee || 0) + (f.lateCheckInFee || 0) + (f.lateCheckOutFee || 0);
 
   const resetForm = () => { setForm({...emptyForm}); setActiveSection('basic'); };
 
@@ -6384,10 +6384,64 @@ function BoardingTab({ clients, pets, session, settings }) {
                   </select>
                 </div>
               )}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:8 }}>
                 <div><label style={lbl}>Check-in *</label><input type="date" value={form.checkIn} onChange={e=>setForm(f=>({...f,checkIn:e.target.value}))} style={inp} /></div>
                 <div><label style={lbl}>Check-out *</label><input type="date" value={form.checkOut} min={form.checkIn} onChange={e=>setForm(f=>({...f,checkOut:e.target.value}))} style={inp} /></div>
               </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:8 }}>
+                <div>
+                  <label style={lbl}>Check-in Time</label>
+                  <select value={form.checkInTime || '12:00'} onChange={e => {
+                    const t = e.target.value;
+                    const earlyFee = t < '12:00' ? 25 : 0;
+                    const lateNightFee = t >= '20:00' ? 25 : 0;
+                    setForm(f => ({...f, checkInTime: t, earlyCheckInFee: earlyFee, lateCheckInFee: lateNightFee}));
+                  }} style={inp}>
+                    <option value="08:00">8:00 AM ⚡ Early (+$25)</option>
+                    <option value="09:00">9:00 AM ⚡ Early (+$25)</option>
+                    <option value="10:00">10:00 AM ⚡ Early (+$25)</option>
+                    <option value="11:00">11:00 AM ⚡ Early (+$25)</option>
+                    <option value="12:00">12:00 PM (Standard)</option>
+                    <option value="13:00">1:00 PM</option>
+                    <option value="14:00">2:00 PM</option>
+                    <option value="15:00">3:00 PM</option>
+                    <option value="16:00">4:00 PM</option>
+                    <option value="17:00">5:00 PM</option>
+                    <option value="18:00">6:00 PM</option>
+                    <option value="19:00">7:00 PM</option>
+                    <option value="20:00">8:00 PM 🌙 Late (+$25)</option>
+                    <option value="21:00">9:00 PM 🌙 Late (+$25)</option>
+                    <option value="22:00">10:00 PM 🌙 Late (+$25)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Check-out Time</label>
+                  <select value={form.checkOutTime || '11:00'} onChange={e => {
+                    const t = e.target.value;
+                    const lateFee = t > '11:00' ? 25 : 0;
+                    setForm(f => ({...f, checkOutTime: t, lateCheckOutFee: lateFee}));
+                  }} style={inp}>
+                    <option value="08:00">8:00 AM</option>
+                    <option value="09:00">9:00 AM</option>
+                    <option value="10:00">10:00 AM</option>
+                    <option value="11:00">11:00 AM (Standard)</option>
+                    <option value="12:00">12:00 PM ⏰ Late (+$25)</option>
+                    <option value="13:00">1:00 PM ⏰ Late (+$25)</option>
+                    <option value="14:00">2:00 PM ⏰ Late (+$25)</option>
+                    <option value="15:00">3:00 PM ⏰ Late (+$25)</option>
+                    <option value="16:00">4:00 PM ⏰ Late (+$25)</option>
+                    <option value="17:00">5:00 PM ⏰ Late (+$25)</option>
+                  </select>
+                </div>
+              </div>
+              {((form.checkInTime && form.checkInTime < '12:00') || (form.checkInTime && form.checkInTime >= '20:00') || (form.checkOutTime && form.checkOutTime > '11:00')) && (
+                <div style={{ background:'#fffbeb', border:'1px solid #fcd34d', borderRadius:8, padding:'8px 12px', marginBottom:8, fontSize:12, color:'#92400e' }}>
+                  ⚡ Special time fees:
+                  {form.checkInTime < '12:00' && <span> Early check-in +$25</span>}
+                  {form.checkInTime >= '20:00' && <span> Late check-in +$25</span>}
+                  {form.checkOutTime > '11:00' && <span> Late check-out +$25</span>}
+                </div>
+              )}
               <div style={{ marginBottom:12 }}>
                 <label style={lbl}>Size & Price per Night</label>
                 <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:6 }}>
